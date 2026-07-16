@@ -5,4 +5,6 @@ pub enum ExecutorError {
 
     ServiceError(String),
 
+    NixosError(String),
+
 }

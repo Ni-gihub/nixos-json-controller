@@ -15,8 +15,13 @@ impl Planner {
     ) -> ExecutionPlan {
 
         ExecutionPlan {
+
             action,
+
             target,
+
+            dry_run: false,
+
         }
 
     }

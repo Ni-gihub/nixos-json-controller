@@ -1,6 +1,7 @@
 use std::process::Command;
 
 
+
 pub fn build_command() -> Command {
 
     let mut command =
@@ -8,40 +9,27 @@ pub fn build_command() -> Command {
             "nixos-rebuild"
         );
 
+    command.args([
+        "switch",
+        "--flake",
+        ".#default",
+    ]);
 
     command
-        .arg("switch");
-
-
-    command
-
 }
 
 
 
 pub fn switch() -> Result<(), String> {
 
-
     let status =
         build_command()
             .status()
-            .map_err(
-                |e|
-                e.to_string()
-            )?;
-
+            .map_err(|e| e.to_string())?;
 
     if status.success() {
-
         Ok(())
-
     } else {
-
-        Err(
-            "nixos-rebuild failed"
-                .to_string()
-        )
-
+        Err("nixos-rebuild failed".to_string())
     }
-
 }

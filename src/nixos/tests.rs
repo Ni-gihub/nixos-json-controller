@@ -5,7 +5,6 @@ use super::{
     generator::NixModule,
 };
 
-
 #[test]
 fn module_add_package() {
 
@@ -172,30 +171,100 @@ fn generate_empty_package_module() {
 
 
 #[test]
+fn create_rebuild_command() {
+
+    let command =
+        rebuild::build_command();
+
+    assert_eq!(
+        command
+            .get_program()
+            .to_str()
+            .unwrap(),
+        "nixos-rebuild"
+    );
+
+    let args: Vec<_> =
+        command
+            .get_args()
+            .map(|a| {
+                a.to_str().unwrap()
+            })
+            .collect();
+
+    assert_eq!(
+        args,
+        vec![
+            "switch",
+            "--flake",
+            ".#default",
+        ]
+    );
+
+}
+
+
+#[test]
+fn create_flake() {
+
+    flake::ensure_flake()
+        .unwrap();
+
+
+    assert!(
+        std::path::Path::new(
+            "flake.nix"
+        )
+        .exists()
+    );
+
+
+    assert!(
+        std::path::Path::new(
+            "modules/generated.nix"
+        )
+        .parent()
+        .unwrap()
+        .exists()
+    );
+
+}
+
+#[test]
+fn ensure_modules_directory() {
+
+    flake::ensure_modules()
+        .unwrap();
+
+    assert!(
+        std::path::Path::new(
+            "modules"
+        )
+        .exists()
+    );
+
+}
+
+
+#[test]
 fn write_generated_module() {
 
-
-    let path =
-        "/tmp/test-module.nix";
-
-
     let content =
-        "environment.systemPackages = with pkgs; [ firefox ];";
-
-
-    flake::write_module(
-        path
-    )
-
-    .unwrap();
-
-
-    let result =
-        std::fs::read_to_string(
-            path
+        module::add_package(
+            "firefox"
         )
         .unwrap();
 
+    flake::write_module(
+        &content
+    )
+    .unwrap();
+
+    let result =
+        std::fs::read_to_string(
+            "modules/generated.nix"
+        )
+        .unwrap();
 
     assert!(
         result.contains(
@@ -203,81 +272,45 @@ fn write_generated_module() {
         )
     );
 
-
-}
-
-
-
-#[test]
-fn create_rebuild_command() {
-
-
-    let command =
-        rebuild::build_command();
-
-
-    let program =
-        command
-            .get_program()
-            .to_str()
-            .unwrap();
-
-
-    assert_eq!(
-        program,
-        "nixos-rebuild"
-    );
-
-
-    let args =
-        command
-            .get_args()
-            .collect::<Vec<_>>();
-
-
-    assert_eq!(
-        args.len(),
-        1
-    );
-
-
-    assert_eq!(
-        args[0],
-        "switch"
-    );
-
 }
 
 
 #[test]
-fn write_configuration_file() {
+fn ensure_generated_module_import() {
 
-    let content =
-        "environment.systemPackages = [ pkgs.firefox ];";
+    let sample = r#"
+{
+  outputs = { self, nixpkgs }: {
 
+    nixosConfigurations.default =
+      nixpkgs.lib.nixosSystem {
 
-    let result =
-        flake::write_module(
-            content
-        );
+        system = "x86_64-linux";
 
+        modules = [
+        ];
 
-    assert!(
-        result.is_ok()
-    );
+      };
 
+  };
+}
+"#;
 
-    let file =
-        std::fs::read_to_string(
-            "configuration.nix"
-        )
+    std::fs::write(
+        "flake.nix",
+        sample,
+    )
+    .unwrap();
+
+    super::import::ensure_generated_module()
         .unwrap();
 
+    let result =
+        std::fs::read_to_string("flake.nix")
+            .unwrap();
 
     assert!(
-        file.contains(
-            "firefox"
-        )
+        result.contains("./modules/generated.nix")
     );
 
 }

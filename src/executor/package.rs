@@ -1,61 +1,77 @@
+use crate::command::Action;
 use crate::nixos;
-
+use crate::planner::ExecutionPlan;
 
 use super::error::ExecutorError;
 
 
 
-pub fn install(
-    package: &str
+pub fn execute(
+    plan: ExecutionPlan,
 ) -> Result<(), ExecutorError> {
 
+    match plan.action {
 
-    let module =
-        nixos::module::add_package(
-            package
+        Action::InstallPackage => {
+
+            let content =
+                nixos::flake::read_pkgs()
+                    .map_err(
+                        ExecutorError::NixosError,
+                    )?;
+
+            let updated =
+                nixos::module::add_package_to_content(
+                    &content,
+                    &plan.target.name,
+                )
+                .map_err(
+                    ExecutorError::NixosError,
+                )?;
+
+            nixos::flake::write_pkgs(
+                &updated,
+            )
+            .map_err(
+                ExecutorError::NixosError,
+            )?;
+
+        }
+
+
+
+        Action::RemovePackage => {
+
+    let content =
+        nixos::flake::read_pkgs()
+            .map_err(
+                ExecutorError::NixosError,
+            )?;
+
+    let content =
+        nixos::module::remove_package_from_content(
+            &content,
+            &plan.target.name,
         )
         .map_err(
-            ExecutorError::PackageError
+            ExecutorError::NixosError,
         )?;
 
-
-    nixos::flake::write_module(
-        &module
+    nixos::flake::write_pkgs(
+        &content,
     )
     .map_err(
-        ExecutorError::PackageError
+        ExecutorError::NixosError,
     )?;
-
-
-    Ok(())
 
 }
 
 
 
+        _ => {}
 
-pub fn remove(
-    package: &str
-) -> Result<(), ExecutorError> {
-
-
-    let module =
-        nixos::module::remove_package(
-            package
-        )
-        .map_err(
-            ExecutorError::PackageError
-        )?;
-
-
-    nixos::flake::write_module(
-        &module
-    )
-    .map_err(
-            ExecutorError::PackageError
-    )?;
+    }
 
 
     Ok(())
-
 }

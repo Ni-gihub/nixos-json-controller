@@ -1,91 +1,30 @@
-use super::{
-    flake,
-    module,
-    rebuild,
-    generator::NixModule,
-};
-
-#[test]
-fn module_add_package() {
-
-
-    let result =
-        module::add_package(
-            "firefox"
-        )
-        .unwrap();
-
-
-    assert!(
-        result.contains(
-            "firefox"
-        )
-    );
-
-
-}
+use super::flake;
+use super::generator::NixModule;
+use super::module;
+use super::rebuild;
 
 
 
 #[test]
-fn remove_package() {
+fn generate_empty_package_module() {
+
+    let module =
+        NixModule {
+            packages: vec![],
+        };
+
 
     let result =
-        module::remove_package(
-            "firefox"
-        );
+        module.generate();
 
 
-    assert!(
-        result.is_ok()
+    assert_eq!(
+        result,
+        "environment.systemPackages = with pkgs; [\n];\n"
     );
 
 }
 
-
-
-#[test]
-fn module_enable_service() {
-
-
-    let result =
-        module::enable_service(
-            "openssh"
-        )
-        .unwrap();
-
-
-    assert!(
-        result.contains(
-            "openssh"
-        )
-    );
-
-
-    assert!(
-        result.contains(
-            "true"
-        )
-    );
-
-}
-
-
-
-#[test]
-fn disable_service() {
-
-    let result =
-        module::disable_service(
-            "openssh"
-        );
-
-
-    assert!(
-        result.is_ok()
-    );
-
-}
 
 
 #[test]
@@ -103,15 +42,9 @@ fn generate_single_package_module() {
         module.generate();
 
 
-    assert!(
-        result.contains("firefox")
-    );
-
-
-    assert!(
-        result.contains(
-            "environment.systemPackages"
-        )
+    assert_eq!(
+        result,
+        "environment.systemPackages = with pkgs; [\n  firefox\n];\n"
     );
 
 }
@@ -125,7 +58,8 @@ fn generate_multiple_package_module() {
         NixModule {
             packages: vec![
                 "firefox".to_string(),
-                "vim".to_string(),
+                "git".to_string(),
+                "curl".to_string(),
             ],
         };
 
@@ -134,13 +68,9 @@ fn generate_multiple_package_module() {
         module.generate();
 
 
-    assert!(
-        result.contains("firefox")
-    );
-
-
-    assert!(
-        result.contains("vim")
+    assert_eq!(
+        result,
+        "environment.systemPackages = with pkgs; [\n  firefox\n  git\n  curl\n];\n"
     );
 
 }
@@ -148,22 +78,138 @@ fn generate_multiple_package_module() {
 
 
 #[test]
-fn generate_empty_package_module() {
+fn module_add_package() {
 
-    let module =
-        NixModule {
-            packages: vec![],
-        };
+    let content =
+r#"{ config, pkgs, ... }:
+
+{
+environment.systemPackages = with pkgs; [
+  git
+  curl
+];
+}
+"#;
 
 
     let result =
-        module.generate();
+        module::add_package_to_content(
+            content,
+            "firefox",
+        )
+        .unwrap();
 
 
     assert!(
         result.contains(
-            "environment.systemPackages"
+            "  firefox"
         )
+    );
+
+
+    assert!(
+        result.contains(
+            "  git"
+        )
+    );
+
+
+    assert!(
+        result.contains(
+            "  curl"
+        )
+    );
+
+}
+
+
+
+#[test]
+fn module_add_package_keeps_existing_content() {
+
+    let content =
+r#"{ config, pkgs, ... }:
+
+{
+environment.systemPackages = with pkgs; [
+  git
+];
+
+nixpkgs.config.allowUnfree = true;
+}
+"#;
+
+
+    let result =
+        module::add_package_to_content(
+            content,
+            "firefox",
+        )
+        .unwrap();
+
+
+    assert!(
+        result.contains(
+            "  git"
+        )
+    );
+
+
+    assert!(
+        result.contains(
+            "  firefox"
+        )
+    );
+
+
+    assert!(
+        result.contains(
+            "nixpkgs.config.allowUnfree = true;"
+        )
+    );
+
+}
+
+
+
+#[test]
+fn module_add_package_requires_package_section() {
+
+    let content =
+r#"{ config, pkgs, ... }:
+
+{
+}
+"#;
+
+
+    let result =
+        module::add_package_to_content(
+            content,
+            "firefox",
+        );
+
+
+    assert!(
+        result.is_err()
+    );
+
+}
+
+
+
+#[test]
+fn repository_paths() {
+
+    assert_eq!(
+        flake::repository_path(),
+        "../nix-config"
+    );
+
+
+    assert_eq!(
+        flake::pkgs_path(),
+        "../nix-config/modules/pkgs.nix"
     );
 
 }
@@ -176,95 +222,55 @@ fn create_rebuild_command() {
     let command =
         rebuild::build_command();
 
+
     assert_eq!(
         command
             .get_program()
             .to_str()
             .unwrap(),
-        "nixos-rebuild"
+        "sudo"
     );
+
 
     let args: Vec<_> =
         command
             .get_args()
-            .map(|a| {
-                a.to_str().unwrap()
-            })
+            .map(
+                |arg| {
+                    arg.to_str()
+                        .unwrap()
+                }
+            )
             .collect();
+
 
     assert_eq!(
         args,
         vec![
+            "nixos-rebuild",
             "switch",
             "--flake",
-            ".#default",
+            "../nix-config#laptop",
         ]
     );
-
 }
 
 
-#[test]
-fn create_flake() {
-
-    flake::ensure_flake()
-        .unwrap();
-
-
-    assert!(
-        std::path::Path::new(
-            "flake.nix"
-        )
-        .exists()
-    );
-
-
-    assert!(
-        std::path::Path::new(
-            "modules/generated.nix"
-        )
-        .parent()
-        .unwrap()
-        .exists()
-    );
-
-}
 
 #[test]
-fn ensure_modules_directory() {
+fn generate_module_contains_package() {
 
-    flake::ensure_modules()
-        .unwrap();
+    let module =
+        NixModule {
+            packages: vec![
+                "firefox".to_string(),
+            ],
+        };
 
-    assert!(
-        std::path::Path::new(
-            "modules"
-        )
-        .exists()
-    );
-
-}
-
-
-#[test]
-fn write_generated_module() {
-
-    let content =
-        module::add_package(
-            "firefox"
-        )
-        .unwrap();
-
-    flake::write_module(
-        &content
-    )
-    .unwrap();
 
     let result =
-        std::fs::read_to_string(
-            "modules/generated.nix"
-        )
-        .unwrap();
+        module.generate();
+
 
     assert!(
         result.contains(
@@ -272,45 +278,11 @@ fn write_generated_module() {
         )
     );
 
-}
-
-
-#[test]
-fn ensure_generated_module_import() {
-
-    let sample = r#"
-{
-  outputs = { self, nixpkgs }: {
-
-    nixosConfigurations.default =
-      nixpkgs.lib.nixosSystem {
-
-        system = "x86_64-linux";
-
-        modules = [
-        ];
-
-      };
-
-  };
-}
-"#;
-
-    std::fs::write(
-        "flake.nix",
-        sample,
-    )
-    .unwrap();
-
-    super::import::ensure_generated_module()
-        .unwrap();
-
-    let result =
-        std::fs::read_to_string("flake.nix")
-            .unwrap();
 
     assert!(
-        result.contains("./modules/generated.nix")
+        result.contains(
+            "environment.systemPackages"
+        )
     );
 
 }

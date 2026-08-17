@@ -1,94 +1,77 @@
 use std::fs;
-use std::path::Path;
 
-const MODULES_DIR: &str = "modules";
-const GENERATED_MODULE: &str = "modules/generated.nix";
-
-
-
-pub fn ensure_modules() -> Result<(), String> {
-
-    if !Path::new(
-        MODULES_DIR
-    )
-    .exists()
-    {
-
-        fs::create_dir_all(
-            MODULES_DIR
-        )
-        .map_err(
-            |e| e.to_string()
-        )?;
-
-    }
-
-    Ok(())
-
-}
+const NIX_CONFIG_REPOSITORY: &str = "../nix-config";
+const PKGS_FILE: &str = "../nix-config/modules/pkgs.nix";
+const CORE_FILE: &str = "../nix-config/modules/core.nix";
 
 
 
-pub fn ensure_flake() -> Result<(), String> {
-
-    if Path::new(
-        "flake.nix"
-    )
-    .exists()
-    {
-
-        return Ok(());
-
-    }
-
-
-    let flake =
-r#"
-{
-  outputs = { self, nixpkgs }:
-  {
-    nixosConfigurations.default =
-      nixpkgs.lib.nixosSystem {
-
-        system = "x86_64-linux";
-
-        modules = [
-          ./modules/generated.nix
-        ];
-      };
-  };
-}
-"#;
-
-
-    fs::write(
-        "flake.nix",
-        flake
-    )
-    .map_err(
-        |e| e.to_string()
-    )?;
-
-    Ok(())
-
-}
-
-
-
-pub fn write_module(
-    content: &str
+pub fn write_pkgs(
+    content: &str,
 ) -> Result<(), String> {
 
-    ensure_modules()?;
-
     fs::write(
-        GENERATED_MODULE,
-        content
+        PKGS_FILE,
+        content,
     )
     .map_err(
-        |e| e.to_string()
+        |e| e.to_string(),
     )?;
 
     Ok(())
+}
+
+
+
+pub fn write_core(
+    content: &str,
+) -> Result<(), String> {
+
+    fs::write(
+        CORE_FILE,
+        content,
+    )
+    .map_err(
+        |e| e.to_string(),
+    )?;
+
+    Ok(())
+}
+
+
+
+pub fn read_pkgs() -> Result<String, String> {
+    std::fs::read_to_string(
+        pkgs_path(),
+    )
+    .map_err(|e| e.to_string())
+}
+
+
+
+
+pub fn read_core() -> Result<String, String> {
+
+    fs::read_to_string(
+        CORE_FILE,
+    )
+    .map_err(
+        |e| e.to_string(),
+    )
+}
+
+
+
+pub fn repository_path() -> &'static str {
+
+    NIX_CONFIG_REPOSITORY
+
+}
+
+
+
+pub fn pkgs_path() -> &'static str {
+
+    PKGS_FILE
 
 }

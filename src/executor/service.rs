@@ -1,60 +1,79 @@
+use crate::command::Action;
 use crate::nixos;
-
+use crate::planner::ExecutionPlan;
 
 use super::error::ExecutorError;
 
 
 
-pub fn enable(
-    service: &str
+pub fn execute(
+    plan: ExecutionPlan,
 ) -> Result<(), ExecutorError> {
 
+    match plan.action {
 
-    let module =
-        nixos::module::enable_service(
-            service
-        )
-        .map_err(
-            ExecutorError::ServiceError
-        )?;
+        Action::EnableService => {
+
+            let content =
+                nixos::flake::read_core()
+                    .map_err(
+                        ExecutorError::NixosError,
+                    )?;
+
+            let updated =
+                nixos::module::add_service_to_content(
+                    &content,
+                    &plan.target.name,
+                    true,
+                )
+                .map_err(
+                    ExecutorError::NixosError,
+                )?;
+
+            nixos::flake::write_core(
+                &updated,
+            )
+            .map_err(
+                ExecutorError::NixosError,
+            )?;
+
+        }
 
 
-    nixos::flake::write_module(
-        &module
-    )
-    .map_err(
-        ExecutorError::ServiceError
-    )?;
+
+        Action::DisableService => {
+
+            let content =
+                nixos::flake::read_core()
+                    .map_err(
+                        ExecutorError::NixosError,
+                    )?;
+
+            let updated =
+                nixos::module::add_service_to_content(
+                    &content,
+                    &plan.target.name,
+                    false,
+                )
+                .map_err(
+                    ExecutorError::NixosError,
+                )?;
+
+            nixos::flake::write_core(
+                &updated,
+            )
+            .map_err(
+                ExecutorError::NixosError,
+            )?;
+
+        }
+
+
+
+        _ => {}
+
+    }
 
 
     Ok(())
-
-}
-
-
-
-pub fn disable(
-    service: &str
-) -> Result<(), ExecutorError> {
-
-
-    let module =
-        nixos::module::disable_service(
-            service
-        )
-        .map_err(
-            ExecutorError::ServiceError
-        )?;
-
-
-    nixos::flake::write_module(
-        &module
-    )
-    .map_err(
-        ExecutorError::ServiceError
-    )?;
-
-
-    Ok(())
-
 }

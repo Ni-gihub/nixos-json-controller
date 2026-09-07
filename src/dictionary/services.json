@@ -1,0 +1,40 @@
+{
+  "openssh": [
+    "openssh",
+    "ssh",
+    "sshd",
+    "sshサーバー",
+    "sshサーバ",
+    "リモートログイン"
+  ],
+  "docker": [
+    "docker",
+    "ドッカー",
+    "dockerデーモン",
+    "コンテナ"
+  ],
+  "bluetooth": [
+    "bluetooth",
+    "bluetoothサービス",
+    "ブルートゥース",
+    "ブルートゥースサービス"
+  ],
+  "networkmanager": [
+    "networkmanager",
+    "network manager",
+    "ネットワークマネージャー",
+    "ネットワーク管理"
+  ],
+  "pipewire": [
+    "pipewire",
+    "pipe wire",
+    "パイプワイヤー",
+    "音声サービス"
+  ],
+  "cups": [
+    "cups",
+    "印刷",
+    "プリンター",
+    "印刷サービス"
+  ]
+}

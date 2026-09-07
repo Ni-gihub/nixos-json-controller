@@ -1,0 +1,126 @@
+{
+  "firefox": [
+    "firefox",
+    "ファイアフォックス",
+    "ファイヤーフォックス",
+    "火狐"
+  ],
+  "google-chrome": [
+    "google-chrome",
+    "google chrome",
+    "chrome",
+    "グーグルクローム",
+    "グーグルクロム",
+    "クローム",
+    "グーグル",
+    "google"
+  ],
+  "vscode": [
+    "vscode",
+    "vs code",
+    "vs-code",
+    "visual studio code",
+    "ビジュアルスタジオコード",
+    "コード",
+    "VSコード"
+  ],
+  "git": [
+    "git",
+    "ギット",
+    "ギットハブ用git"
+  ],
+  "python3": [
+    "python3",
+    "python",
+    "py",
+    "パイソン",
+    "パイソン3"
+  ],
+  "gnumake": [
+    "gnumake",
+    "gnu make",
+    "make",
+    "メイク"
+  ],
+  "curl": [
+    "curl",
+    "カール"
+  ],
+  "wget": [
+    "wget",
+    "ウェゲット",
+    "ダブリューゲット",
+    "ウィゲット"
+  ],
+  "ffmpeg": [
+    "ffmpeg",
+    "ffmpeg",
+    "エフエフエムペグ"
+  ],
+  "grim": [
+    "grim",
+    "グリム",
+    "スクリーンショット"
+  ],
+  "slurp": [
+    "slurp",
+    "スラープ",
+    "範囲選択"
+  ],
+  "wl-clipboard": [
+    "wl-clipboard",
+    "wl clipboard",
+    "wayland clipboard",
+    "waylandクリップボード",
+    "クリップボード"
+  ],
+  "gpu-screen-recorder": [
+    "gpu-screen-recorder",
+    "gpu screen recorder",
+    "gsr",
+    "画面録画",
+    "スクリーンレコーダー"
+  ],
+  "foot": [
+    "foot",
+    "フット",
+    "ターミナル",
+    "端末"
+  ],
+  "fuzzel": [
+    "fuzzel",
+    "フッゼル",
+    "アプリランチャー",
+    "ランチャー"
+  ],
+  "waybar": [
+    "waybar",
+    "ウェイバー",
+    "バー"
+  ],
+  "mako": [
+    "mako",
+    "マコ",
+    "通知",
+    "通知デーモン"
+  ],
+  "vesktop": [
+    "vesktop",
+    "discord",
+    "ディスコード",
+    "Discord"
+  ],
+  "nodejs": [
+    "nodejs",
+    "node.js",
+    "node",
+    "ノード",
+    "ノードjs"
+  ],
+  "gcc": [
+    "gcc",
+    "gnu gcc",
+    "gccコンパイラ",
+    "コンパイラ"
+  ]
+}

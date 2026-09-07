@@ -55,7 +55,11 @@ pub fn run() -> Result<(), String> {
 
     Validator::validate(&command).map_err(|e| format!("{:?}", e))?;
 
-    let target = Resolver::resolve(command.target);
+    let target =
+    Resolver::resolve(
+        command.action.clone(),
+        command.target
+    )?;
 
     let plan = Planner::create(command.action, target);
 

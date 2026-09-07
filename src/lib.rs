@@ -1,4 +1,5 @@
 pub mod command;
+pub mod dictionary;
 pub mod executor;
 pub mod nixos;
 pub mod planner;

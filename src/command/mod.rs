@@ -3,7 +3,6 @@ pub mod command;
 pub mod parser;
 pub mod target;
 
-
 pub use parser::parse;
 
 pub use action::Action;

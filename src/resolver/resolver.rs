@@ -8,15 +8,7 @@ pub struct ResolvedTarget {
 pub struct Resolver;
 
 impl Resolver {
-
-    pub fn resolve(
-        target: Target,
-    ) -> ResolvedTarget {
-
-        ResolvedTarget {
-            name: target.raw,
-        }
-
+    pub fn resolve(target: Target) -> ResolvedTarget {
+        ResolvedTarget { name: target.raw }
     }
-
 }

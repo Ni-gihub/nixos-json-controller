@@ -2,7 +2,6 @@ use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 pub enum Action {
-
     #[serde(alias = "install_package")]
     #[serde(rename = "installpackage")]
     InstallPackage,
@@ -18,5 +17,4 @@ pub enum Action {
     #[serde(alias = "disable_service")]
     #[serde(rename = "disableservice")]
     DisableService,
-
 }

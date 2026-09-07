@@ -1,25 +1,15 @@
 use std::env;
 
 use nixos_json_controller::{
-    command::{
-        Action,
-        Command,
-        Target,
-    },
-    validator::Validator,
-    resolver::Resolver,
-    planner::Planner,
+    command::{Action, Command, Target},
     executor::Executor,
+    planner::Planner,
+    resolver::Resolver,
+    validator::Validator,
 };
 
-
 pub fn run() -> Result<(), String> {
-
-    let args: Vec<String> =
-        env::args()
-            .skip(1)
-            .collect();
-
+    let args: Vec<String> = env::args().skip(1).collect();
 
     if args.len() == 1 && (args[0] == "--help" || args[0] == "-h") {
         println!("usage: nxc [i|r|e|d] <target>");
@@ -34,93 +24,42 @@ pub fn run() -> Result<(), String> {
         return Ok(());
     }
 
+    let (action, target) = match args.as_slice() {
+        // nxc firefox
+        [target] => (Action::InstallPackage, target.clone()),
 
-    let (action, target) =
-        match args.as_slice() {
+        // nxc i firefox
+        [operation, target] => {
+            let action = match operation.as_str() {
+                "i" => Action::InstallPackage,
 
-            // nxc firefox
-            [target] => (
-                Action::InstallPackage,
-                target.clone()
-            ),
+                "r" => Action::RemovePackage,
 
-            // nxc i firefox
-            [operation, target] => {
+                "e" => Action::EnableService,
 
-                let action =
-                    match operation.as_str() {
+                "d" => Action::DisableService,
 
-                        "i" =>
-                            Action::InstallPackage,
+                _ => return Err("unknown operation. use i, r, e, or d".to_string()),
+            };
 
-                        "r" =>
-                            Action::RemovePackage,
+            (action, target.clone())
+        }
 
-                        "e" =>
-                            Action::EnableService,
+        _ => return Err("usage: nxc [i|r|e|d] <target>".to_string()),
+    };
 
-                        "d" =>
-                            Action::DisableService,
+    let command = Command {
+        action,
+        target: Target { raw: target },
+    };
 
-                        _ =>
-                            return Err(
-                                "unknown operation. use i, r, e, or d"
-                                    .to_string()
-                            ),
-                    };
+    Validator::validate(&command).map_err(|e| format!("{:?}", e))?;
 
+    let target = Resolver::resolve(command.target);
 
-                (
-                    action,
-                    target.clone()
-                )
-            },
+    let plan = Planner::create(command.action, target);
 
-            _ =>
-                return Err(
-                    "usage: nxc [i|r|e|d] <target>"
-                        .to_string()
-                ),
-        };
-
-
-    let command =
-        Command {
-            action,
-            target: Target {
-                raw: target,
-            },
-        };
-
-
-    Validator::validate(
-        &command
-    )
-    .map_err(
-        |e| format!("{:?}", e)
-    )?;
-
-
-    let target =
-        Resolver::resolve(
-            command.target
-        );
-
-
-    let plan =
-        Planner::create(
-            command.action,
-            target
-        );
-
-
-    Executor::execute(
-        plan
-    )
-    .map_err(
-        |e| format!("{:?}", e)
-    )?;
-
+    Executor::execute(plan).map_err(|e| format!("{:?}", e))?;
 
     Ok(())
 }

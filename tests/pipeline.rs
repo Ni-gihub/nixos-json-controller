@@ -1,15 +1,9 @@
 use nixos_json_controller::{
-    command::parser,
-    validator::Validator,
-    resolver::Resolver,
-    planner::Planner,
-    executor::Executor,
+    command::parser, executor::Executor, planner::Planner, resolver::Resolver, validator::Validator,
 };
 
-
 #[test]
-fn install_package_pipeline(){
-
+fn install_package_pipeline() {
     let json = r#"
     {
         "action":"install_package",
@@ -17,50 +11,26 @@ fn install_package_pipeline(){
     }
     "#;
 
-
     // JSON
-    let command =
-        parser::parse(json)
-        .unwrap();
-
+    let command = parser::parse(json).unwrap();
 
     // validation
-    Validator::validate(
-        &command
-    )
-    .unwrap();
-
+    Validator::validate(&command).unwrap();
 
     // resolve
-    let resolved =
-        Resolver::resolve(
-            command.target
-        );
-
+    let resolved = Resolver::resolve(command.target);
 
     // plan
-    let plan =
-        Planner::create(
-            command.action,
-            resolved
-        );
-
+    let plan = Planner::create(command.action, resolved);
 
     // execute
-    let result =
-        Executor::execute(
-            plan
-        );
+    let result = Executor::execute(plan);
 
-
-    assert!(
-        result.is_ok()
-    );
+    assert!(result.is_ok());
 }
 
 #[test]
-fn enable_service_pipeline(){
-
+fn enable_service_pipeline() {
     let json = r#"
     {
         "action":"enable_service",
@@ -68,45 +38,21 @@ fn enable_service_pipeline(){
     }
     "#;
 
+    let command = parser::parse(json).unwrap();
 
-    let command =
-        parser::parse(json)
-        .unwrap();
+    Validator::validate(&command).unwrap();
 
+    let resolved = Resolver::resolve(command.target);
 
-    Validator::validate(
-        &command
-    )
-    .unwrap();
+    let plan = Planner::create(command.action, resolved);
 
+    let result = Executor::execute(plan);
 
-    let resolved =
-        Resolver::resolve(
-            command.target
-        );
-
-
-    let plan =
-        Planner::create(
-            command.action,
-            resolved
-        );
-
-
-    let result =
-        Executor::execute(
-            plan
-        );
-
-
-    assert!(
-        result.is_ok()
-    );
+    assert!(result.is_ok());
 }
 
 #[test]
-fn remove_package_pipeline(){
-
+fn remove_package_pipeline() {
     let json = r#"
 {
     "action":"remove_package",
@@ -114,45 +60,21 @@ fn remove_package_pipeline(){
 }
 "#;
 
+    let command = parser::parse(json).unwrap();
 
-    let command =
-        parser::parse(json)
-        .unwrap();
+    Validator::validate(&command).unwrap();
 
+    let resolved = Resolver::resolve(command.target);
 
-    Validator::validate(
-        &command
-    )
-    .unwrap();
+    let plan = Planner::create(command.action, resolved);
 
+    let result = Executor::execute(plan);
 
-    let resolved =
-        Resolver::resolve(
-            command.target
-        );
-
-
-    let plan =
-        Planner::create(
-            command.action,
-            resolved
-        );
-
-
-    let result =
-        Executor::execute(
-            plan
-        );
-
-
-    assert!(
-        result.is_ok()
-    );
+    assert!(result.is_ok());
 }
 
 #[test]
-fn disable_service_pipeline(){
-
+fn disable_service_pipeline() {
     let json = r#"
 {
     "action":"disable_service",
@@ -160,32 +82,15 @@ fn disable_service_pipeline(){
 }
 "#;
 
-    let command =
-        parser::parse(json)
-        .unwrap();
+    let command = parser::parse(json).unwrap();
 
-    Validator::validate(
-        &command
-    )
-    .unwrap();
+    Validator::validate(&command).unwrap();
 
-    let resolved =
-        Resolver::resolve(
-            command.target
-        );
+    let resolved = Resolver::resolve(command.target);
 
-    let plan =
-        Planner::create(
-            command.action,
-            resolved
-        );
+    let plan = Planner::create(command.action, resolved);
 
-    let result =
-        Executor::execute(
-            plan
-        );
+    let result = Executor::execute(plan);
 
-    assert!(
-        result.is_ok()
-    );
+    assert!(result.is_ok());
 }

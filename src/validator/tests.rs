@@ -1,17 +1,8 @@
-use crate::command::{
-    Action,
-    Command,
-    Target,
-};
+use crate::command::{Action, Command, Target};
 
-use super::{
-    Validator,
-    ValidationError,
-};
-
+use super::{ValidationError, Validator};
 
 fn create_command(target: &str) -> Command {
-
     Command {
         action: Action::InstallPackage,
 
@@ -19,117 +10,54 @@ fn create_command(target: &str) -> Command {
             raw: target.to_string(),
         },
     }
-
 }
 
-
 #[test]
-fn accept_valid_target(){
+fn accept_valid_target() {
+    let command = create_command("firefox");
 
-    let command =
-        create_command("firefox");
+    let result = Validator::validate(&command);
 
-
-    let result =
-        Validator::validate(&command);
-
-
-    assert!(
-        result.is_ok()
-    );
+    assert!(result.is_ok());
 }
 
-
-
 #[test]
-fn reject_empty_target(){
+fn reject_empty_target() {
+    let command = create_command("");
 
-    let command =
-        create_command("");
+    let result = Validator::validate(&command);
 
-
-    let result =
-        Validator::validate(&command);
-
-
-    assert!(
-        matches!(
-            result,
-            Err(
-                ValidationError::EmptyTarget
-            )
-        )
-    );
+    assert!(matches!(result, Err(ValidationError::EmptyTarget)));
 }
 
-
-
 #[test]
-fn reject_whitespace_only_target(){
+fn reject_whitespace_only_target() {
+    let command = create_command("   ");
 
-    let command =
-        create_command("   ");
+    let result = Validator::validate(&command);
 
-
-    let result =
-        Validator::validate(&command);
-
-
-    assert!(
-        matches!(
-            result,
-            Err(
-                ValidationError::WhitespaceOnlyTarget
-            )
-        )
-    );
+    assert!(matches!(result, Err(ValidationError::WhitespaceOnlyTarget)));
 }
 
-
-
 #[test]
-fn reject_leading_trailing_whitespace(){
+fn reject_leading_trailing_whitespace() {
+    let command = create_command(" firefox ");
 
-    let command =
-        create_command(" firefox ");
+    let result = Validator::validate(&command);
 
-
-    let result =
-        Validator::validate(&command);
-
-    assert!(
-        matches!(
-            result,
-            Err(
-                ValidationError::LeadingOrTrailingWhitespace
-            )
-        )
-    );
+    assert!(matches!(
+        result,
+        Err(ValidationError::LeadingOrTrailingWhitespace)
+    ));
 }
 
-
-
 #[test]
-fn reject_too_long_target(){
+fn reject_too_long_target() {
+    let long_target = "a".repeat(101);
 
-    let long_target =
-        "a".repeat(101);
+    let command = create_command(&long_target);
 
+    let result = Validator::validate(&command);
 
-    let command =
-        create_command(&long_target);
-
-
-    let result =
-        Validator::validate(&command);
-
-
-    assert!(
-        matches!(
-            result,
-            Err(
-                ValidationError::TargetTooLong
-            )
-        )
-    );
+    assert!(matches!(result, Err(ValidationError::TargetTooLong)));
 }

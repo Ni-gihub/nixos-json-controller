@@ -1,31 +1,30 @@
 use std::fs;
 
-const FLAKE: &str = "flake.nix";
-
-
+use super::flake;
 
 pub fn ensure_generated_module() -> Result<(), String> {
+    let flake_path =
+        flake::repository_path()?;
+
+    let flake_file =
+        flake_path.join("flake.nix");
 
     let mut flake =
         fs::read_to_string(
-            FLAKE
+            &flake_file
         )
         .map_err(
             |e| e.to_string()
         )?;
 
-
     if flake.contains(
         "./modules/generated.nix"
     ) {
-
         return Ok(());
-
     }
 
-
-    let modules = "modules = [";
-
+    let modules =
+        "modules = [";
 
     let pos =
         flake
@@ -34,26 +33,21 @@ pub fn ensure_generated_module() -> Result<(), String> {
                 "modules section not found"
             )?;
 
-
     let insert =
         pos + modules.len();
-
 
     flake.insert_str(
         insert,
         "\n          ./modules/generated.nix"
     );
 
-
     fs::write(
-        FLAKE,
+        flake_file,
         flake
     )
     .map_err(
         |e| e.to_string()
     )?;
 
-
     Ok(())
-
 }

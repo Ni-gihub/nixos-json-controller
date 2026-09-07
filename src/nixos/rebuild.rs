@@ -2,19 +2,20 @@ use std::process::Command;
 
 use super::flake;
 
+pub fn build_command() -> Result<Command, String> {
 
-
-pub fn build_command() -> Command {
-
-    let mut command =
-        Command::new(
-            "sudo"
-        );
+    let flake_path =
+        flake::repository_path()?;
 
     let flake =
         format!(
             "{}#laptop",
-            flake::repository_path()
+            flake_path.display()
+        );
+
+    let mut command =
+        Command::new(
+            "sudo"
         );
 
     command.args([
@@ -24,14 +25,13 @@ pub fn build_command() -> Command {
         &flake,
     ]);
 
-    command
+    Ok(command)
 }
-
 
 pub fn switch() -> Result<(), String> {
 
     let status =
-        build_command()
+        build_command()?
             .status()
             .map_err(
                 |e| e.to_string()
@@ -47,7 +47,5 @@ pub fn switch() -> Result<(), String> {
             "nixos-rebuild failed"
                 .to_string()
         )
-
     }
-
 }

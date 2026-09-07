@@ -18,10 +18,7 @@ fn create_rebuild_command() {
 
     let _ = command;
 
-    assert_eq!(
-        plan.target.name,
-        "firefox"
-    );
+    assert_eq!(plan.target.name, "firefox");
 }
 
 #[test]
@@ -34,14 +31,9 @@ fn execute_dry_run() {
         dry_run: true,
     };
 
-    let result =
-        Executor::execute(
-            plan
-        );
+    let result = Executor::execute(plan);
 
-    assert!(
-        result.is_ok()
-    );
+    assert!(result.is_ok());
 }
 
 #[test]
@@ -54,15 +46,9 @@ fn execute_install_package() {
         dry_run: false,
     };
 
-    let result =
-        Executor::execute_with_rebuild(
-            plan,
-            false,
-        );
+    let result = Executor::execute_with_rebuild(plan, false);
 
-    assert!(
-        result.is_ok()
-    );
+    assert!(result.is_ok());
 }
 
 #[test]
@@ -75,15 +61,9 @@ fn execute_remove_package() {
         dry_run: false,
     };
 
-    let result =
-        Executor::execute_with_rebuild(
-            plan,
-            false,
-        );
+    let result = Executor::execute_with_rebuild(plan, false);
 
-    assert!(
-        result.is_ok()
-    );
+    assert!(result.is_ok());
 }
 
 #[test]
@@ -96,15 +76,9 @@ fn execute_enable_service() {
         dry_run: false,
     };
 
-    let result =
-        Executor::execute_with_rebuild(
-            plan,
-            false,
-        );
+    let result = Executor::execute_with_rebuild(plan, false);
 
-    assert!(
-        result.is_ok()
-    );
+    assert!(result.is_ok());
 }
 
 #[test]
@@ -117,13 +91,7 @@ fn execute_disable_service() {
         dry_run: false,
     };
 
-    let result =
-        Executor::execute_with_rebuild(
-            plan,
-            false,
-        );
+    let result = Executor::execute_with_rebuild(plan, false);
 
-    assert!(
-        result.is_ok()
-    );
+    assert!(result.is_ok());
 }

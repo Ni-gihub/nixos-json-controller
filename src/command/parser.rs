@@ -1,11 +1,6 @@
 use serde::Deserialize;
 
-use super::{
-    action::Action,
-    command::Command,
-    target::Target,
-};
-
+use super::{action::Action, command::Command, target::Target};
 
 #[derive(Debug, Deserialize)]
 struct RawCommand {
@@ -13,15 +8,11 @@ struct RawCommand {
     target: String,
 }
 
-
 pub fn parse(json: &str) -> Result<Command, serde_json::Error> {
-
     let raw: RawCommand = serde_json::from_str(json)?;
 
     Ok(Command {
         action: raw.action,
-        target: Target {
-            raw: raw.target,
-        },
+        target: Target { raw: raw.target },
     })
 }

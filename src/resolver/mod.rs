@@ -3,12 +3,7 @@ pub mod package;
 pub mod resolver;
 pub mod service;
 
-
-pub use resolver::{
-    Resolver,
-    ResolvedTarget,
-};
-
+pub use resolver::{ResolvedTarget, Resolver};
 
 #[cfg(test)]
 mod tests;

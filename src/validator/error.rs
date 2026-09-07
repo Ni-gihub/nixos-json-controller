@@ -1,6 +1,5 @@
 #[derive(Debug, PartialEq)]
 pub enum ValidationError {
-
     EmptyTarget,
 
     WhitespaceOnlyTarget,
@@ -8,5 +7,4 @@ pub enum ValidationError {
     LeadingOrTrailingWhitespace,
 
     TargetTooLong,
-
 }

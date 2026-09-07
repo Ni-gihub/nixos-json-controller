@@ -1,0 +1,97 @@
+# .coderabbit.yaml
+
+language: "ja"
+
+reviews:
+  profile: "assertive"
+
+  request_changes_workflow: false
+
+  high_level_summary: true
+  poem: false
+
+  auto_review:
+    enabled: true
+    drafts: false
+
+  path_instructions:
+    - path: "src/**/*.rs"
+      instructions: |
+        Rustコードをレビューするときは、以下を重視してください。
+
+        - エラーを握り潰していないか確認する
+        - Result / Option を適切に扱っているか確認する
+        - 不要な panic、unwrap、expect がないか確認する
+        - 入力値を安易に信頼していないか確認する
+        - 既存の責務分離を壊していないか確認する
+        - 不必要な複雑化や過剰な抽象化を避ける
+        - 既存テストへの影響を確認する
+
+    - path: "src/command/**/*.rs"
+      instructions: |
+        Command層では、外部入力を安全に構造化することを重視してください。
+
+        - action と target のバリデーションを確認する
+        - 未定義のactionを勝手に許可しない
+        - 未定義のフィールドを勝手に受け入れない
+        - 曖昧な入力を自動補完しない
+        - LLMや自然言語入力を信頼境界の外側として扱う
+
+    - path: "src/resolver/**/*.rs"
+      instructions: |
+        Resolverは入力を実際のNixOS操作へ結び付ける重要な層です。
+
+        - 入力から意図しない操作が生成されないか確認する
+        - 未知のpackageやserviceを勝手に推測・補完しない
+        - ResolverとExecutorの責務が混ざっていないか確認する
+
+    - path: "src/planner/**/*.rs"
+      instructions: |
+        Plannerでは、実行内容が明確かつ決定的であることを重視してください。
+
+        - 入力から実行計画が予測可能であること
+        - 暗黙的な操作を追加しないこと
+        - 意図しない変更を含めないこと
+        - Executorの責務をPlannerに持ち込まないこと
+
+    - path: "src/executor/**/*.rs"
+      instructions: |
+        Executorは実際にNixOS設定を変更する重要な実行境界です。
+
+        - 意図しないファイル変更が発生しないか確認する
+        - 意図しないコマンド実行が発生しないか確認する
+        - 外部コマンドの引数が安全に構築されているか確認する
+        - エラー時に中途半端な状態を残さないか確認する
+        - 入力値をシェルコマンドとして連結していないか確認する
+
+    - path: "src/nixos/**/*.rs"
+      instructions: |
+        NixOS設定を扱うコードでは安全性を最優先してください。
+
+        - flakeの対象を勝手に変更しない
+        - ユーザー固有の絶対パスをハードコードしない
+        - 現在の作業ディレクトリに依存する処理がないか確認する
+        - 意図しないconfiguration.nixやNix moduleの変更がないか確認する
+        - nixos-rebuildの対象が意図したflake/hostnameになっているか確認する
+        - NixOS設定の既存構造を壊さないか確認する
+
+    - path: "tests/**/*.rs"
+      instructions: |
+        テストでは、単に正常系が動くことだけでなく安全性を確認してください。
+
+        特に以下を確認してください。
+
+        - 不正なaction
+        - 空または空白だけのtarget
+        - 未知の入力
+        - 不正なJSON
+        - 意図しないNixOS設定変更
+        - コマンド実行失敗時のエラー処理
+
+  finishing_touches:
+    docstrings:
+      enabled: false
+    unit_tests:
+      enabled: true
+    unused_tests:
+      enabled: true

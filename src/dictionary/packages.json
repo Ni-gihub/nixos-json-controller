@@ -21,13 +21,11 @@
     "vs-code",
     "visual studio code",
     "ビジュアルスタジオコード",
-    "コード",
     "VSコード"
   ],
   "git": [
     "git",
-    "ギット",
-    "ギットハブ用git"
+    "ギット"
   ],
   "python3": [
     "python3",
@@ -54,61 +52,47 @@
   ],
   "ffmpeg": [
     "ffmpeg",
-    "ffmpeg",
     "エフエフエムペグ"
   ],
   "grim": [
     "grim",
-    "グリム",
-    "スクリーンショット"
+    "グリム"
   ],
   "slurp": [
     "slurp",
-    "スラープ",
-    "範囲選択"
+    "スラープ"
   ],
   "wl-clipboard": [
     "wl-clipboard",
     "wl clipboard",
     "wayland clipboard",
-    "waylandクリップボード",
-    "クリップボード"
+    "waylandクリップボード"
   ],
   "gpu-screen-recorder": [
     "gpu-screen-recorder",
     "gpu screen recorder",
-    "gsr",
-    "画面録画",
-    "スクリーンレコーダー"
+    "gsr"
   ],
   "foot": [
     "foot",
-    "フット",
-    "ターミナル",
-    "端末"
+    "フット"
   ],
   "fuzzel": [
     "fuzzel",
-    "フッゼル",
-    "アプリランチャー",
-    "ランチャー"
+    "フッゼル"
   ],
   "waybar": [
     "waybar",
-    "ウェイバー",
-    "バー"
+    "ウェイバー"
   ],
   "mako": [
     "mako",
-    "マコ",
-    "通知",
-    "通知デーモン"
+    "マコ"
   ],
   "vesktop": [
     "vesktop",
-    "discord",
-    "ディスコード",
-    "Discord"
+    "vesktop discord",
+    "ディスコード"
   ],
   "nodejs": [
     "nodejs",
@@ -120,7 +104,179 @@
   "gcc": [
     "gcc",
     "gnu gcc",
-    "gccコンパイラ",
-    "コンパイラ"
+    "gccコンパイラ"
+  ],
+
+  "chromium": [
+    "chromium",
+    "クロミウム",
+    "クロミアム"
+  ],
+  "brave": [
+    "brave",
+    "brave browser",
+    "ブレイブ",
+    "ブレイブブラウザ"
+  ],
+  "libreoffice": [
+    "libreoffice",
+    "libre office",
+    "リブレオフィス"
+  ],
+  "kitty": [
+    "kitty",
+    "キティ"
+  ],
+  "alacritty": [
+    "alacritty",
+    "アラクリッティ"
+  ],
+  "wezterm": [
+    "wezterm",
+    "ウェズターム"
+  ],
+  "neovim": [
+    "neovim",
+    "nvim",
+    "ネオヴィム",
+    "ネオビム"
+  ],
+  "vim": [
+    "vim",
+    "ヴィム"
+  ],
+  "rustc": [
+    "rustc",
+    "rust compiler",
+    "ラストコンパイラ"
+  ],
+  "cargo": [
+    "cargo",
+    "カーゴ",
+    "rust cargo"
+  ],
+  "go": [
+    "go",
+    "golang",
+    "go lang",
+    "ゴー言語"
+  ],
+  "cmake": [
+    "cmake",
+    "シーメイク"
+  ],
+  "pkg-config": [
+    "pkg-config",
+    "pkg config",
+    "pkgconfig"
+  ],
+  "gdb": [
+    "gdb",
+    "gnu debugger",
+    "デバッガ"
+  ],
+  "ripgrep": [
+    "ripgrep",
+    "rg",
+    "リップグレップ"
+  ],
+  "fd": [
+    "fd",
+    "fd-find"
+  ],
+  "jq": [
+    "jq",
+    "ジェイキュー"
+  ],
+  "gh": [
+    "gh",
+    "github cli",
+    "githubコマンド",
+    "ギットハブcli"
+  ],
+  "git-lfs": [
+    "git-lfs",
+    "git lfs",
+    "git large file storage"
+  ],
+  "bat": [
+    "bat",
+    "batcat",
+    "バット"
+  ],
+  "eza": [
+    "eza",
+    "エザ"
+  ],
+  "tree": [
+    "tree",
+    "ツリー"
+  ],
+  "tmux": [
+    "tmux",
+    "ティーマックス"
+  ],
+  "btop": [
+    "btop",
+    "ビートップ"
+  ],
+  "htop": [
+    "htop",
+    "エイチトップ"
+  ],
+  "unzip": [
+    "unzip",
+    "アンズィップ"
+  ],
+  "zip": [
+    "zip",
+    "ジップ"
+  ],
+  "rsync": [
+    "rsync",
+    "アールシンク"
+  ],
+  "mpv": [
+    "mpv",
+    "エムピーブイ"
+  ],
+  "vlc": [
+    "vlc",
+    "vlc media player",
+    "ブイエルシー"
+  ],
+  "imagemagick": [
+    "imagemagick",
+    "image magick",
+    "イメージマジック"
+  ],
+  "wofi": [
+    "wofi",
+    "ウォーフィー"
+  ],
+  "swaybg": [
+    "swaybg",
+    "スウェイバック"
+  ],
+  "swayidle": [
+    "swayidle",
+    "スウェイアイドル"
+  ],
+  "swaylock": [
+    "swaylock",
+    "スウェイロック"
+  ],
+  "pciutils": [
+    "pciutils",
+    "pci utils"
+  ],
+  "usbutils": [
+    "usbutils",
+    "usb utils"
+  ],
+  "fastfetch": [
+    "fastfetch",
+    "fast fetch",
+    "ファストフェッチ"
   ]
 }

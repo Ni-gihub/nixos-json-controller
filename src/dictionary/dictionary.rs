@@ -19,16 +19,15 @@ pub struct Dictionary {
 impl Dictionary {
     pub fn load() -> Result<Self, String> {
         let packages =
-            serde_json::from_str(
-                PACKAGES_JSON
-            )
-            .map_err(|e| e.to_string())?;
+            serde_json::from_str(PACKAGES_JSON)
+                .map_err(|e| e.to_string())?;
 
         let services =
-            serde_json::from_str(
-                SERVICES_JSON
-            )
-            .map_err(|e| e.to_string())?;
+            serde_json::from_str(SERVICES_JSON)
+                .map_err(|e| e.to_string())?;
+
+        validate_dictionary(&packages)?;
+        validate_dictionary(&services)?;
 
         Ok(Self {
             packages,
@@ -40,22 +39,55 @@ impl Dictionary {
         &self,
         input: &str,
     ) -> Option<&str> {
-        resolve(
-            &self.packages,
-            input,
-        )
+        resolve(&self.packages, input)
     }
 
     pub fn resolve_service(
         &self,
         input: &str,
     ) -> Option<&str> {
-        resolve(
-            &self.services,
-            input,
-        )
+        resolve(&self.services, input)
     }
 }
+
+// ============================================================
+// Dictionary validation
+// ============================================================
+
+fn validate_dictionary(
+    dictionary: &HashMap<String, Vec<String>>,
+) -> Result<(), String> {
+    let mut aliases: HashMap<&str, &str> =
+        HashMap::new();
+
+    for (canonical, names) in dictionary {
+        if !names.iter().any(|name| name == canonical) {
+            return Err(format!(
+                "canonical name '{}' is not registered as an alias",
+                canonical
+            ));
+        }
+
+        for name in names {
+            if let Some(existing) =
+                aliases.insert(name, canonical)
+            {
+                return Err(format!(
+                    "duplicate alias '{}' found for '{}' and '{}'",
+                    name,
+                    existing,
+                    canonical
+                ));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+// ============================================================
+// Resolution
+// ============================================================
 
 fn resolve<'a>(
     dictionary: &'a HashMap<String, Vec<String>>,
@@ -71,12 +103,18 @@ fn resolve<'a>(
         })
 }
 
-
-
+// ============================================================
+// Tests
+// ============================================================
 
 #[cfg(test)]
 mod tests {
-    use super::Dictionary;
+    use std::collections::HashMap;
+
+    use super::{
+        validate_dictionary,
+        Dictionary,
+    };
 
     #[test]
     fn resolve_package_alias() {
@@ -85,20 +123,17 @@ mod tests {
                 .unwrap();
 
         assert_eq!(
-            dictionary
-                .resolve_package("firefox"),
+            dictionary.resolve_package("firefox"),
             Some("firefox")
         );
 
         assert_eq!(
-            dictionary
-                .resolve_package("ファイアフォックス"),
+            dictionary.resolve_package("ファイアフォックス"),
             Some("firefox")
         );
 
         assert_eq!(
-            dictionary
-                .resolve_package("火狐"),
+            dictionary.resolve_package("火狐"),
             Some("firefox")
         );
     }
@@ -110,14 +145,12 @@ mod tests {
                 .unwrap();
 
         assert_eq!(
-            dictionary
-                .resolve_service("ssh"),
+            dictionary.resolve_service("ssh"),
             Some("openssh")
         );
 
         assert_eq!(
-            dictionary
-                .resolve_service("sshd"),
+            dictionary.resolve_service("sshd"),
             Some("openssh")
         );
     }
@@ -129,8 +162,7 @@ mod tests {
                 .unwrap();
 
         assert_eq!(
-            dictionary
-                .resolve_package("unknown-package"),
+            dictionary.resolve_package("unknown-package"),
             None
         );
     }
@@ -160,5 +192,47 @@ mod tests {
             dictionary.resolve_package("git"),
             Some("git")
         );
+    }
+
+    #[test]
+    fn reject_duplicate_alias() {
+        let dictionary = HashMap::from([
+            (
+                "firefox".to_string(),
+                vec![
+                    "firefox".to_string(),
+                    "browser".to_string(),
+                ],
+            ),
+            (
+                "chromium".to_string(),
+                vec![
+                    "chromium".to_string(),
+                    "browser".to_string(),
+                ],
+            ),
+        ]);
+
+        let result =
+            validate_dictionary(&dictionary);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn reject_missing_canonical_alias() {
+        let dictionary = HashMap::from([
+            (
+                "firefox".to_string(),
+                vec![
+                    "ファイアフォックス".to_string(),
+                ],
+            ),
+        ]);
+
+        let result =
+            validate_dictionary(&dictionary);
+
+        assert!(result.is_err());
     }
 }

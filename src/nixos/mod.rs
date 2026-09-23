@@ -1,3 +1,4 @@
+pub mod discovery;
 pub mod flake;
 pub mod generator;
 pub mod import;

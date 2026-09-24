@@ -1,69 +1,453 @@
 use std::env;
 
 use nixos_json_controller::{
-    command::{Action, Command, Target},
+    command::{
+        Action,
+        Command,
+        Target,
+    },
     executor::Executor,
+    nixos::discovery::{
+        discover_candidates,
+        inspect_candidates,
+        save_discovery,
+        select_candidate,
+        DiscoveryStatus,
+        SearchOptions,
+    },
     planner::Planner,
     resolver::Resolver,
     validator::Validator,
 };
 
-pub fn run() -> Result<(), String> {
-    let args: Vec<String> = env::args().skip(1).collect();
+pub fn run()
+    -> Result<(), String>
+{
+    let args: Vec<String> =
+        env::args()
+            .skip(1)
+            .collect();
 
-    if args.len() == 1 && (args[0] == "--help" || args[0] == "-h") {
-        println!("usage: nxc [i|r|e|d] <target>");
-        println!();
-        println!("commands:");
-        println!("  nxc <package>       install package");
-        println!("  nxc i <package>     install package");
-        println!("  nxc r <package>     remove package");
-        println!("  nxc e <service>     enable service");
-        println!("  nxc d <service>     disable service");
+    if args.len() == 1
+        && (
+            args[0] == "--help"
+            || args[0] == "-h"
+        )
+    {
+        print_help();
+        return Ok(());
+    }
+
+    if args.len() == 1
+        && args[0] == "discover"
+    {
+        return run_discover();
+    }
+
+    let (action, target) =
+        match args.as_slice() {
+            [target] => {
+                (
+                    Action::InstallPackage,
+                    target.clone(),
+                )
+            }
+
+            [operation, target] => {
+                let action =
+                    match operation.as_str() {
+                        "i" =>
+                            Action::InstallPackage,
+
+                        "r" =>
+                            Action::RemovePackage,
+
+                        "e" =>
+                            Action::EnableService,
+
+                        "d" =>
+                            Action::DisableService,
+
+                        _ => {
+                            return Err(
+                                "unknown operation. use i, r, e, or d"
+                                    .to_string()
+                            );
+                        }
+                    };
+
+                (
+                    action,
+                    target.clone()
+                )
+            }
+
+            _ => {
+                return Err(
+                    "usage: nxc [i|r|e|d] <target>"
+                        .to_string()
+                );
+            }
+        };
+
+    let command = Command {
+        action,
+        target: Target {
+            raw: target
+        },
+    };
+
+    Validator::validate(
+        &command
+    )
+    .map_err(|e| format!("{e:?}"))?;
+
+    let target =
+        Resolver::resolve(
+            command.action.clone(),
+            command.target,
+        )?;
+
+    let plan =
+        Planner::create(
+            command.action,
+            target,
+        );
+
+    Executor::execute(plan)
+        .map_err(|e| format!("{e:?}"))?;
+
+    Ok(())
+}
+
+fn print_help() {
+    println!(
+        "usage: nxc [i|r|e|d] <target>"
+    );
+
+    println!();
+
+    println!("commands:");
+
+    println!(
+        "  nxc <package>       install package"
+    );
+
+    println!(
+        "  nxc i <package>     install package"
+    );
+
+    println!(
+        "  nxc r <package>     remove package"
+    );
+
+    println!(
+        "  nxc e <service>     enable service"
+    );
+
+    println!(
+        "  nxc d <service>     disable service"
+    );
+
+    println!(
+        "  nxc discover        discover NixOS flake"
+    );
+}
+
+fn run_discover()
+    -> Result<(), String>
+{
+    println!(
+        "NixOS Flake Discovery"
+    );
+
+    println!();
+
+    println!(
+        "Searching for candidates..."
+    );
+
+    let home =
+        env::var_os("HOME")
+            .ok_or_else(|| {
+                "HOME environment variable is not set"
+                    .to_string()
+            })?;
+
+    let options =
+        SearchOptions {
+            roots: vec![
+                home.into()
+            ],
+            max_depth: 4,
+        };
+
+    let mut candidates =
+        discover_candidates(
+            &options
+        );
+
+    println!(
+        "Found {} candidates.",
+        candidates.len()
+    );
+
+    println!();
+
+    if candidates.is_empty() {
+        println!(
+            "No candidates found."
+        );
 
         return Ok(());
     }
 
-    let (action, target) = match args.as_slice() {
-        // nxc firefox
-        [target] => (Action::InstallPackage, target.clone()),
+    println!(
+        "Inspecting candidates..."
+    );
 
-        // nxc i firefox
-        [operation, target] => {
-            let action = match operation.as_str() {
-                "i" => Action::InstallPackage,
+    inspect_candidates(
+        &mut candidates
+    );
 
-                "r" => Action::RemovePackage,
+    println!();
 
-                "e" => Action::EnableService,
+    println!(
+        "Candidate ranking:"
+    );
 
-                "d" => Action::DisableService,
+    for (index, candidate)
+        in candidates.iter().enumerate()
+    {
+        println!(
+            "[{}] {}",
+            index + 1,
+            candidate
+                .flake_root
+                .display()
+        );
 
-                _ => return Err("unknown operation. use i, r, e, or d".to_string()),
-            };
+        println!(
+            "    score: {}",
+            candidate.score.total
+        );
 
-            (action, target.clone())
+        if let Some(
+            inspection
+        ) = &candidate.inspection
+        {
+            match &inspection.nix_evaluation {
+                nixos_json_controller::nixos::discovery::NixEvaluation::Success {
+                    outputs
+                } => {
+                    println!(
+                        "    NixOS configurations: {}",
+                        outputs
+                            .nixos_configurations
+                            .len()
+                    );
+
+                    for configuration
+                        in &outputs.nixos_configurations
+                    {
+                        println!(
+                            "      - {} ({}, {})",
+                            configuration.name,
+                            configuration
+                                .hostname
+                                .as_deref()
+                                .unwrap_or(
+                                    "unknown"
+                                ),
+                            configuration
+                                .system
+                                .as_deref()
+                                .unwrap_or(
+                                    "unknown"
+                                )
+                        );
+                    }
+                }
+
+                nixos_json_controller::nixos::discovery::NixEvaluation::Failed {
+                    error
+                } => {
+                    println!(
+                        "    Nix evaluation: failed ({:?})",
+                        error.category
+                    );
+                }
+
+                nixos_json_controller::nixos::discovery::NixEvaluation::NotEvaluated => {
+                    println!(
+                        "    Nix evaluation: not evaluated"
+                    );
+                }
+            }
         }
 
-        _ => return Err("usage: nxc [i|r|e|d] <target>".to_string()),
-    };
+        println!();
+    }
 
-    let command = Command {
-        action,
-        target: Target { raw: target },
-    };
+    let report =
+        select_candidate(
+            &candidates
+        );
 
-    Validator::validate(&command).map_err(|e| format!("{:?}", e))?;
+    match report.status {
+        DiscoveryStatus::Success => {
+            let selected =
+                report
+                    .selected
+                    .as_ref()
+                    .ok_or_else(|| {
+                        "discovery succeeded without a selected result"
+                            .to_string()
+                    })?;
 
-    let target =
-    Resolver::resolve(
-        command.action.clone(),
-        command.target
-    )?;
+            println!(
+                "Discovery successful."
+            );
 
-    let plan = Planner::create(command.action, target);
+            println!();
 
-    Executor::execute(plan).map_err(|e| format!("{:?}", e))?;
+            println!(
+                "Flake: {}",
+                selected
+                    .flake_root
+                    .display()
+            );
+
+            println!(
+                "Configuration: {}",
+                selected
+                    .selected_configuration
+                    .name
+            );
+
+            println!(
+                "Hostname: {}",
+                selected
+                    .selected_configuration
+                    .hostname
+                    .as_deref()
+                    .unwrap_or("unknown")
+            );
+
+            println!(
+                "System: {}",
+                selected
+                    .selected_configuration
+                    .system
+                    .as_deref()
+                    .unwrap_or("unknown")
+            );
+
+            println!(
+                "Selection: {}",
+                selection_method_name(
+                    &selected
+                        .selection_method
+                )
+            );
+
+            save_discovery(
+                selected
+            )?;
+
+            println!();
+
+            println!(
+                "Discovery result saved."
+            );
+        }
+
+        DiscoveryStatus::MultipleCandidates => {
+            println!(
+                "Multiple candidates found."
+            );
+
+            println!();
+
+            for diagnostic
+                in &report.diagnostics
+            {
+                println!(
+                    "Diagnostic: {}",
+                    diagnostic
+                );
+            }
+
+            println!();
+
+            println!(
+                "No candidate was selected automatically."
+            );
+
+            println!(
+                "Use the discovery information above to identify the intended flake."
+            );
+        }
+
+        DiscoveryStatus::NoCandidates => {
+            println!(
+                "No suitable NixOS flake candidates found."
+            );
+
+            for diagnostic
+                in &report.diagnostics
+            {
+                println!(
+                    "Diagnostic: {}",
+                    diagnostic
+                );
+            }
+        }
+
+        DiscoveryStatus::EvaluationFailed => {
+            println!(
+                "Flake evaluation failed."
+            );
+
+            for diagnostic
+                in &report.diagnostics
+            {
+                println!(
+                    "Diagnostic: {}",
+                    diagnostic
+                );
+            }
+        }
+    }
 
     Ok(())
+}
+
+fn selection_method_name(
+    method: &nixos_json_controller::nixos::discovery::SelectionMethod,
+) -> &'static str {
+    use nixos_json_controller::nixos::discovery::SelectionMethod;
+
+    match method {
+        SelectionMethod::ExplicitCli =>
+            "explicit CLI",
+
+        SelectionMethod::ConfigFile =>
+            "config file",
+
+        SelectionMethod::EnvironmentVariable =>
+            "environment variable",
+
+        SelectionMethod::UniqueCandidate =>
+            "unique candidate",
+
+        SelectionMethod::HostnameMatch =>
+            "hostname match",
+
+        SelectionMethod::SystemMatch =>
+            "system match",
+
+        SelectionMethod::UserSelection =>
+            "user selection",
+    }
 }

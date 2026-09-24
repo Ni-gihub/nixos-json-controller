@@ -1,4 +1,5 @@
 pub mod candidate;
+pub mod context;
 pub mod inspection;
 pub mod nix;
 pub mod result;
@@ -7,10 +8,13 @@ pub mod selector;
 pub mod state;
 
 pub use candidate::{
+    CandidateScore,
     DiscoverySource,
     Evidence,
     FlakeCandidate,
 };
+
+pub use context::DiscoveryContext;
 
 pub use inspection::{
     EnvironmentMatch,
@@ -35,9 +39,11 @@ pub use nix::{
 };
 
 pub use result::{
+    DiscoveryMetadata,
     DiscoveryReport,
     DiscoveryResult,
     DiscoveryStatus,
+    FileMetadata,
     SelectionMethod,
 };
 
@@ -54,4 +60,5 @@ pub use state::{
     load_discovery,
     save_discovery,
     state_path,
+    validate_discovery,
 };

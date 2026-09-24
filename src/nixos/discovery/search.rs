@@ -24,7 +24,7 @@ impl Default for SearchOptions {
     }
 }
 
-/// Flake候補を探索する
+/// Flake候補を探索する。
 pub fn discover_candidates(
     options: &SearchOptions,
 ) -> Vec<FlakeCandidate> {
@@ -48,17 +48,29 @@ pub fn discover_candidates(
     candidates
 }
 
-/// 発見した候補をNixまで含めて検査する
+/// 発見した候補をNixまで含めて検査する。
 pub fn inspect_candidates(
     candidates: &mut [FlakeCandidate],
 ) {
-    for candidate in candidates {
+    for candidate in &mut *candidates {
         let inspection =
             inspect_flake(candidate);
 
         candidate.inspection =
             Some(inspection);
+
+        candidate.calculate_score();
     }
+
+    candidates.sort_by(|a, b| {
+        b.score
+            .total
+            .cmp(&a.score.total)
+            .then_with(|| {
+                a.flake_root
+                    .cmp(&b.flake_root)
+            })
+    });
 }
 
 fn search_directory(
@@ -130,7 +142,9 @@ fn inspect_candidate(
 
     candidate
         .sources
-        .push(DiscoverySource::HomeDirectory);
+        .push(
+            DiscoverySource::HomeDirectory
+        );
 
     candidate
         .evidence
@@ -145,31 +159,46 @@ fn inspect_candidate(
             .push(Evidence::FlakeLock);
     }
 
-    if flake_root.join(".git").is_dir() {
+    if flake_root
+        .join(".git")
+        .is_dir()
+    {
         candidate
             .evidence
             .push(Evidence::GitRepository);
     }
 
-    if flake_root.join("hosts").is_dir() {
+    if flake_root
+        .join("hosts")
+        .is_dir()
+    {
         candidate
             .evidence
             .push(Evidence::HostsDirectory);
     }
 
-    if flake_root.join("modules").is_dir() {
+    if flake_root
+        .join("modules")
+        .is_dir()
+    {
         candidate
             .evidence
             .push(Evidence::ModulesDirectory);
     }
 
-    if flake_root.join("home").is_dir() {
+    if flake_root
+        .join("home")
+        .is_dir()
+    {
         candidate
             .evidence
             .push(Evidence::HomeDirectory);
     }
 
-    if flake_root.join("system").is_dir() {
+    if flake_root
+        .join("system")
+        .is_dir()
+    {
         candidate
             .evidence
             .push(Evidence::SystemDirectory);
@@ -181,7 +210,9 @@ fn inspect_candidate(
     {
         candidate
             .evidence
-            .push(Evidence::ConfigurationNix);
+            .push(
+                Evidence::ConfigurationNix
+            );
     }
 
     if flake_root
@@ -222,6 +253,10 @@ fn contains_nixos_configurations(
     )
 }
 
+/// Discoveryで探索する価値が低いディレクトリ。
+///
+/// 特に `.nix-defexpr` はNixが生成する巨大な領域なので、
+/// HOME全体探索では除外する。
 fn should_skip_directory(
     path: &Path,
 ) -> bool {
@@ -237,11 +272,14 @@ fn should_skip_directory(
         ".git"
             | ".cache"
             | ".local"
+            | ".nix-defexpr"
+            | ".direnv"
+            | ".cargo"
+            | ".rustup"
             | "node_modules"
             | "target"
             | "result"
             | "result-bin"
-            | ".direnv"
     )
 }
 
@@ -339,10 +377,6 @@ mod tests {
                     "inspection result not found"
                 );
 
-        println!(
-            "{inspection:#?}"
-        );
-
         match inspection.nix_evaluation {
             super::super::NixEvaluation::Success {
                 outputs
@@ -413,6 +447,10 @@ mod tests {
                 .contains(
                     &"laptop".to_string()
                 )
+        );
+
+        assert!(
+            candidate.score.total > 0
         );
     }
 }

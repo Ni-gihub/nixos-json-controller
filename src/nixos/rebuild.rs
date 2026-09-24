@@ -1,20 +1,13 @@
 use std::process::Command;
 
-use super::flake;
+use super::discovery::DiscoveryContext;
 
-pub fn build_command() -> Result<Command, String> {
-    let flake_path =
-        flake::repository_path()?;
-
-    let configuration =
-        flake::configuration_name()?;
-
+/// DiscoveryContextからrebuildコマンドを作る。
+pub fn build_command_with_context(
+    context: &DiscoveryContext,
+) -> Result<Command, String> {
     let flake =
-        format!(
-            "{}#{}",
-            flake_path.display(),
-            configuration
-        );
+        context.flake_reference();
 
     let mut command =
         Command::new("sudo");
@@ -29,11 +22,41 @@ pub fn build_command() -> Result<Command, String> {
     Ok(command)
 }
 
-pub fn switch() -> Result<(), String> {
+/// 保存済みDiscoveryからrebuildコマンドを作る。
+pub fn build_command()
+    -> Result<Command, String>
+{
+    let context =
+        DiscoveryContext::load()?;
+
+    build_command_with_context(
+        &context
+    )
+}
+
+/// NixOSをswitchする。
+pub fn switch()
+    -> Result<(), String>
+{
+    let context =
+        DiscoveryContext::load()?;
+
+    switch_with_context(
+        &context
+    )
+}
+
+/// DiscoveryContextを再利用してswitchする。
+pub fn switch_with_context(
+    context: &DiscoveryContext,
+) -> Result<(), String>
+{
     let status =
-        build_command()?
-            .status()
-            .map_err(|e| e.to_string())?;
+        build_command_with_context(
+            context
+        )?
+        .status()
+        .map_err(|e| e.to_string())?;
 
     if status.success() {
         Ok(())

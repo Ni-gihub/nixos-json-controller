@@ -1,7 +1,11 @@
 use std::env;
 
 use nixos_json_controller::{
-    command::{Action, Command, Target},
+    command::{
+        Action,
+        Command,
+        Target,
+    },
     executor::Executor,
     nixos::discovery::{
         discover_candidates,
@@ -16,13 +20,19 @@ use nixos_json_controller::{
     validator::Validator,
 };
 
-pub fn run() -> Result<(), String> {
+pub fn run()
+    -> Result<(), String>
+{
     let args: Vec<String> =
-        env::args().skip(1).collect();
+        env::args()
+            .skip(1)
+            .collect();
 
     if args.len() == 1
-        && (args[0] == "--help"
-            || args[0] == "-h")
+        && (
+            args[0] == "--help"
+            || args[0] == "-h"
+        )
     {
         print_help();
         return Ok(());
@@ -46,21 +56,17 @@ pub fn run() -> Result<(), String> {
             [operation, target] => {
                 let action =
                     match operation.as_str() {
-                        "i" => {
-                            Action::InstallPackage
-                        }
+                        "i" =>
+                            Action::InstallPackage,
 
-                        "r" => {
-                            Action::RemovePackage
-                        }
+                        "r" =>
+                            Action::RemovePackage,
 
-                        "e" => {
-                            Action::EnableService
-                        }
+                        "e" =>
+                            Action::EnableService,
 
-                        "d" => {
-                            Action::DisableService
-                        }
+                        "d" =>
+                            Action::DisableService,
 
                         _ => {
                             return Err(
@@ -70,7 +76,10 @@ pub fn run() -> Result<(), String> {
                         }
                     };
 
-                (action, target.clone())
+                (
+                    action,
+                    target.clone()
+                )
             }
 
             _ => {
@@ -83,11 +92,15 @@ pub fn run() -> Result<(), String> {
 
     let command = Command {
         action,
-        target: Target { raw: target },
+        target: Target {
+            raw: target
+        },
     };
 
-    Validator::validate(&command)
-        .map_err(|e| format!("{:?}", e))?;
+    Validator::validate(
+        &command
+    )
+    .map_err(|e| format!("{e:?}"))?;
 
     let target =
         Resolver::resolve(
@@ -102,7 +115,7 @@ pub fn run() -> Result<(), String> {
         );
 
     Executor::execute(plan)
-        .map_err(|e| format!("{:?}", e))?;
+        .map_err(|e| format!("{e:?}"))?;
 
     Ok(())
 }
@@ -111,30 +124,43 @@ fn print_help() {
     println!(
         "usage: nxc [i|r|e|d] <target>"
     );
+
     println!();
+
     println!("commands:");
+
     println!(
         "  nxc <package>       install package"
     );
+
     println!(
         "  nxc i <package>     install package"
     );
+
     println!(
         "  nxc r <package>     remove package"
     );
+
     println!(
         "  nxc e <service>     enable service"
     );
+
     println!(
         "  nxc d <service>     disable service"
     );
+
     println!(
         "  nxc discover        discover NixOS flake"
     );
 }
 
-fn run_discover() -> Result<(), String> {
-    println!("NixOS Flake Discovery");
+fn run_discover()
+    -> Result<(), String>
+{
+    println!(
+        "NixOS Flake Discovery"
+    );
+
     println!();
 
     println!(
@@ -148,18 +174,24 @@ fn run_discover() -> Result<(), String> {
                     .to_string()
             })?;
 
-    let options = SearchOptions {
-        roots: vec![home.into()],
-        max_depth: 4,
-    };
+    let options =
+        SearchOptions {
+            roots: vec![
+                home.into()
+            ],
+            max_depth: 4,
+        };
 
     let mut candidates =
-        discover_candidates(&options);
+        discover_candidates(
+            &options
+        );
 
     println!(
         "Found {} candidates.",
         candidates.len()
     );
+
     println!();
 
     if candidates.is_empty() {
@@ -180,6 +212,83 @@ fn run_discover() -> Result<(), String> {
 
     println!();
 
+    println!(
+        "Candidate ranking:"
+    );
+
+    for (index, candidate)
+        in candidates.iter().enumerate()
+    {
+        println!(
+            "[{}] {}",
+            index + 1,
+            candidate
+                .flake_root
+                .display()
+        );
+
+        println!(
+            "    score: {}",
+            candidate.score.total
+        );
+
+        if let Some(
+            inspection
+        ) = &candidate.inspection
+        {
+            match &inspection.nix_evaluation {
+                nixos_json_controller::nixos::discovery::NixEvaluation::Success {
+                    outputs
+                } => {
+                    println!(
+                        "    NixOS configurations: {}",
+                        outputs
+                            .nixos_configurations
+                            .len()
+                    );
+
+                    for configuration
+                        in &outputs.nixos_configurations
+                    {
+                        println!(
+                            "      - {} ({}, {})",
+                            configuration.name,
+                            configuration
+                                .hostname
+                                .as_deref()
+                                .unwrap_or(
+                                    "unknown"
+                                ),
+                            configuration
+                                .system
+                                .as_deref()
+                                .unwrap_or(
+                                    "unknown"
+                                )
+                        );
+                    }
+                }
+
+                nixos_json_controller::nixos::discovery::NixEvaluation::Failed {
+                    error
+                } => {
+                    println!(
+                        "    Nix evaluation: failed ({:?})",
+                        error.category
+                    );
+                }
+
+                nixos_json_controller::nixos::discovery::NixEvaluation::NotEvaluated => {
+                    println!(
+                        "    Nix evaluation: not evaluated"
+                    );
+                }
+            }
+        }
+
+        println!();
+    }
+
     let report =
         select_candidate(
             &candidates
@@ -199,6 +308,7 @@ fn run_discover() -> Result<(), String> {
             println!(
                 "Discovery successful."
             );
+
             println!();
 
             println!(
@@ -236,13 +346,17 @@ fn run_discover() -> Result<(), String> {
             println!(
                 "Selection: {}",
                 selection_method_name(
-                    &selected.selection_method
+                    &selected
+                        .selection_method
                 )
             );
 
-            save_discovery(selected)?;
+            save_discovery(
+                selected
+            )?;
 
             println!();
+
             println!(
                 "Discovery result saved."
             );
@@ -252,37 +366,57 @@ fn run_discover() -> Result<(), String> {
             println!(
                 "Multiple candidates found."
             );
+
+            println!();
+
+            for diagnostic
+                in &report.diagnostics
+            {
+                println!(
+                    "Diagnostic: {}",
+                    diagnostic
+                );
+            }
+
             println!();
 
             println!(
-                "The target could not be selected automatically."
+                "No candidate was selected automatically."
             );
 
-            println!();
-
-            for (index, candidate)
-                in candidates.iter().enumerate()
-            {
-                println!(
-                    "[{}] {}",
-                    index + 1,
-                    candidate
-                        .flake_root
-                        .display()
-                );
-            }
+            println!(
+                "Use the discovery information above to identify the intended flake."
+            );
         }
 
         DiscoveryStatus::NoCandidates => {
             println!(
                 "No suitable NixOS flake candidates found."
             );
+
+            for diagnostic
+                in &report.diagnostics
+            {
+                println!(
+                    "Diagnostic: {}",
+                    diagnostic
+                );
+            }
         }
 
         DiscoveryStatus::EvaluationFailed => {
             println!(
                 "Flake evaluation failed."
             );
+
+            for diagnostic
+                in &report.diagnostics
+            {
+                println!(
+                    "Diagnostic: {}",
+                    diagnostic
+                );
+            }
         }
     }
 
@@ -295,32 +429,25 @@ fn selection_method_name(
     use nixos_json_controller::nixos::discovery::SelectionMethod;
 
     match method {
-        SelectionMethod::ExplicitCli => {
-            "explicit CLI"
-        }
+        SelectionMethod::ExplicitCli =>
+            "explicit CLI",
 
-        SelectionMethod::ConfigFile => {
-            "config file"
-        }
+        SelectionMethod::ConfigFile =>
+            "config file",
 
-        SelectionMethod::EnvironmentVariable => {
-            "environment variable"
-        }
+        SelectionMethod::EnvironmentVariable =>
+            "environment variable",
 
-        SelectionMethod::UniqueCandidate => {
-            "unique candidate"
-        }
+        SelectionMethod::UniqueCandidate =>
+            "unique candidate",
 
-        SelectionMethod::HostnameMatch => {
-            "hostname match"
-        }
+        SelectionMethod::HostnameMatch =>
+            "hostname match",
 
-        SelectionMethod::SystemMatch => {
-            "system match"
-        }
+        SelectionMethod::SystemMatch =>
+            "system match",
 
-        SelectionMethod::UserSelection => {
-            "user selection"
-        }
+        SelectionMethod::UserSelection =>
+            "user selection",
     }
 }

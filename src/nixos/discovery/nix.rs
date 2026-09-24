@@ -427,6 +427,33 @@ fn match_environment(
     }
 }
 
+/// 保存済みDiscoveryResultのNixOS configurationが
+/// 現在のFlakeに存在し、正常に評価できるか検証する。
+pub fn validate_nixos_configuration(
+    flake_root: &Path,
+    configuration_name: &str,
+) -> Result<NixosConfiguration, NixCommandError> {
+    let show = show_flake(flake_root)?;
+
+    if !show
+        .nixos_configurations
+        .contains_key(configuration_name)
+    {
+        return Err(NixCommandError {
+            message: format!(
+                "NixOS configuration '{}' was not found in {}",
+                configuration_name,
+                flake_root.display()
+            ),
+        });
+    }
+
+    evaluate_nixos_configuration(
+        flake_root,
+        configuration_name,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

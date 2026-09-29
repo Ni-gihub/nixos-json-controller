@@ -63,7 +63,7 @@ pub fn run() -> Result<(), String> {
         [command] if command == "discover" => return run_discover(),
         [command] if command == "list" => return run_list(),
         [command] if command == "status" => return run_status(),
-        [kind, target] if kind == "explain" => return run_explain(target, &args.command[2]),
+        [command, kind, target] if command == "explain" => return run_explain(kind, target),
         [command, ..]
             if matches!(command.as_str(), "discover" | "list" | "status" | "explain") =>
         {

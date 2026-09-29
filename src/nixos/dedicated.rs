@@ -167,20 +167,16 @@ fn write_service(
         return Err(error);
     }
 
-    let content = fs::read_to_string(&module_path)
-        .map_err(|e| format!("failed to read {}: {}", module_path.display(), e))?;
-    let updated = super::module::add_service_to_content(&content, service, enabled)?;
-    if let Err(error) = write_atomic(&module_path, &updated) {
+    if let Err(error) = if enabled {
+        writer::enable_service(&module_path, service)
+    } else {
+        writer::disable_service(&module_path, service)
+    } {
         let _ = change.rollback();
         return Err(error);
     }
 
     Ok(change)
-}
-
-fn write_atomic(path: &Path, content: &str) -> Result<(), String> {
-    fs::write(path, content)
-        .map_err(|e| format!("failed to write {}: {}", path.display(), e))
 }
 
 

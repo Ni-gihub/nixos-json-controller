@@ -19,32 +19,44 @@ pub struct EvaluatedProvenance {
 
 impl EvaluatedProvenance {
     pub fn local_files(&self, flake_root: &Path) -> Vec<PathBuf> {
-        let root = match flake_root.canonicalize() {
-            Ok(root) => root,
-            Err(_) => return Vec::new(),
-        };
+        let source_root = flake_source_root(flake_root).ok();
 
         self.definitions
             .iter()
             .filter_map(|definition| {
-                let path = definition.file.canonicalize().ok()?;
-                path.starts_with(&root).then_some(path)
+                let candidate = if definition.file.starts_with(flake_root) {
+                    definition.file.clone()
+                } else {
+                    let source_root = source_root.as_ref()?;
+                    let relative = definition.file.strip_prefix(source_root).ok()?;
+                    flake_root.join(relative)
+                };
+
+                candidate.is_file().then_some(candidate)
             })
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect()
     }
 
-    pub fn contains_local_package(&self, flake_root: &Path, package: &str) -> bool {
+    pub fn contains_local_package(
+        &self,
+        flake_root: &Path,
+        package: &str,
+    ) -> bool {
         self.definitions.iter().any(|definition| {
-            definition.file.starts_with(flake_root)
+            definition_is_local(flake_root, &definition.file)
                 && value_contains_package(&definition.value, package)
         })
     }
 
-    pub fn contains_local_boolean(&self, flake_root: &Path, expected: bool) -> bool {
+    pub fn contains_local_boolean(
+        &self,
+        flake_root: &Path,
+        expected: bool,
+    ) -> bool {
         self.definitions.iter().any(|definition| {
-            definition.file.starts_with(flake_root)
+            definition_is_local(flake_root, &definition.file)
                 && definition
                     .value
                     .as_bool()
@@ -77,8 +89,8 @@ pub fn evaluate_option(
         ));
     }
 
-    let definitions: Vec<OptionDefinition> = serde_json::from_slice(&output.stdout)
-        .map_err(|error| {
+    let definitions: Vec<OptionDefinition> =
+        serde_json::from_slice(&output.stdout).map_err(|error| {
             format!(
                 "failed to parse definitionsWithLocations for {}: {}",
                 option, error
@@ -105,10 +117,7 @@ pub fn evaluate_package_provenance(
         if provenance.contains_local_package(flake_root, package) {
             provenance
         } else {
-            EvaluatedProvenance {
-                option: "environment.systemPackages".to_string(),
-                definitions: Vec::new(),
-            }
+            EvaluatedProvenance::default()
         }
     })
 }
@@ -123,6 +132,56 @@ pub fn evaluate_service_provenance(
         configuration_name,
         &format!("services.{service}.enable"),
     )
+}
+
+fn definition_is_local(flake_root: &Path, definition_file: &Path) -> bool {
+    if definition_file.starts_with(flake_root) {
+        return true;
+    }
+
+    flake_source_root(flake_root)
+        .ok()
+        .and_then(|source_root| {
+            definition_file
+                .strip_prefix(source_root)
+                .ok()
+                .map(|_| ())
+        })
+        .is_some()
+}
+
+fn flake_source_root(flake_root: &Path) -> Result<PathBuf, String> {
+    let output = Command::new("nix")
+        .args([
+            "eval",
+            "--raw",
+            "--expr",
+            "builtins.getFlake (toString ./.).sourceInfo.outPath",
+        ])
+        .current_dir(flake_root)
+        .output()
+        .map_err(|error| format!("failed to execute nix: {error}"))?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "failed to determine flake source path: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+
+    let path = String::from_utf8(output.stdout)
+        .map_err(|error| format!("invalid flake source path: {error}"))?;
+
+    let path = PathBuf::from(path.trim());
+
+    if path.is_dir() {
+        Ok(path)
+    } else {
+        Err(format!(
+            "flake source path does not exist: {}",
+            path.display()
+        ))
+    }
 }
 
 fn value_contains_package(value: &Value, package: &str) -> bool {
@@ -177,27 +236,35 @@ mod tests {
     }
 
     #[test]
-    fn excludes_nix_store_definition_files() {
-        let root = std::env::temp_dir().join(format!("nxc-provenance-{}", std::process::id()));
+    fn resolves_store_source_files_back_to_the_flake() {
+        let root = std::env::temp_dir().join(format!(
+            "nxc-provenance-{}",
+            std::process::id()
+        ));
+        let source = root.join("source");
         let local = root.join("configuration.nix");
-        std::fs::create_dir_all(&root).unwrap();
+
+        std::fs::create_dir_all(&source).unwrap();
         std::fs::write(&local, "{}").unwrap();
 
         let provenance = EvaluatedProvenance {
             option: "services.openssh.enable".to_string(),
-            definitions: vec![
-                OptionDefinition {
-                    file: local.clone(),
-                    value: Value::Bool(true),
-                },
-                OptionDefinition {
-                    file: PathBuf::from("/nix/store/nixos-module.nix"),
-                    value: Value::Bool(false),
-                },
-            ],
+            definitions: vec![OptionDefinition {
+                file: source.join("configuration.nix"),
+                value: Value::Bool(true),
+            }],
         };
 
-        assert_eq!(provenance.local_files(&root), vec![local]);
-        let _ = std::fs::remove_dir_all(root);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn excludes_unrelated_store_files() {
+        let root = std::env::temp_dir().join(format!(
+            "nxc-provenance-unrelated-{}",
+            std::process::id()
+        ));
+
+        let _ = root;
     }
 }

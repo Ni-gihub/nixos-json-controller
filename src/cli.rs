@@ -455,3 +455,32 @@ fn selection_method_name(
         SelectionMethod::UserSelection => "user selection",
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::CliArgs;
+    use clap::Parser;
+
+    #[test]
+    fn dry_run_is_accepted_before_command() {
+        let args = CliArgs::try_parse_from(["nxc", "--dry-run", "firefox"]).unwrap();
+
+        assert!(args.dry_run);
+        assert_eq!(args.command, vec!["firefox"]);
+    }
+
+    #[test]
+    fn dry_run_is_accepted_after_command() {
+        let args = CliArgs::try_parse_from(["nxc", "i", "firefox", "--dry-run"]).unwrap();
+
+        assert!(args.dry_run);
+        assert_eq!(args.command, vec!["i", "firefox"]);
+    }
+
+    #[test]
+    fn help_and_version_are_handled_by_clap() {
+        assert!(CliArgs::try_parse_from(["nxc", "--help"]).is_err());
+        assert!(CliArgs::try_parse_from(["nxc", "--version"]).is_err());
+    }
+}

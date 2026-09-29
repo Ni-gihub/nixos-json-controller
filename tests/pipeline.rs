@@ -7,6 +7,7 @@ use nixos_json_controller::{
 };
 
 #[test]
+#[ignore = "requires a real discovered NixOS configuration and may rebuild the system"]
 fn install_package_pipeline() {
     let json = r#"
     {
@@ -39,6 +40,7 @@ fn install_package_pipeline() {
 }
 
 #[test]
+#[ignore = "requires a real discovered NixOS configuration and may rebuild the system"]
 fn enable_service_pipeline() {
     let json = r#"
     {
@@ -71,6 +73,7 @@ fn enable_service_pipeline() {
 }
 
 #[test]
+#[ignore = "requires a real discovered NixOS configuration and may rebuild the system"]
 fn remove_package_pipeline() {
     let json = r#"
     {
@@ -103,6 +106,7 @@ fn remove_package_pipeline() {
 }
 
 #[test]
+#[ignore = "requires a real discovered NixOS configuration and may rebuild the system"]
 fn disable_service_pipeline() {
     let json = r#"
     {

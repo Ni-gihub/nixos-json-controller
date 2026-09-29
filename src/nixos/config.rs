@@ -263,11 +263,32 @@ fn parse_system_package_names(content: &str) -> Vec<String> {
 
 fn find_system_packages_list(content: &str) -> Option<usize> {
     let marker = "environment.systemPackages";
-    let marker_pos = content.find(marker)?;
-    let assignment = content[marker_pos..].find('=')? + marker_pos;
-    content[assignment + 1..]
-        .find('[')
-        .map(|offset| assignment + 1 + offset)
+    let mut offset = 0usize;
+
+    for line in content.split_inclusive('\n') {
+        let code = strip_comment(line);
+        if let Some(position) = code.find(marker) {
+            let marker_pos = offset + position;
+            let assignment = content[marker_pos..].find('=')? + marker_pos;
+            return content[assignment + 1..]
+                .find('[')
+                .map(|offset| assignment + 1 + offset);
+        }
+        offset += line.len();
+    }
+
+    if offset < content.len() {
+        let code = strip_comment(&content[offset..]);
+        if let Some(position) = code.find(marker) {
+            let marker_pos = offset + position;
+            let assignment = content[marker_pos..].find('=')? + marker_pos;
+            return content[assignment + 1..]
+                .find('[')
+                .map(|offset| assignment + 1 + offset);
+        }
+    }
+
+    None
 }
 
 fn parse_package_line(line: &str) -> Option<String> {
@@ -320,27 +341,55 @@ fn parse_service_names(content: &str) -> Vec<String> {
 
 fn parse_relative_imports(base: &Path, content: &str) -> Vec<PathBuf> {
     let mut imports = Vec::new();
+    let mut in_imports = false;
 
     for line in content.lines() {
         let line = strip_comment(line);
-        let Some((_, rest)) = line.split_once("imports") else {
-            continue;
-        };
-        if !rest.contains('=') {
-            continue;
+        if !in_imports {
+            let Some((_, rest)) = line.split_once("imports") else {
+                continue;
+            };
+            if !rest.contains('=') {
+                continue;
+            }
+            in_imports = true;
         }
 
-        for token in rest.split_whitespace() {
+        let source = line;
+        for token in source.split_whitespace() {
             let token = token.trim_matches(|c: char| matches!(c, '[' | ']' | ';' | ','));
             if (token.starts_with("./") || token.starts_with("../")) && token.ends_with(".nix") {
-                imports.push(base.join(token));
+                imports.push(normalize_relative_path(base, token));
             }
+        }
+
+        if in_imports && line.contains(']') {
+            in_imports = false;
         }
     }
 
     imports.sort();
     imports.dedup();
     imports
+}
+
+fn normalize_relative_path(base: &Path, relative: &str) -> PathBuf {
+    let mut path = PathBuf::from(base);
+
+    for component in Path::new(relative).components() {
+        match component {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                if !path.pop() {
+                    path.push("..");
+                }
+            }
+            std::path::Component::Normal(component) => path.push(component),
+            _ => {}
+        }
+    }
+
+    path
 }
 
 fn strip_comment(line: &str) -> &str {

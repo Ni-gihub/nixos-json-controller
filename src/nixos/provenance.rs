@@ -200,10 +200,23 @@ fn value_contains_package(value: &Value, package: &str) -> bool {
 fn string_matches_package(value: &str, package: &str) -> bool {
     let normalized = value.rsplit('/').next().unwrap_or(value);
 
-    normalized == package
-        || normalized.starts_with(&format!("{package}-"))
-        || normalized.ends_with(&format!("-{package}"))
+    if normalized == package {
+        return true;
+    }
+
+    let Some(marker) = normalized.find(&format!("-{package}-")) else {
+        return false;
+    };
+
+    let suffix = &normalized[marker + package.len() + 2..];
+    let version = suffix.split('-').next().unwrap_or_default();
+    !version.is_empty()
+        && version
+            .chars()
+            .next()
+            .is_some_and(|character| character.is_ascii_digit())
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -218,7 +231,12 @@ mod tests {
 
         assert!(value_contains_package(&value, "firefox"));
         assert!(value_contains_package(&value, "git"));
+        assert!(!value_contains_package(&value, "git-lfs"));
         assert!(!value_contains_package(&value, "vim"));
+
+        let git_lfs = serde_json::json!("/nix/store/example-git-lfs-3.6.0");
+        assert!(value_contains_package(&git_lfs, "git-lfs"));
+        assert!(!value_contains_package(&git_lfs, "git"));
     }
 
     #[test]
@@ -241,9 +259,13 @@ mod tests {
     fn resolves_store_source_definition() {
         let root =
             std::env::temp_dir().join(format!("nxc-provenance-source-{}", std::process::id()));
-        let source = root.join("source");
+        let source = std::env::temp_dir().join(format!(
+            "nxc-provenance-store-source-{}",
+            std::process::id()
+        ));
         let local = root.join("configuration.nix");
 
+        std::fs::create_dir_all(&root).unwrap();
         std::fs::create_dir_all(&source).unwrap();
         std::fs::write(&local, "{}").unwrap();
 
@@ -257,6 +279,7 @@ mod tests {
         );
 
         let _ = std::fs::remove_dir_all(root);
+        let _ = std::fs::remove_dir_all(source);
     }
 
     #[test]

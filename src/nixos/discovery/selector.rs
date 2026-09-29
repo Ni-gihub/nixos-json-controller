@@ -338,6 +338,8 @@ mod tests {
         SelectionMethod,
     };
 
+    #[ignore = "requires the developer's NixOS configuration"]
+
     #[test]
     fn select_nix_config_by_hostname() {
         let root =

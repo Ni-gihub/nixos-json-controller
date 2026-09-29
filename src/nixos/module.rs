@@ -24,15 +24,9 @@ pub fn disable_service(service: &str) -> Result<String, String> {
     add_service_to_content(&content, service, false)
 }
 
-// ============================================================
-// Package content manipulation
-// ============================================================
-
 pub fn add_package_to_content(content: &str, package: &str) -> Result<String, String> {
     let marker = "environment.systemPackages";
-    let marker_position = content
-        .find(marker)
-        .ok_or("environment.systemPackages section not found")?;
+    let marker_position = content.find(marker).ok_or("environment.systemPackages section not found")?;
 
     let assignment = content[marker_position..]
         .find('=')
@@ -48,7 +42,11 @@ pub fn add_package_to_content(content: &str, package: &str) -> Result<String, St
         .ok_or("environment.systemPackages list is not balanced")?;
 
     let indentation = indentation_for_list_item(content, list_start);
-    let insertion = format!("\n{}{}", indentation, package);
+    let insertion = if list_start + 1 == list_end {
+        format!("\n{}{}", indentation, package)
+    } else {
+        format!("\n{}{}", indentation, package)
+    };
 
     let mut result = content.to_string();
     result.insert_str(list_end, &insertion);
@@ -57,9 +55,7 @@ pub fn add_package_to_content(content: &str, package: &str) -> Result<String, St
 
 pub fn remove_package_from_content(content: &str, package: &str) -> Result<String, String> {
     let marker = "environment.systemPackages";
-    let marker_position = content
-        .find(marker)
-        .ok_or("environment.systemPackages section not found")?;
+    let marker_position = content.find(marker).ok_or("environment.systemPackages section not found")?;
 
     let assignment = content[marker_position..]
         .find('=')
@@ -74,58 +70,54 @@ pub fn remove_package_from_content(content: &str, package: &str) -> Result<Strin
     let list_end = find_matching_delimiter(content, list_start, '[', ']')
         .ok_or("environment.systemPackages list is not balanced")?;
 
-    let package_variants = [package.to_string(), format!("pkgs.{package}")];
+    let variants = [package.to_string(), format!("pkgs.{package}")];
     let region = &content[list_start + 1..list_end];
 
     let mut removed = false;
-    let mut result = String::with_capacity(content.len());
+    let mut output_region = String::with_capacity(region.len());
 
     for line in region.lines() {
         let trimmed = line.trim().trim_end_matches(',');
-        if package_variants.iter().any(|candidate| trimmed == candidate) {
+        if variants.iter().any(|candidate| trimmed == candidate) {
             removed = true;
             continue;
         }
-        result.push_str(line);
-        result.push('\n');
+
+        output_region.push_str(line);
+        output_region.push('\n');
     }
 
     if !removed {
         return Err(format!("package '{}' not found as a standalone list item", package));
     }
 
-    let mut output = String::with_capacity(content.len());
-    output.push_str(&content[..list_start + 1]);
+    let mut result = String::with_capacity(content.len());
+    result.push_str(&content[..list_start + 1]);
 
     if region.ends_with('\n') {
-        output.push_str(&result);
+        result.push_str(&output_region);
     } else {
-        output.push_str(result.trim_end_matches('\n'));
+        result.push_str(output_region.trim_end_matches('\n'));
     }
 
-    output.push_str(&content[list_end..]);
-    Ok(output)
+    result.push_str(&content[list_end..]);
+    Ok(result)
 }
-
-// ============================================================
-// Service content manipulation
-// ============================================================
 
 pub fn add_service_to_content(
     content: &str,
     service: &str,
     enabled: bool,
 ) -> Result<String, String> {
-    let desired = format!("{};", enabled);
-    let prefixes = [
+    let attributes = [
         format!("systemd.services.{service}.enable"),
         format!("services.{service}.enable"),
     ];
 
-    for prefix in &prefixes {
-        if let Some((start, end)) = find_assignment_line(content, prefix) {
+    for attribute in &attributes {
+        if let Some((start, end)) = find_boolean_assignment(content, attribute) {
             let mut result = content.to_string();
-            result.replace_range(start..end, &desired);
+            result.replace_range(start..end, if enabled { "true" } else { "false" });
             return Ok(result);
         }
     }
@@ -134,29 +126,36 @@ pub fn add_service_to_content(
         .rfind('}')
         .ok_or("Nix module closing brace not found")?;
 
-    let setting = format!("  {}.enable = {};\n", prefixes[1].trim_end_matches(".enable"), enabled);
-
+    let setting = format!("  services.{service}.enable = {enabled};\n");
     let mut result = content.to_string();
     result.insert_str(closing_brace, &setting);
     Ok(result)
 }
 
-fn find_assignment_line(content: &str, attribute: &str) -> Option<(usize, usize)> {
+fn find_boolean_assignment(content: &str, attribute: &str) -> Option<(usize, usize)> {
     let mut offset = 0usize;
 
     for line in content.split_inclusive('\n') {
         let code = line.split_once('#').map_or(line, |(code, _)| code);
+
         if let Some(attribute_pos) = code.find(attribute) {
-            let after = &code[attribute_pos + attribute.len()..];
-            if after.trim_start().starts_with('=') {
-                let value_start = code.len() - after.len();
-                let equals = after.find('=')? + value_start;
-                let value = code[equals + 1..].trim();
-                let value_end = equals + 1 + code[equals + 1..].find(value)?;
-                let absolute_start = offset + equals + 1 + code[equals + 1..].find(value)?;
-                return Some((absolute_start, absolute_start + value.len()));
+            let after_attribute = &code[attribute_pos + attribute.len()..];
+            let equals = after_attribute.find('=')?;
+            let value_part = &after_attribute[equals + 1..];
+            let value_start = value_part.len() - value_part.trim_start().len();
+            let value = value_part.trim_start();
+
+            if value.starts_with("true") {
+                let start = offset + attribute_pos + attribute.len() + equals + 1 + value_start;
+                return Some((start, start + 4));
+            }
+
+            if value.starts_with("false") {
+                let start = offset + attribute_pos + attribute.len() + equals + 1 + value_start;
+                return Some((start, start + 5));
             }
         }
+
         offset += line.len();
     }
 
@@ -222,84 +221,50 @@ fn find_matching_delimiter(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
 
     #[test]
     fn adds_package_to_a_nonstandard_system_package_expression() {
-        let content = r#"{
-  environment.systemPackages = lib.mkAfter [
-    pkgs.git
-  ];
-}
-"#;
-
+        let content = "{\n  environment.systemPackages = lib.mkAfter [\n    pkgs.git\n  ];\n}\n";
         let result = add_package_to_content(content, "firefox").unwrap();
-
         assert!(result.contains("pkgs.git"));
         assert!(result.contains("firefox"));
     }
 
     #[test]
     fn removes_package_as_a_standalone_item() {
-        let content = r#"{
-  environment.systemPackages = [
-    pkgs.firefox
-    git
-  ];
-}
-"#;
-
+        let content = "{\n  environment.systemPackages = [\n    pkgs.firefox\n    git\n  ];\n}\n";
         let result = remove_package_from_content(content, "firefox").unwrap();
-
         assert!(!result.contains("pkgs.firefox"));
         assert!(result.contains("git"));
     }
 
     #[test]
     fn updates_existing_service_option() {
-        let content = r#"{
-  services.openssh.enable = true;
-}
-"#;
-
+        let content = "{\n  services.openssh.enable = true;\n}\n";
         let result = add_service_to_content(content, "openssh", false).unwrap();
-
         assert!(result.contains("services.openssh.enable = false;"));
         assert!(!result.contains("services.openssh.enable = true;"));
     }
 
     #[test]
     fn updates_systemd_service_option() {
-        let content = r#"{
-  systemd.services.example.enable = false;
-}
-"#;
-
+        let content = "{\n  systemd.services.example.enable = false;\n}\n";
         let result = add_service_to_content(content, "example", true).unwrap();
-
         assert!(result.contains("systemd.services.example.enable = true;"));
     }
 
     #[test]
     fn adds_service_to_existing_module() {
         let content = "{\n}\n";
-
         let result = add_service_to_content(content, "openssh", true).unwrap();
-
         assert!(result.contains("services.openssh.enable = true;"));
     }
 
     #[test]
-    fn preserves_unrelated_content() {
-        let directory = std::env::temp_dir().join(format!("nxc-module-{}", std::process::id()));
-        fs::create_dir_all(&directory).unwrap();
-
-        let path = directory.join("config.nix");
-        fs::write(&path, "{ services.openssh.enable = true; }").unwrap();
-
-        let content = fs::read_to_string(&path).unwrap();
-        assert!(content.contains("services.openssh.enable = true;"));
-
-        let _ = fs::remove_dir_all(directory);
+    fn does_not_modify_unrelated_boolean_values() {
+        let content = "{\n  services.openssh.enable = true;\n  services.xserver.enable = false;\n}\n";
+        let result = add_service_to_content(content, "openssh", false).unwrap();
+        assert!(result.contains("services.xserver.enable = false;"));
+        assert!(result.contains("services.openssh.enable = false;"));
     }
 }

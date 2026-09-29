@@ -130,7 +130,7 @@ cd nixos-json-controller
 cargo install --path .
 ```
 
-インストールされる実行ファイルは、
+Cargoからインストールした場合の実行ファイル名は、
 
 ```text
 ~/.cargo/bin/nixos-json-controller
@@ -138,19 +138,21 @@ cargo install --path .
 
 です。
 
-`~/.cargo/bin` がPATHに含まれていれば、以下のコマンドで実行できます。
+このプロジェクトのCLIとしては `nxc` を使用します。Nix flakeのpackageではインストール時に `nxc` へ名前を変更しています。
+
+Cargoから直接使う場合は、
 
 ```bash
 nixos-json-controller --help
 ```
 
-このプロジェクトではCLI名として `nxc` を使用します。
+Nix flake経由で使う場合は、
 
 ```bash
 nxc --help
 ```
 
-`nxc` が見つからない場合は、`~/.cargo/bin` がPATHに含まれていることを確認してください。
+を使用できます。
 
 ```bash
 echo $PATH
@@ -437,6 +439,7 @@ nxc -h
 | `nxc e <service>` | サービスを有効化              |
 | `nxc d <service>` | サービスを無効化              |
 | `nxc discover`    | NixOS FlakeをDiscovery |
+| `nxc list`        | 現在のsystem-wideなコマンド/アプリを一覧表示 |
 | `nxc --help`      | ヘルプを表示                |
 
 ---
@@ -517,6 +520,25 @@ environment.systemPackages = with pkgs; [
 
 ---
 
+## Safe write boundary
+
+NXCは、既存のNixファイルを見つけたからといって無条件に編集することはありません。
+
+既存ファイルへの書き込みは、次のような条件を満たす場合に限定します。
+
+* 対象のoptionが明確である
+* 定義が一意である
+* importによる複雑な構成をNXCが推測する必要がない
+* Home Managerの設定ではない
+* `mkIf` / `mkMerge` / `mkForce` / `mkDefault` / `mkBefore` / `mkAfter` などの複雑なmodule構造に依存していない
+* ファイル自体の役割を安全に判断できる
+
+例えば、用途別に細かく分割された `modules/browser/firefox.nix` のようなファイルは、構文が単純でもNXCが勝手に編集しません。
+
+NixOSのmodule systemでは、同じoptionを複数のmoduleから定義して評価でき、`imports` によってmodule graphを構成できます。そのため、ファイル単体の構文だけでは「ここへ書いてよい」と判断できない場合があります。
+
+安全に編集できない場合は、パッケージ追加ではNXC専用moduleへフォールバックします。
+
 ## Package configuration fallback
 
 パッケージが現在のsystemに存在せず、既存NixOS設定をNXCが安全に編集できない場合は、既存構成を推測して書き換えません。代わりに、Flake内の `nxc/packages.nix` を生成し、既存の一意な `imports` リストへ接続します。
@@ -538,6 +560,20 @@ nixos-rebuild
 ```
 
 生成された `nxc/packages.nix` は通常のNixOS moduleなので、以後のNXC操作でも編集対象として再利用できます。既存の `imports` リストを一意に特定できない場合は、設定構造を勝手に変更せずエラーで停止します。
+
+## Service configuration fallback
+
+サービスの有効化についても同じ安全境界を使用します。
+
+既存設定を安全に編集できる場合は既存ファイルを変更します。安全に編集できる既存定義がなく、接続可能な `imports` リストが一意に見つかる場合は、
+
+```text
+nxc/services.nix
+```
+
+をNixOS moduleとして生成し、そこへサービス設定を書き込みます。
+
+一方、既存のサービス定義が複雑で安全に変更できない場合は、同じoptionへ別の定義を追加して競合させることを避けるため、既存定義を残したままエラーで停止します。
 
 ## 6. nixos-rebuild
 
@@ -789,10 +825,27 @@ src/
     │   ├── selector.rs
     │   └── state.rs
     │
+    ├── application.rs
+    ├── config.rs
+    ├── dedicated.rs
+    ├── discovery/
+    │   ├── candidate.rs
+    │   ├── context.rs
+    │   ├── inspection.rs
+    │   ├── nix.rs
+    │   ├── result.rs
+    │   ├── search.rs
+    │   ├── selector.rs
+    │   └── state.rs
     ├── flake.rs
     ├── generator.rs
+    ├── import.rs
     ├── module.rs
-    └── rebuild.rs
+    ├── provenance.rs
+    ├── rebuild.rs
+    ├── system.rs
+    ├── write_strategy.rs
+    └── writer.rs
 ```
 
 ---
@@ -897,7 +950,11 @@ cargo fmt
 * [x] Installed system command/app listing
 * [x] Application state detection
 * [x] NXC dedicated package module fallback
+* [x] NXC dedicated service module fallback
+* [x] Conservative safe-write boundary
+* [x] Nix-evaluated configuration provenance
 * [x] Nix evaluation validation and package-change rollback
+* [x] Service-change rollback when nixos-rebuild fails
 
 今後の予定:
 
@@ -908,7 +965,7 @@ cargo fmt
 * [ ] JSON入力経路の強化
 * [ ] Dry-runの拡張
 * [ ] Confirmation機能
-* [ ] Rollback支援
+* [ ] TAGによるパッケージ分類
 * [ ] 音声入力 / Whisper連携
 * [ ] LLMによるJSON生成
 

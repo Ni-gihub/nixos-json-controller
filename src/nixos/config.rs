@@ -134,6 +134,8 @@ fn inspect_file(path: PathBuf, content: &str) -> ConfigFile {
         content,
     );
 
+    let write_safety = classify_write_safety(&path, content, &imports);
+
     ConfigFile {
         path,
         has_system_packages: contains_assignment(content, "environment.systemPackages"),
@@ -141,7 +143,7 @@ fn inspect_file(path: PathBuf, content: &str) -> ConfigFile {
         has_service_options: content.contains("services.") && content.contains(".enable"),
         declared_packages,
         declared_services,
-        write_safety: classify_write_safety(&path, content, &imports),
+        write_safety,
         imports,
     }
 }

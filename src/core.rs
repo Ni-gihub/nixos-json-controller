@@ -37,7 +37,7 @@ impl NxcCore {
             target: Target { raw: target.into() },
         };
 
-        Validator::validate(&command).map_err(|e| format!("{e:?}"))?;
+        Validator::validate(&command).map_err(|e| e.to_string())?;
         Resolver::resolve(command.action, command.target)
     }
 
@@ -55,7 +55,7 @@ impl NxcCore {
         target: impl Into<String>,
     ) -> Result<(), String> {
         let plan = Self::plan(action, target)?;
-        Self::execute(plan).map_err(|e| format!("{e:?}"))
+        Self::execute(plan).map_err(|e| e.to_string())
     }
 
     pub fn status() -> Result<SystemState, String> {

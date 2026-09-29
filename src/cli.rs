@@ -29,7 +29,8 @@ use nixos_json_controller::{
 #[command(
     name = "nxc",
     version,
-    about = "Safe NixOS configuration controller"
+    about = "Safe NixOS configuration controller",
+    after_help = "Commands:\n  nxc <package>       install package\n  nxc i <package>     install package\n  nxc r <package>     remove package\n  nxc e <service>     enable service\n  nxc d <service>     disable service\n  nxc list            list installed system commands/apps\n  nxc status          show current system status\n  nxc explain package <name>  explain package state and provenance\n  nxc explain service <name>  explain service state and provenance\n  nxc discover        discover NixOS flake\n\nOptions:\n  --dry-run           preview the execution plan without changes"
 )]
 struct CliArgs {
     /// Preview the execution plan without changing configuration or rebuilding.

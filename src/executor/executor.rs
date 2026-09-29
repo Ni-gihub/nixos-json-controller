@@ -10,32 +10,31 @@ impl Executor {
     pub fn execute(plan: ExecutionPlan) -> Result<(), ExecutorError> {
         if plan.dry_run {
             println!("========== Dry Run ==========");
-
             println!("Action : {:?}", plan.action);
-
             println!("Target : {}", plan.target.name);
-
             println!("=============================");
-
             return Ok(());
         }
 
         Self::execute_with_rebuild(plan, true)
     }
 
-    pub fn execute_with_rebuild(plan: ExecutionPlan, rebuild: bool) -> Result<(), ExecutorError> {
-        match plan.action {
+    pub fn execute_with_rebuild(
+        plan: ExecutionPlan,
+        rebuild: bool,
+    ) -> Result<(), ExecutorError> {
+        let changed = match plan.action {
             Action::InstallPackage | Action::RemovePackage => {
-                super::package::execute(plan)?;
+                super::package::execute(plan)?
             }
-
             Action::EnableService | Action::DisableService => {
-                super::service::execute(plan)?;
+                super::service::execute(plan)?
             }
-        }
+        };
 
-        if rebuild {
-            nixos::rebuild::switch().map_err(ExecutorError::NixosError)?;
+        if rebuild && changed {
+            nixos::rebuild::switch()
+                .map_err(ExecutorError::NixosError)?;
         }
 
         Ok(())

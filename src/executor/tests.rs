@@ -37,6 +37,7 @@ fn execute_dry_run() {
 }
 
 #[test]
+#[ignore = "requires a real discovered NixOS configuration"]
 fn execute_install_package() {
     let plan = ExecutionPlan {
         action: Action::InstallPackage,
@@ -52,6 +53,7 @@ fn execute_install_package() {
 }
 
 #[test]
+#[ignore = "requires a real discovered NixOS configuration"]
 fn execute_remove_package() {
     let plan = ExecutionPlan {
         action: Action::RemovePackage,
@@ -67,6 +69,7 @@ fn execute_remove_package() {
 }
 
 #[test]
+#[ignore = "requires a real discovered NixOS configuration"]
 fn execute_enable_service() {
     let plan = ExecutionPlan {
         action: Action::EnableService,
@@ -82,6 +85,7 @@ fn execute_enable_service() {
 }
 
 #[test]
+#[ignore = "requires a real discovered NixOS configuration"]
 fn execute_disable_service() {
     let plan = ExecutionPlan {
         action: Action::DisableService,

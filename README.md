@@ -59,6 +59,8 @@ DiscoveryによってNixOS設定の場所と使用する `nixosConfiguration` �
 * NixOSの既存設定を利用した設定変更
 * 既存構成を編集できない場合のNXC専用package/service module fallback
 * 現在のsystem-wideなコマンド/アプリ一覧表示
+* 現在のsystem / Discovery状態の表示
+* パッケージ・サービスの状態とNix評価による定義元の説明
 * `nixos-rebuild switch` まで一連の処理を実行
 * NixOS設定用Flakeの自動Discovery
 * `nixosConfigurations` のNix評価
@@ -382,6 +384,42 @@ nxc r firefox
 
 ---
 
+## Status
+
+現在のNXCとNixOS systemの状態を確認できます。
+
+```bash
+nxc status
+```
+
+Discovery結果が利用できる場合は、選択中のFlakeとConfigurationも表示します。
+
+---
+
+## Explain package
+
+パッケージが現在のsystemに存在するか、NixOS設定で定義されているか、定義元がどこかを確認できます。
+
+```bash
+nxc explain package firefox
+```
+
+このコマンドは診断目的なので、パッケージが既にインストール済みでもNix evaluationを行い、可能な範囲で定義元を表示します。
+
+---
+
+## Explain service
+
+サービスについても同様に確認できます。
+
+```bash
+nxc explain service openssh
+```
+
+Nix評価による定義元と、現在systemdで有効になっている状態を分けて表示します。
+
+---
+
 ## Enable service
 
 ```bash
@@ -440,6 +478,9 @@ nxc -h
 | `nxc d <service>` | サービスを無効化              |
 | `nxc discover`    | NixOS FlakeをDiscovery |
 | `nxc list`        | 現在のsystem-wideなコマンド/アプリを一覧表示 |
+| `nxc status`      | 現在のsystem / Discovery状態を表示 |
+| `nxc explain package <name>` | パッケージ状態と定義元を表示 |
+| `nxc explain service <name>` | サービス状態と定義元を表示 |
 | `nxc --help`      | ヘルプを表示                |
 
 ---
@@ -940,6 +981,8 @@ cargo fmt
 * [x] Saved Discovery result validation
 * [x] Installed system command/app listing
 * [x] Application state detection
+* [x] System status diagnostics
+* [x] Package / Service explain diagnostics
 * [x] NXC dedicated package module fallback
 * [x] NXC dedicated service module fallback
 * [x] Conservative safe-write boundary

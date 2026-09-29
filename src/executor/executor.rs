@@ -39,19 +39,20 @@ impl Executor {
             .map(|change| change.is_changed())
             .unwrap_or(true);
 
-        if rebuild && changed {
-            if let Err(error) = nixos::rebuild::switch() {
-                if let Some(change) = package_change {
-                    if let Err(rollback_error) = change.rollback() {
-                        return Err(ExecutorError::NixosError(format!(
-                            "nixos-rebuild failed: {}; rollback also failed: {}",
-                            error, rollback_error
-                        )));
-                    }
-                }
-
-                return Err(ExecutorError::NixosError(error));
+        if rebuild
+            && changed
+            && let Err(error) = nixos::rebuild::switch()
+        {
+            if let Some(change) = package_change
+                && let Err(rollback_error) = change.rollback()
+            {
+                return Err(ExecutorError::NixosError(format!(
+                    "nixos-rebuild failed: {}; rollback also failed: {}",
+                    error, rollback_error
+                )));
             }
+
+            return Err(ExecutorError::NixosError(error));
         }
 
         Ok(())

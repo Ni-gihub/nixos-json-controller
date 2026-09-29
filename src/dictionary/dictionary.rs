@@ -61,6 +61,8 @@ impl Dictionary {
             .map(|(canonical, aliases)| (canonical.as_str(), aliases.as_slice()))
     }
 
+}
+
 // ============================================================
 // Dictionary validation
 // ============================================================

@@ -26,7 +26,9 @@ pub fn disable_service(service: &str) -> Result<String, String> {
 
 pub fn add_package_to_content(content: &str, package: &str) -> Result<String, String> {
     let marker = "environment.systemPackages";
-    let marker_position = content.find(marker).ok_or("environment.systemPackages section not found")?;
+    let marker_position = content
+        .find(marker)
+        .ok_or("environment.systemPackages section not found")?;
 
     let assignment = content[marker_position..]
         .find('=')
@@ -42,11 +44,7 @@ pub fn add_package_to_content(content: &str, package: &str) -> Result<String, St
         .ok_or("environment.systemPackages list is not balanced")?;
 
     let indentation = indentation_for_list_item(content, list_start);
-    let insertion = if list_start + 1 == list_end {
-        format!("\n{}{}", indentation, package)
-    } else {
-        format!("\n{}{}", indentation, package)
-    };
+    let insertion = format!("\n{}{}", indentation, package);
 
     let mut result = content.to_string();
     result.insert_str(list_end, &insertion);
@@ -55,7 +53,9 @@ pub fn add_package_to_content(content: &str, package: &str) -> Result<String, St
 
 pub fn remove_package_from_content(content: &str, package: &str) -> Result<String, String> {
     let marker = "environment.systemPackages";
-    let marker_position = content.find(marker).ok_or("environment.systemPackages section not found")?;
+    let marker_position = content
+        .find(marker)
+        .ok_or("environment.systemPackages section not found")?;
 
     let assignment = content[marker_position..]
         .find('=')
@@ -88,7 +88,10 @@ pub fn remove_package_from_content(content: &str, package: &str) -> Result<Strin
     }
 
     if !removed {
-        return Err(format!("package '{}' not found as a standalone list item", package));
+        return Err(format!(
+            "package '{}' not found as a standalone list item",
+            package
+        ));
     }
 
     let mut result = String::with_capacity(content.len());
@@ -144,14 +147,13 @@ fn find_boolean_assignment(content: &str, attribute: &str) -> Option<(usize, usi
             let value_part = &after_attribute[equals + 1..];
             let value_start = value_part.len() - value_part.trim_start().len();
             let value = value_part.trim_start();
+            let start = offset + attribute_pos + attribute.len() + equals + 1 + value_start;
 
             if value.starts_with("true") {
-                let start = offset + attribute_pos + attribute.len() + equals + 1 + value_start;
                 return Some((start, start + 4));
             }
 
             if value.starts_with("false") {
-                let start = offset + attribute_pos + attribute.len() + equals + 1 + value_start;
                 return Some((start, start + 5));
             }
         }
@@ -164,6 +166,7 @@ fn find_boolean_assignment(content: &str, attribute: &str) -> Option<(usize, usi
 
 fn indentation_for_list_item(content: &str, list_start: usize) -> String {
     let after = &content[list_start + 1..];
+
     after
         .lines()
         .find(|line| !line.trim().is_empty())
@@ -226,14 +229,17 @@ mod tests {
     fn adds_package_to_a_nonstandard_system_package_expression() {
         let content = "{\n  environment.systemPackages = lib.mkAfter [\n    pkgs.git\n  ];\n}\n";
         let result = add_package_to_content(content, "firefox").unwrap();
+
         assert!(result.contains("pkgs.git"));
         assert!(result.contains("firefox"));
     }
 
     #[test]
     fn removes_package_as_a_standalone_item() {
-        let content = "{\n  environment.systemPackages = [\n    pkgs.firefox\n    git\n  ];\n}\n";
+        let content =
+            "{\n  environment.systemPackages = [\n    pkgs.firefox\n    git\n  ];\n}\n";
         let result = remove_package_from_content(content, "firefox").unwrap();
+
         assert!(!result.contains("pkgs.firefox"));
         assert!(result.contains("git"));
     }
@@ -242,6 +248,7 @@ mod tests {
     fn updates_existing_service_option() {
         let content = "{\n  services.openssh.enable = true;\n}\n";
         let result = add_service_to_content(content, "openssh", false).unwrap();
+
         assert!(result.contains("services.openssh.enable = false;"));
         assert!(!result.contains("services.openssh.enable = true;"));
     }
@@ -250,6 +257,7 @@ mod tests {
     fn updates_systemd_service_option() {
         let content = "{\n  systemd.services.example.enable = false;\n}\n";
         let result = add_service_to_content(content, "example", true).unwrap();
+
         assert!(result.contains("systemd.services.example.enable = true;"));
     }
 
@@ -257,13 +265,16 @@ mod tests {
     fn adds_service_to_existing_module() {
         let content = "{\n}\n";
         let result = add_service_to_content(content, "openssh", true).unwrap();
+
         assert!(result.contains("services.openssh.enable = true;"));
     }
 
     #[test]
     fn does_not_modify_unrelated_boolean_values() {
-        let content = "{\n  services.openssh.enable = true;\n  services.xserver.enable = false;\n}\n";
+        let content =
+            "{\n  services.openssh.enable = true;\n  services.xserver.enable = false;\n}\n";
         let result = add_service_to_content(content, "openssh", false).unwrap();
+
         assert!(result.contains("services.xserver.enable = false;"));
         assert!(result.contains("services.openssh.enable = false;"));
     }

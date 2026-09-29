@@ -200,10 +200,14 @@ fn value_contains_package(value: &Value, package: &str) -> bool {
 fn string_matches_package(value: &str, package: &str) -> bool {
     let normalized = value.rsplit('/').next().unwrap_or(value);
 
-    normalized == package
-        || normalized.starts_with(&format!("{package}-"))
-        || normalized.ends_with(&format!("-{package}"))
-        || normalized.contains(&format!("-{package}-"))
+    let mut parts = normalized.split('-');
+    let Some(first) = parts.next() else {
+        return false;
+    };
+
+    first == package
+        || normalized == package
+        || normalized.strip_suffix(&format!("-{package}")).is_some()
 }
 
 #[cfg(test)]

@@ -461,6 +461,8 @@ mod tests {
     const NIX_CONFIG_PATH: &str =
         "/home/nakaoku/Projects/nix-config";
 
+    #[ignore = "requires the developer's NixOS configuration"]
+
     #[test]
     fn evaluate_nix_config_flake() {
         let flake_root =
@@ -476,6 +478,8 @@ mod tests {
 
         assert!(metadata.path.is_some());
     }
+
+    #[ignore = "requires the developer's NixOS configuration"]
 
     #[test]
     fn show_nix_config_flake() {
@@ -507,6 +511,8 @@ mod tests {
             Some("nixos-configuration")
         );
     }
+
+    #[ignore = "requires the developer's NixOS configuration"]
 
     #[test]
     fn evaluate_laptop_configuration() {

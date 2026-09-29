@@ -251,6 +251,37 @@ mod tests {
     }
 
     #[test]
+    fn removes_package_from_inline_simple_list() {
+        let content = "{ environment.systemPackages = [ pkgs.firefox git ]; }";
+        let result = remove_package_from_content(content, "firefox").unwrap();
+
+        assert_eq!(
+            result,
+            "{ environment.systemPackages = [  git ]; }"
+        );
+        assert!(result.contains("git"));
+        assert!(!result.contains("firefox"));
+    }
+
+    #[test]
+    fn rejects_duplicate_package_in_simple_list() {
+        let content = "{ environment.systemPackages = [ pkgs.firefox git ]; }";
+        let result = add_package_to_content(content, "firefox");
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("already present"));
+    }
+
+    #[test]
+    fn does_not_remove_package_substring_from_other_identifier() {
+        let content = "{ environment.systemPackages = [ pkgs.firefox-nightly ]; }";
+        let result = remove_package_from_content(content, "firefox");
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not found"));
+    }
+
+    #[test]
     fn updates_existing_service_option() {
         let content = "{\n  services.openssh.enable = true;\n}\n";
         let result = add_service_to_content(content, "openssh", false).unwrap();

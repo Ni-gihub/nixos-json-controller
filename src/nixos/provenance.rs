@@ -98,18 +98,17 @@ pub fn evaluate_package_provenance(
     configuration_name: &str,
     package: &str,
 ) -> Result<EvaluatedProvenance, String> {
-    evaluate_option(
+    let provenance = evaluate_option(
         flake_root,
         configuration_name,
         "environment.systemPackages",
-    )
-    .map(|provenance| {
-        if provenance.contains_local_package(flake_root, package) {
-            provenance
-        } else {
-            EvaluatedProvenance::default()
-        }
-    })
+    )?;
+
+    if provenance.contains_local_package(flake_root, package) {
+        Ok(provenance)
+    } else {
+        Ok(EvaluatedProvenance::default())
+    }
 }
 
 pub fn evaluate_service_provenance(
@@ -117,10 +116,20 @@ pub fn evaluate_service_provenance(
     configuration_name: &str,
     service: &str,
 ) -> Result<EvaluatedProvenance, String> {
-    evaluate_option(
+    let services = evaluate_option(
         flake_root,
         configuration_name,
         &format!("services.{service}.enable"),
+    )?;
+
+    if !services.local_files(flake_root).is_empty() {
+        return Ok(services);
+    }
+
+    evaluate_option(
+        flake_root,
+        configuration_name,
+        &format!("systemd.services.{service}.enable"),
     )
 }
 
@@ -214,10 +223,7 @@ mod tests {
 
     #[test]
     fn resolves_worktree_definition() {
-        let root = std::env::temp_dir().join(format!(
-            "nxc-provenance-{}",
-            std::process::id()
-        ));
+        let root = std::env::temp_dir().join(format!("nxc-provenance-{}", std::process::id()));
         let local = root.join("configuration.nix");
 
         std::fs::create_dir_all(&root).unwrap();
@@ -233,10 +239,8 @@ mod tests {
 
     #[test]
     fn resolves_store_source_definition() {
-        let root = std::env::temp_dir().join(format!(
-            "nxc-provenance-source-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("nxc-provenance-source-{}", std::process::id()));
         let source = root.join("source");
         let local = root.join("configuration.nix");
 

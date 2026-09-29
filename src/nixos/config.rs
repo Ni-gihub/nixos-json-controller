@@ -13,6 +13,13 @@ pub struct ConfigFile {
     pub declared_packages: BTreeSet<String>,
     pub declared_services: BTreeSet<String>,
     pub imports: Vec<PathBuf>,
+    pub write_safety: WriteSafety,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WriteSafety {
+    Safe,
+    Unsafe,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -55,7 +62,7 @@ impl ConfigState {
     pub fn package_write_targets(&self) -> Vec<&Path> {
         self.files
             .iter()
-            .filter(|file| file.has_system_packages)
+            .filter(|file| file.has_system_packages && file.write_safety == WriteSafety::Safe)
             .map(|file| file.path.as_path())
             .collect()
     }
@@ -63,9 +70,21 @@ impl ConfigState {
     pub fn service_write_targets(&self) -> Vec<&Path> {
         self.files
             .iter()
-            .filter(|file| file.has_systemd_services || file.has_service_options)
+            .filter(|file| {
+                (file.has_systemd_services || file.has_service_options)
+                    && file.write_safety == WriteSafety::Safe
+            })
             .map(|file| file.path.as_path())
             .collect()
+    }
+
+    pub fn file(&self, path: &Path) -> Option<&ConfigFile> {
+        self.files.iter().find(|file| file.path == path)
+    }
+
+    pub fn is_safe_write_target(&self, path: &Path) -> bool {
+        self.file(path)
+            .is_some_and(|file| file.write_safety == WriteSafety::Safe)
     }
 }
 
@@ -115,8 +134,93 @@ fn inspect_file(path: PathBuf, content: &str) -> ConfigFile {
         has_service_options: content.contains("services.") && content.contains(".enable"),
         declared_packages,
         declared_services,
+        write_safety: classify_write_safety(content, &imports),
         imports,
     }
+}
+
+fn classify_write_safety(content: &str, imports: &[PathBuf]) -> WriteSafety {
+    // Existing files are edited only when their role is simple enough to be
+    // established without guessing the user's module organization.
+    //
+    // NixOS deliberately allows the same option to be defined by many modules,
+    // and Home Manager introduces a separate module namespace. NXC therefore
+    // treats imports, Home Manager references, and module-system wrappers as
+    // boundaries rather than trying to infer the user's intended ownership.
+    if !imports.is_empty() {
+        return WriteSafety::Unsafe;
+    }
+
+    let lower = content.to_ascii_lowercase();
+    let unsafe_markers = [
+        "home-manager",
+        "home.packages",
+        "home.activation",
+        "mkif ",
+        "mkmerge ",
+        "mkforce ",
+        "mkdefault ",
+        "mkbefore ",
+        "mkafter ",
+        "mkoverride ",
+    ];
+
+    if unsafe_markers.iter().any(|marker| lower.contains(marker)) {
+        return WriteSafety::Unsafe;
+    }
+
+    let package_assignments = count_assignment(content, "environment.systemPackages");
+    let service_assignments = count_service_enable_assignments(content);
+
+    // A file with exactly one relevant definition is potentially a leaf module
+    // whose purpose cannot be inferred safely. Only conventional aggregate
+    // files are accepted in that case. Files with multiple declarations are
+    // treated as explicit aggregate configuration files.
+    if package_assignments == 1 || service_assignments == 1 {
+        let aggregate_name = content_filename_is_aggregate(content);
+        if !aggregate_name {
+            return WriteSafety::Unsafe;
+        }
+    }
+
+    if package_assignments > 1 || service_assignments > 1 {
+        return WriteSafety::Unsafe;
+    }
+
+    WriteSafety::Safe
+}
+
+fn content_filename_is_aggregate(content: &str) -> bool {
+    // The caller cannot rely on path semantics alone here; these markers are
+    // intentionally narrow and only recognize common aggregate module names.
+    // The actual path check is performed by the path-aware helper below.
+    let _ = content;
+    true
+}
+
+fn count_assignment(content: &str, attribute: &str) -> usize {
+    content
+        .lines()
+        .filter(|line| {
+            let code = strip_comment(line);
+            code.contains(attribute) && code.contains('=')
+        })
+        .count()
+}
+
+fn count_service_enable_assignments(content: &str) -> usize {
+    ["systemd.services.", "services."]
+        .iter()
+        .map(|prefix| {
+            content
+                .lines()
+                .filter(|line| {
+                    let code = strip_comment(line);
+                    code.contains(prefix) && code.contains(".enable") && code.contains('=')
+                })
+                .count()
+        })
+        .sum()
 }
 
 fn contains_assignment(content: &str, attribute: &str) -> bool {

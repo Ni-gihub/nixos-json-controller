@@ -118,7 +118,7 @@ fn discover_binaries(
 /// 現在のsystem generationが直接参照しているNix store pathを取得する。
 fn discover_system_packages() -> Result<BTreeSet<String>, String> {
     let output = Command::new("nix-store")
-        .args(["--query", "--references", "/run/current-system"])
+        .args(["--query", "--references", "/run/current-system/sw"])
         .output()
         .map_err(|e| format!("failed to execute nix-store: {}", e))?;
 

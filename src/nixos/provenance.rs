@@ -200,14 +200,18 @@ fn value_contains_package(value: &Value, package: &str) -> bool {
 fn string_matches_package(value: &str, package: &str) -> bool {
     let normalized = value.rsplit('/').next().unwrap_or(value);
 
-    let mut parts = normalized.split('-');
-    let Some(first) = parts.next() else {
+    if normalized == package {
+        return true;
+    }
+
+    let Some(position) = normalized.find(&format!("-{package}-")) else {
         return false;
     };
 
-    first == package
-        || normalized == package
-        || normalized.strip_suffix(&format!("-{package}")).is_some()
+    normalized[position + package.len() + 2..]
+        .split('-')
+        .next()
+        .is_some_and(|version| version.chars().next().is_some_and(|c| c.is_ascii_digit()))
 }
 
 #[cfg(test)]
@@ -223,7 +227,12 @@ mod tests {
 
         assert!(value_contains_package(&value, "firefox"));
         assert!(value_contains_package(&value, "git"));
+        assert!(!value_contains_package(&value, "git-lfs"));
         assert!(!value_contains_package(&value, "vim"));
+
+        let git_lfs = serde_json::json!("/nix/store/example-git-lfs-3.6.0");
+        assert!(value_contains_package(&git_lfs, "git-lfs"));
+        assert!(!value_contains_package(&git_lfs, "git"));
     }
 
     #[test]

@@ -66,8 +66,8 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
 
-      - name: Verify Nix
-        run: nix eval --raw --expr 'builtins.toString (1 + 1)'
+      - name: Run Nix-dependent smoke test
+        run: cargo test nix_command_is_available -- --ignored --exact
 
   build:
     name: Build

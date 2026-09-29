@@ -263,23 +263,32 @@ fn parse_system_package_names(content: &str) -> Vec<String> {
 
 fn find_system_packages_list(content: &str) -> Option<usize> {
     let marker = "environment.systemPackages";
-    let marker_pos = content
-        .match_indices('\n')
-        .map(|(offset, _)| offset + 1)
-        .chain(std::iter::once(0))
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .filter_map(|start| {
-            let line_end = content[start..].find('\n').map_or(content.len(), |offset| start + offset);
-            let line = strip_comment(&content[start..line_end]);
-            line.find(marker).map(|position| (start + position, line))
-        })
-        .find_map(|(offset, line)| line.find(marker).map(|_| offset))?;
+    let mut offset = 0usize;
 
-    let assignment = content[marker_pos..].find('=')? + marker_pos;
-    content[assignment + 1..]
-        .find('[')
-        .map(|offset| assignment + 1 + offset)
+    for line in content.split_inclusive('\n') {
+        let code = strip_comment(line);
+        if let Some(position) = code.find(marker) {
+            let marker_pos = offset + position;
+            let assignment = content[marker_pos..].find('=')? + marker_pos;
+            return content[assignment + 1..]
+                .find('[')
+                .map(|offset| assignment + 1 + offset);
+        }
+        offset += line.len();
+    }
+
+    if offset < content.len() {
+        let code = strip_comment(&content[offset..]);
+        if let Some(position) = code.find(marker) {
+            let marker_pos = offset + position;
+            let assignment = content[marker_pos..].find('=')? + marker_pos;
+            return content[assignment + 1..]
+                .find('[')
+                .map(|offset| assignment + 1 + offset);
+        }
+    }
+
+    None
 }
 
 fn parse_package_line(line: &str) -> Option<String> {

@@ -1,6 +1,10 @@
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::PathBuf;
+
 use crate::{
     command::Action,
     core::NxcCore,
+    nixos::system::SystemState,
 };
 
 #[test]
@@ -23,13 +27,24 @@ fn core_resolve_uses_action_specific_dictionary() {
 
 #[test]
 fn catalog_entries_are_sorted_and_expose_state() {
-    let catalog = NxcCore::catalog().unwrap();
+    let system = test_system_state();
+    let catalog = NxcCore::catalog_with_system(&system).unwrap();
     assert!(catalog.packages.windows(2).all(|w| w[0].name <= w[1].name));
     assert!(catalog.services.windows(2).all(|w| w[0].name <= w[1].name));
 }
 
 #[test]
 fn catalog_search_matches_canonical_names() {
-    let catalog = NxcCore::search_catalog("firefox").unwrap();
+    let system = test_system_state();
+    let catalog = NxcCore::search_catalog_with_system("firefox", &system).unwrap();
     assert!(catalog.packages.iter().any(|entry| entry.name == "firefox"));
+}
+
+fn test_system_state() -> SystemState {
+    SystemState {
+        current_generation: PathBuf::from("/nix/store/test-system"),
+        binaries: BTreeMap::new(),
+        packages: BTreeSet::new(),
+        enabled_services: BTreeSet::new(),
+    }
 }

@@ -112,7 +112,12 @@ fn search_directory(
         let path =
             entry.path();
 
-        if !path.is_dir() {
+        let metadata = match fs::symlink_metadata(&path) {
+            Ok(metadata) => metadata,
+            Err(_) => continue,
+        };
+
+        if !metadata.file_type().is_dir() {
             continue;
         }
 

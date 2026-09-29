@@ -27,25 +27,32 @@ impl Executor {
             Action::InstallPackage | Action::RemovePackage => {
                 Some(super::package::execute_with_change(plan.clone())?)
             }
+            Action::EnableService | Action::DisableService => None,
+        };
+
+        let service_change = match plan.action {
             Action::EnableService | Action::DisableService => {
-                super::service::execute(plan)?
-                ;
-                None
+                Some(super::service::execute(plan.clone())?)
             }
+            Action::InstallPackage | Action::RemovePackage => None,
         };
 
         let changed = package_change
             .as_ref()
             .map(|change| change.is_changed())
-            .unwrap_or(true);
+            .or_else(|| service_change.as_ref().map(|change| change.is_changed()))
+            .unwrap_or(false);
 
-        if rebuild
-            && changed
-            && let Err(error) = nixos::rebuild::switch()
-        {
-            if let Some(change) = package_change
-                && let Err(rollback_error) = change.rollback()
-            {
+        if rebuild && changed && let Err(error) = nixos::rebuild::switch() {
+            let rollback_result = if let Some(change) = package_change {
+                change.rollback()
+            } else if let Some(change) = service_change {
+                change.rollback()
+            } else {
+                Ok(())
+            };
+
+            if let Err(rollback_error) = rollback_result {
                 return Err(ExecutorError::NixosError(format!(
                     "nixos-rebuild failed: {}; rollback also failed: {}",
                     error, rollback_error

@@ -23,18 +23,35 @@ impl Executor {
         plan: ExecutionPlan,
         rebuild: bool,
     ) -> Result<(), ExecutorError> {
-        let changed = match plan.action {
+        let package_change = match plan.action {
             Action::InstallPackage | Action::RemovePackage => {
-                super::package::execute(plan)?
+                Some(super::package::execute_with_change(plan.clone())?)
             }
             Action::EnableService | Action::DisableService => {
                 super::service::execute(plan)?
+                ;
+                None
             }
         };
 
+        let changed = package_change
+            .as_ref()
+            .map(|change| change.is_changed())
+            .unwrap_or(true);
+
         if rebuild && changed {
-            nixos::rebuild::switch()
-                .map_err(ExecutorError::NixosError)?;
+            if let Err(error) = nixos::rebuild::switch() {
+                if let Some(change) = package_change {
+                    if let Err(rollback_error) = change.rollback() {
+                        return Err(ExecutorError::NixosError(format!(
+                            "nixos-rebuild failed: {}; rollback also failed: {}",
+                            error, rollback_error
+                        )));
+                    }
+                }
+
+                return Err(ExecutorError::NixosError(error));
+            }
         }
 
         Ok(())

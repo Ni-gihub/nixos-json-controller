@@ -17,6 +17,19 @@ impl ApplicationState {
         package: &str,
         system: &SystemState,
     ) -> Result<Self, String> {
+        let system_present = system.has_command(package) || system.has_package(package);
+
+        // The active system is authoritative for the "already installed"
+        // fast path. Do not make an otherwise successful no-op depend on
+        // provenance evaluation of the source configuration.
+        if system_present {
+            return Ok(Self {
+                system_present: true,
+                declared_in_config: false,
+                declaration_locations: Vec::new(),
+            });
+        }
+
         let provenance = evaluate_package_provenance(
             context.flake_root(),
             context.configuration_name(),
@@ -26,7 +39,7 @@ impl ApplicationState {
         let declaration_locations = provenance.local_files(context.flake_root());
 
         Ok(Self {
-            system_present: system.has_command(package) || system.has_package(package),
+            system_present: false,
             declared_in_config: !declaration_locations.is_empty(),
             declaration_locations,
         })

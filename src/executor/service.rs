@@ -7,7 +7,43 @@ use crate::planner::ExecutionPlan;
 
 use super::error::ExecutorError;
 
-pub fn execute(plan: ExecutionPlan) -> Result<bool, ExecutorError> {
+#[derive(Debug, Clone, Default)]
+pub struct ServiceChange {
+    pub backups: Vec<nixos::dedicated::FileBackup>,
+    pub created_files: Vec<std::path::PathBuf>,
+}
+
+impl ServiceChange {
+    pub fn is_changed(&self) -> bool {
+        !self.backups.is_empty() || !self.created_files.is_empty()
+    }
+
+    pub fn rollback(&self) -> Result<(), String> {
+        for backup in self.backups.iter().rev() {
+            backup.restore()?;
+        }
+
+        for path in self.created_files.iter().rev() {
+            if path.is_file() {
+                std::fs::remove_file(path)
+                    .map_err(|e| format!("failed to remove {}: {}", path.display(), e))?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl From<nixos::dedicated::DedicatedServiceChange> for ServiceChange {
+    fn from(change: nixos::dedicated::DedicatedServiceChange) -> Self {
+        Self {
+            backups: change.backups,
+            created_files: change.created_files,
+        }
+    }
+}
+
+pub fn execute(plan: ExecutionPlan) -> Result<ServiceChange, ExecutorError> {
     let context = nixos::flake::discovery_context().map_err(ExecutorError::NixosError)?;
     let config = nixos::config::ConfigState::discover(context.flake_root())
         .map_err(ExecutorError::NixosError)?;
@@ -27,7 +63,7 @@ pub fn execute(plan: ExecutionPlan) -> Result<bool, ExecutorError> {
         Action::EnableService => {
             if !provenance_paths.is_empty() {
                 if provenance.contains_local_boolean(context.flake_root(), true) {
-                    return Ok(false);
+                    return Ok(ServiceChange::default());
                 }
 
                 if provenance_paths.len() != 1 {
@@ -48,9 +84,18 @@ pub fn execute(plan: ExecutionPlan) -> Result<bool, ExecutorError> {
                     );
                 }
 
-                nixos::writer::enable_service(path, &plan.target.name)
+                let backup = nixos::dedicated::FileBackup::capture(path)
                     .map_err(ExecutorError::NixosError)?;
-                return Ok(true);
+                if let Err(error) =
+                    nixos::writer::enable_service(path, &plan.target.name)
+                {
+                    return Err(ExecutorError::NixosError(error));
+                }
+
+                return Ok(ServiceChange {
+                    backups: vec![backup],
+                    created_files: vec![],
+                });
             }
 
             match enable_service_strategy(&config, &system, &plan.target.name) {
@@ -139,8 +184,9 @@ fn install_service_in_dedicated_module(
 ) -> Result<bool, ExecutorError> {
     println!("Falling back to the NXC dedicated service module: {}", reason);
 
-    nixos::dedicated::enable_service(flake_root, config, service)
-        .map_err(ExecutorError::NixosError)?;
+    Ok(nixos::dedicated::enable_service(flake_root, config, service)
+        .map_err(ExecutorError::NixosError)?
+        .into());
 
     Ok(true)
 }

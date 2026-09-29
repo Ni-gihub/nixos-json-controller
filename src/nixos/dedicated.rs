@@ -295,60 +295,115 @@ fn import_targets(flake_root: &Path, config: &ConfigState) -> Result<Vec<PathBuf
 }
 
 fn find_import_list(content: &str) -> Option<usize> {
+    let bytes = content.as_bytes();
+    let mut index = 0usize;
+    let mut in_comment = false;
+    let mut in_string = false;
+    let mut in_indented_string = false;
+    let mut escaped = false;
     let mut found = None;
-    let mut offset = 0usize;
 
-    for line in content.split_inclusive('\n') {
-        let code = line.split_once('#').map_or(line, |(code, _)| code);
-        let trimmed = code.trim_start();
-
-        if !trimmed.starts_with("imports") {
-            offset += line.len();
+    while index < bytes.len() {
+        if in_comment {
+            if bytes[index] == b'\n' {
+                in_comment = false;
+            }
+            index += 1;
             continue;
         }
 
-        let after_name = &trimmed["imports".len()..];
-        if !after_name
-            .chars()
-            .next()
-            .is_some_and(char::is_whitespace)
-            && !after_name.starts_with('=') {
-            offset += line.len();
+        if in_indented_string {
+            if bytes[index..].starts_with(b"''") {
+                in_indented_string = false;
+                index += 2;
+            } else {
+                index += 1;
+            }
             continue;
         }
 
-        let Some(equals) = after_name.find('=') else {
-            offset += line.len();
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if bytes[index] == b'\\' {
+                escaped = true;
+            } else if bytes[index] == b'"' {
+                in_string = false;
+            }
+            index += 1;
             continue;
-        };
+        }
 
-        let after_equals = &after_name[equals + 1..];
-        let Some(list_offset) = after_equals.find('[') else {
-            offset += line.len();
+        if bytes[index] == b'#' {
+            in_comment = true;
+            index += 1;
             continue;
-        };
+        }
 
-        let list_start = offset
-            + code.len()
-            - code.trim_start().len()
-            + "imports".len()
-            + equals
-            + 1
-            + list_offset;
-
-        let Some(list_end) = find_matching_delimiter(content, list_start, '[', ']') else {
-            offset += line.len();
+        if bytes[index] == b'"' {
+            in_string = true;
+            index += 1;
             continue;
-        };
+        }
 
-        if found.replace(list_start).is_some() {
-            // Multiple direct imports lists are ambiguous. The fallback must
-            // never guess which module graph entry should be modified.
+        if bytes[index..].starts_with(b"''") {
+            in_indented_string = true;
+            index += 2;
+            continue;
+        }
+
+        if !bytes[index..].starts_with(b"imports") {
+            index += 1;
+            continue;
+        }
+
+        let before_ok = index == 0
+            || !matches!(
+                bytes[index - 1],
+                b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_' | b'-'
+            );
+        let after_name = index + "imports".len();
+        let after_ok = after_name == bytes.len()
+            || !matches!(
+                bytes[after_name],
+                b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_' | b'-'
+            );
+
+        if !before_ok || !after_ok {
+            index += "imports".len();
+            continue;
+        }
+
+        let mut cursor = after_name;
+        while cursor < bytes.len() && bytes[cursor].is_ascii_whitespace() {
+            cursor += 1;
+        }
+
+        if cursor >= bytes.len() || bytes[cursor] != b'=' {
+            index += "imports".len();
+            continue;
+        }
+
+        cursor += 1;
+        while cursor < bytes.len() && bytes[cursor].is_ascii_whitespace() {
+            cursor += 1;
+        }
+
+        if cursor >= bytes.len() || bytes[cursor] != b'[' {
+            index += "imports".len();
+            continue;
+        }
+
+        if find_matching_delimiter(content, cursor, '[', ']').is_none() {
+            index += "imports".len();
+            continue;
+        }
+
+        if found.replace(cursor).is_some() {
             return None;
         }
 
-        let _ = list_end;
-        offset += line.len();
+        index = cursor + 1;
     }
 
     found

@@ -16,6 +16,7 @@ use nixos_json_controller::{
             DiscoveryStatus,
             SearchOptions,
         },
+        status::{explain_package, explain_service},
         system::SystemState,
     },
     planner::Planner,

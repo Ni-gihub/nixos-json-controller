@@ -7,7 +7,7 @@ use crate::nixos::{
     system::SystemState,
     write_strategy::{
         disable_service_strategy, enable_service_strategy, install_package_strategy,
-        ServiceDisableStrategy, ServiceEnableStrategy,
+        PackageInstallStrategy, ServiceDisableStrategy, ServiceEnableStrategy,
     },
 };
 use crate::resolver::ResolvedTarget;

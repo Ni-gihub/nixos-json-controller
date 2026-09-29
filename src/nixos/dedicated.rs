@@ -119,7 +119,7 @@ fn ensure_import(
         _ => {
             return Err(format!(
                 "cannot connect NXC dedicated module: multiple imports lists were found: {}",
-                format_paths(candidates),
+                format_paths(&candidates),
             ))
         }
     };

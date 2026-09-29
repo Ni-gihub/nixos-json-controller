@@ -264,13 +264,17 @@ fn parse_system_package_names(content: &str) -> Vec<String> {
 fn find_system_packages_list(content: &str) -> Option<usize> {
     let marker = "environment.systemPackages";
     let marker_pos = content
-        .lines()
-        .scan(0usize, |offset, line| {
-            let start = *offset;
-            *offset += line.len() + 1;
-            Some((start, strip_comment(line)))
+        .match_indices('\n')
+        .map(|(offset, _)| offset + 1)
+        .chain(std::iter::once(0))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .filter_map(|start| {
+            let line_end = content[start..].find('\n').map_or(content.len(), |offset| start + offset);
+            let line = strip_comment(&content[start..line_end]);
+            line.find(marker).map(|position| (start + position, line))
         })
-        .find_map(|(offset, line)| line.find(marker).map(|position| offset + position))?;
+        .find_map(|(offset, line)| line.find(marker).map(|_| offset))?;
 
     let assignment = content[marker_pos..].find('=')? + marker_pos;
     content[assignment + 1..]
@@ -358,7 +362,9 @@ fn normalize_relative_path(base: &Path, relative: &str) -> PathBuf {
         match component {
             std::path::Component::CurDir => {}
             std::path::Component::ParentDir => {
-                path.pop();
+                if !path.pop() {
+                    path.push("..");
+                }
             }
             std::path::Component::Normal(component) => path.push(component),
             _ => {}

@@ -37,35 +37,43 @@ impl ConfigState {
     }
 
     pub fn package_declarations(&self, package: &str) -> Vec<&Path> {
-        self.files.iter()
+        self.files
+            .iter()
             .filter(|file| file.declared_packages.contains(package))
             .map(|file| file.path.as_path())
             .collect()
     }
 
     pub fn service_declarations(&self, service: &str) -> Vec<&Path> {
-        self.files.iter()
+        self.files
+            .iter()
             .filter(|file| file.declared_services.contains(service))
             .map(|file| file.path.as_path())
             .collect()
     }
 
     pub fn package_write_targets(&self) -> Vec<&Path> {
-        self.files.iter()
+        self.files
+            .iter()
             .filter(|file| file.has_system_packages)
             .map(|file| file.path.as_path())
             .collect()
     }
 
     pub fn service_write_targets(&self) -> Vec<&Path> {
-        self.files.iter()
+        self.files
+            .iter()
             .filter(|file| file.has_systemd_services || file.has_service_options)
             .map(|file| file.path.as_path())
             .collect()
     }
 }
 
-fn collect_nix_files(directory: &Path, depth: usize, paths: &mut Vec<PathBuf>) -> Result<(), String> {
+fn collect_nix_files(
+    directory: &Path,
+    depth: usize,
+    paths: &mut Vec<PathBuf>,
+) -> Result<(), String> {
     if depth > MAX_DEPTH {
         return Ok(());
     }
@@ -156,7 +164,8 @@ fn parse_package_line(line: &str) -> Option<String> {
         return None;
     }
 
-    token.chars()
+    token
+        .chars()
         .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
         .then(|| token.to_string())
 }
@@ -176,7 +185,9 @@ fn parse_service_names(content: &str) -> Vec<String> {
 
             if !service.is_empty()
                 && suffix.trim_start().starts_with('=')
-                && service.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+                && service
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
             {
                 services.insert(service.to_string());
             }

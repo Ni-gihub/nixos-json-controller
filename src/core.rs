@@ -15,6 +15,19 @@ use crate::{
     validator::Validator,
 };
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CatalogEntry {
+    pub name: String,
+    pub aliases: Vec<String>,
+    pub system_present: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AppStoreCatalog {
+    pub packages: Vec<CatalogEntry>,
+    pub services: Vec<CatalogEntry>,
+}
+
 pub struct NxcCore;
 
 impl NxcCore {
@@ -47,6 +60,53 @@ impl NxcCore {
 
     pub fn status() -> Result<SystemState, String> {
         SystemState::discover()
+    }
+
+    pub fn catalog() -> Result<AppStoreCatalog, String> {
+        let dictionary = crate::dictionary::Dictionary::load()?;
+        let system = SystemState::discover()?;
+
+        let mut packages = dictionary
+            .packages()
+            .map(|(name, aliases)| CatalogEntry {
+                name: name.to_string(),
+                aliases: aliases.to_vec(),
+                system_present: system.has_command(name) || system.has_package(name),
+            })
+            .collect::<Vec<_>>();
+
+        let mut services = dictionary
+            .services()
+            .map(|(name, aliases)| CatalogEntry {
+                name: name.to_string(),
+                aliases: aliases.to_vec(),
+                system_present: system.is_service_enabled(name),
+            })
+            .collect::<Vec<_>>();
+
+        packages.sort_by(|a, b| a.name.cmp(&b.name));
+        services.sort_by(|a, b| a.name.cmp(&b.name));
+
+        Ok(AppStoreCatalog { packages, services })
+    }
+
+    pub fn search_catalog(query: &str) -> Result<AppStoreCatalog, String> {
+        let query = query.trim();
+        if query.is_empty() {
+            return Self::catalog();
+        }
+
+        let catalog = Self::catalog()?;
+        let matches = |entry: &CatalogEntry| {
+            entry.name == query
+                || entry.name.contains(query)
+                || entry.aliases.iter().any(|alias| alias == query || alias.contains(query))
+        };
+
+        Ok(AppStoreCatalog {
+            packages: catalog.packages.into_iter().filter(&matches).collect(),
+            services: catalog.services.into_iter().filter(matches).collect(),
+        })
     }
 
     pub fn explain_package(target: impl Into<String>) -> Result<PackageExplanation, String> {

@@ -63,8 +63,12 @@ impl NxcCore {
     }
 
     pub fn catalog() -> Result<AppStoreCatalog, String> {
-        let dictionary = crate::dictionary::Dictionary::load()?;
         let system = SystemState::discover()?;
+        Self::catalog_with_system(&system)
+    }
+
+    pub(crate) fn catalog_with_system(system: &SystemState) -> Result<AppStoreCatalog, String> {
+        let dictionary = crate::dictionary::Dictionary::load()?;
 
         let mut packages = dictionary
             .packages()
@@ -91,16 +95,27 @@ impl NxcCore {
     }
 
     pub fn search_catalog(query: &str) -> Result<AppStoreCatalog, String> {
+        let system = SystemState::discover()?;
+        Self::search_catalog_with_system(query, &system)
+    }
+
+    pub(crate) fn search_catalog_with_system(
+        query: &str,
+        system: &SystemState,
+    ) -> Result<AppStoreCatalog, String> {
         let query = query.trim();
+        let catalog = Self::catalog_with_system(system)?;
         if query.is_empty() {
-            return Self::catalog();
+            return Ok(catalog);
         }
 
-        let catalog = Self::catalog()?;
         let matches = |entry: &CatalogEntry| {
             entry.name == query
                 || entry.name.contains(query)
-                || entry.aliases.iter().any(|alias| alias == query || alias.contains(query))
+                || entry
+                    .aliases
+                    .iter()
+                    .any(|alias| alias == query || alias.contains(query))
         };
 
         Ok(AppStoreCatalog {

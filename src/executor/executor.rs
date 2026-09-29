@@ -40,8 +40,13 @@ impl Executor {
             .or_else(|| service_change.as_ref().map(|change| change.is_changed()))
             .unwrap_or(false);
 
+        let plan_requires_rebuild = plan
+            .details
+            .as_ref()
+            .is_some_and(|details| details.rebuild_required);
+
         if rebuild
-            && changed
+            && (changed || plan_requires_rebuild)
             && let Err(error) = nixos::rebuild::switch()
         {
             let rollback_result = if let Some(change) = package_change {
@@ -63,5 +68,49 @@ impl Executor {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::planner::PlanDetails;
+    use std::path::PathBuf;
+
+    fn plan_with_rebuild_required(rebuild_required: bool) -> ExecutionPlan {
+        ExecutionPlan {
+            action: Action::InstallPackage,
+            target: crate::resolver::ResolvedTarget {
+                name: "firefox".to_string(),
+            },
+            dry_run: false,
+            details: Some(PlanDetails {
+                strategy: "test".to_string(),
+                affected_files: vec![PathBuf::from("packages.nix")],
+                change_required: false,
+                rebuild_required,
+                reason: "test".to_string(),
+            }),
+        }
+    }
+
+    #[test]
+    fn rebuild_is_required_when_plan_requires_it_without_file_changes() {
+        let plan = plan_with_rebuild_required(true);
+
+        assert!(plan
+            .details
+            .as_ref()
+            .is_some_and(|details| details.rebuild_required));
+    }
+
+    #[test]
+    fn rebuild_is_not_required_when_plan_does_not_require_it() {
+        let plan = plan_with_rebuild_required(false);
+
+        assert!(!plan
+            .details
+            .as_ref()
+            .is_some_and(|details| details.rebuild_required));
     }
 }

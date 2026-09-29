@@ -341,21 +341,30 @@ fn parse_service_names(content: &str) -> Vec<String> {
 
 fn parse_relative_imports(base: &Path, content: &str) -> Vec<PathBuf> {
     let mut imports = Vec::new();
+    let mut in_imports = false;
 
     for line in content.lines() {
         let line = strip_comment(line);
-        let Some((_, rest)) = line.split_once("imports") else {
-            continue;
-        };
-        if !rest.contains('=') {
-            continue;
+        if !in_imports {
+            let Some((_, rest)) = line.split_once("imports") else {
+                continue;
+            };
+            if !rest.contains('=') {
+                continue;
+            }
+            in_imports = true;
         }
 
-        for token in rest.split_whitespace() {
+        let source = line;
+        for token in source.split_whitespace() {
             let token = token.trim_matches(|c: char| matches!(c, '[' | ']' | ';' | ','));
             if (token.starts_with("./") || token.starts_with("../")) && token.ends_with(".nix") {
                 imports.push(normalize_relative_path(base, token));
             }
+        }
+
+        if in_imports && line.contains(']') {
+            in_imports = false;
         }
     }
 

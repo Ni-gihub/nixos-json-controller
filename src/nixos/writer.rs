@@ -56,12 +56,17 @@ fn write_atomic(path: &Path, content: &str) -> Result<(), String> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&temporary, metadata.permissions())
-            .map_err(|e| format!("failed to preserve permissions on {}: {}", temporary.display(), e))?;
+
+        fs::set_permissions(&temporary, metadata.permissions()).map_err(|e| {
+            format!(
+                "failed to preserve permissions on {}: {}",
+                temporary.display(),
+                e
+            )
+        })?;
     }
 
-    let result = fs::rename(&temporary, path);
-    if let Err(error) = result {
+    if let Err(error) = fs::rename(&temporary, path) {
         let _ = fs::remove_file(&temporary);
         return Err(format!("failed to replace {}: {}", path.display(), error));
     }
@@ -75,7 +80,8 @@ mod tests {
 
     #[test]
     fn writes_package_changes_atomically() {
-        let directory = std::env::temp_dir().join(format!("nxc-writer-{}", std::process::id()));
+        let directory =
+            std::env::temp_dir().join(format!("nxc-writer-{}", std::process::id()));
         fs::create_dir_all(&directory).unwrap();
 
         let path = directory.join("packages.nix");
@@ -126,7 +132,10 @@ mod tests {
 
         enable_service(&path, "openssh").unwrap();
 
-        assert_eq!(fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o640);
+        assert_eq!(
+            fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o640
+        );
 
         let _ = fs::remove_dir_all(directory);
     }

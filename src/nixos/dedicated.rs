@@ -295,12 +295,118 @@ fn import_targets(flake_root: &Path, config: &ConfigState) -> Result<Vec<PathBuf
 }
 
 fn find_import_list(content: &str) -> Option<usize> {
-    let marker = "imports";
-    let marker_position = content.find(marker)?;
-    let assignment = content[marker_position..].find('=')? + marker_position;
-    let list = content[assignment + 1..].find('[')? + assignment + 1;
-    find_matching_delimiter(content, list, '[', ']')?;
-    Some(list)
+    let bytes = content.as_bytes();
+    let mut index = 0usize;
+    let mut in_comment = false;
+    let mut in_string = false;
+    let mut in_indented_string = false;
+    let mut escaped = false;
+    let mut found = None;
+
+    while index < bytes.len() {
+        if in_comment {
+            if bytes[index] == b'\n' {
+                in_comment = false;
+            }
+            index += 1;
+            continue;
+        }
+
+        if in_indented_string {
+            if bytes[index..].starts_with(b"''") {
+                in_indented_string = false;
+                index += 2;
+            } else {
+                index += 1;
+            }
+            continue;
+        }
+
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if bytes[index] == b'\\' {
+                escaped = true;
+            } else if bytes[index] == b'"' {
+                in_string = false;
+            }
+            index += 1;
+            continue;
+        }
+
+        if bytes[index] == b'#' {
+            in_comment = true;
+            index += 1;
+            continue;
+        }
+
+        if bytes[index] == b'"' {
+            in_string = true;
+            index += 1;
+            continue;
+        }
+
+        if bytes[index..].starts_with(b"''") {
+            in_indented_string = true;
+            index += 2;
+            continue;
+        }
+
+        if !bytes[index..].starts_with(b"imports") {
+            index += 1;
+            continue;
+        }
+
+        let before_ok = index == 0
+            || !matches!(
+                bytes[index - 1],
+                b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_' | b'-'
+            );
+        let after_name = index + "imports".len();
+        let after_ok = after_name == bytes.len()
+            || !matches!(
+                bytes[after_name],
+                b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_' | b'-'
+            );
+
+        if !before_ok || !after_ok {
+            index += "imports".len();
+            continue;
+        }
+
+        let mut cursor = after_name;
+        while cursor < bytes.len() && bytes[cursor].is_ascii_whitespace() {
+            cursor += 1;
+        }
+
+        if cursor >= bytes.len() || bytes[cursor] != b'=' {
+            index += "imports".len();
+            continue;
+        }
+
+        cursor += 1;
+        while cursor < bytes.len() && bytes[cursor].is_ascii_whitespace() {
+            cursor += 1;
+        }
+
+        if cursor >= bytes.len() || bytes[cursor] != b'[' {
+            index += "imports".len();
+            continue;
+        }
+
+        if find_matching_delimiter(content, cursor, '[', ']').is_none() {
+            index += "imports".len();
+            continue;
+        }
+
+        if found.replace(cursor).is_some() {
+            return None;
+        }
+
+        index = cursor + 1;
+    }
+
+    found
 }
 
 fn add_import_to_content(content: &str, import_path: &str) -> Result<String, String> {
@@ -387,5 +493,29 @@ mod tests {
     fn finds_import_list() {
         let content = r#"{ imports = [ ./hardware.nix ]; }"#;
         assert!(find_import_list(content).is_some());
+    }
+
+    #[test]
+    fn rejects_multiple_import_lists() {
+        let content = r#"
+{
+  imports = [ ./hardware.nix ];
+  imports = [ ./desktop.nix ];
+}
+"#;
+
+        assert!(find_import_list(content).is_none());
+    }
+
+    #[test]
+    fn ignores_comment_and_string_mentions() {
+        let content = r#"
+{
+  # imports = [ ./ignored.nix ];
+  description = "imports = [ ./ignored.nix ]";
+}
+"#;
+
+        assert!(find_import_list(content).is_none());
     }
 }

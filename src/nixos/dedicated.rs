@@ -5,8 +5,11 @@ use super::config::ConfigState;
 use super::module::find_matching_delimiter;
 use super::writer;
 
-const DEDICATED_PACKAGE_MODULE: &str = "nxc/packages.nix";
-const DEDICATED_SERVICE_MODULE: &str = "nxc/services.nix";
+pub const DEDICATED_PACKAGE_MODULE: &str = "nxc/packages.nix";
+pub const DEDICATED_SERVICE_MODULE: &str = "nxc/services.nix";
+
+const DEDICATED_PACKAGE_MARKER: &str = "environment.systemPackages = with pkgs;";
+const DEDICATED_SERVICE_MARKER: &str = "{ ... }:";
 
 #[derive(Debug, Clone)]
 pub struct FileBackup {
@@ -62,6 +65,7 @@ pub fn install_package(
 
     if module_path.is_file() {
         change.backups.push(FileBackup::capture(&module_path)?);
+        validate_dedicated_package_module(&module_path)?;
     } else {
         let parent = module_path
             .parent()
@@ -148,6 +152,7 @@ fn write_service(
 
     if module_path.is_file() {
         change.backups.push(FileBackup::capture(&module_path)?);
+        validate_dedicated_service_module(&module_path)?;
     } else {
         let parent = module_path
             .parent()
@@ -177,6 +182,43 @@ fn write_service(
     }
 
     Ok(change)
+}
+
+
+fn validate_dedicated_package_module(path: &Path) -> Result<(), String> {
+    let content = fs::read_to_string(path)
+        .map_err(|e| format!("failed to read {}: {}", path.display(), e))?;
+
+    if !content.contains(DEDICATED_PACKAGE_MARKER) {
+        return Err(format!(
+            "existing dedicated package module is not in the expected NXC format: {}",
+            path.display()
+        ));
+    }
+
+    Ok(())
+}
+
+fn validate_dedicated_service_module(path: &Path) -> Result<(), String> {
+    let content = fs::read_to_string(path)
+        .map_err(|e| format!("failed to read {}: {}", path.display(), e))?;
+
+    if !content.contains(DEDICATED_SERVICE_MARKER) {
+        return Err(format!(
+            "existing dedicated service module is not in the expected NXC format: {}",
+            path.display()
+        ));
+    }
+
+    Ok(())
+}
+
+pub fn dedicated_package_path(flake_root: &Path) -> PathBuf {
+    flake_root.join(DEDICATED_PACKAGE_MODULE)
+}
+
+pub fn dedicated_service_path(flake_root: &Path) -> PathBuf {
+    flake_root.join(DEDICATED_SERVICE_MODULE)
 }
 
 
@@ -476,6 +518,30 @@ fn format_paths(paths: &[PathBuf]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rejects_existing_package_file_without_nxc_shape() {
+        let dir = std::env::temp_dir().join(format!("nxc-dedicated-pkg-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("packages.nix");
+        fs::write(&path, "{ environment.systemPackages = [ pkgs.git ]; }").unwrap();
+
+        assert!(validate_dedicated_package_module(&path).is_err());
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn accepts_existing_service_file_with_nxc_shape() {
+        let dir = std::env::temp_dir().join(format!("nxc-dedicated-svc-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("services.nix");
+        fs::write(&path, "{ ... }:\n\n{\n}\n").unwrap();
+
+        assert!(validate_dedicated_service_module(&path).is_ok());
+
+        let _ = fs::remove_dir_all(dir);
+    }
 
     #[test]
     fn adds_import_to_existing_list() {

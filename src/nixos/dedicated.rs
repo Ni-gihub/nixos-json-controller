@@ -5,7 +5,8 @@ use super::config::ConfigState;
 use super::module::find_matching_delimiter;
 use super::writer;
 
-const DEDICATED_MODULE: &str = "nxc/packages.nix";
+const DEDICATED_PACKAGE_MODULE: &str = "nxc/packages.nix";
+const DEDICATED_SERVICE_MODULE: &str = "nxc/services.nix";
 
 #[derive(Debug, Clone)]
 pub struct FileBackup {
@@ -56,7 +57,7 @@ pub fn install_package(
     config: &ConfigState,
     package: &str,
 ) -> Result<DedicatedPackageChange, String> {
-    let module_path = flake_root.join(DEDICATED_MODULE);
+    let module_path = flake_root.join(DEDICATED_PACKAGE_MODULE);
     let mut change = DedicatedPackageChange::default();
 
     if module_path.is_file() {
@@ -97,11 +98,97 @@ pub fn install_package(
     Ok(change)
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct DedicatedServiceChange {
+    pub backups: Vec<FileBackup>,
+    pub created_files: Vec<PathBuf>,
+}
+
+impl DedicatedServiceChange {
+    pub fn rollback(&self) -> Result<(), String> {
+        for backup in &self.backups {
+            backup.restore()?;
+        }
+
+        for path in &self.created_files {
+            if path.is_file() {
+                fs::remove_file(path)
+                    .map_err(|e| format!("failed to remove {}: {}", path.display(), e))?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+pub fn enable_service(
+    flake_root: &Path,
+    config: &ConfigState,
+    service: &str,
+) -> Result<DedicatedServiceChange, String> {
+    write_service(flake_root, config, service, true)
+}
+
+pub fn disable_service(
+    flake_root: &Path,
+    config: &ConfigState,
+    service: &str,
+) -> Result<DedicatedServiceChange, String> {
+    write_service(flake_root, config, service, false)
+}
+
+fn write_service(
+    flake_root: &Path,
+    config: &ConfigState,
+    service: &str,
+    enabled: bool,
+) -> Result<DedicatedServiceChange, String> {
+    let module_path = flake_root.join(DEDICATED_SERVICE_MODULE);
+    let mut change = DedicatedServiceChange::default();
+
+    if module_path.is_file() {
+        change.backups.push(FileBackup::capture(&module_path)?);
+    } else {
+        let parent = module_path
+            .parent()
+            .ok_or_else(|| format!("invalid dedicated module path: {}", module_path.display()))?;
+
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("failed to create {}: {}", parent.display(), e))?;
+
+        fs::write(&module_path, "{ ... }:\n\n{\n}\n")
+            .map_err(|e| format!("failed to create {}: {}", module_path.display(), e))?;
+
+        change.created_files.push(module_path.clone());
+    }
+
+    if let Err(error) = ensure_import(flake_root, config, &module_path, &mut change.backups) {
+        let _ = change.rollback();
+        return Err(error);
+    }
+
+    let content = fs::read_to_string(&module_path)
+        .map_err(|e| format!("failed to read {}: {}", module_path.display(), e))?;
+    let updated = super::module::add_service_to_content(&content, service, enabled)?;
+    if let Err(error) = write_atomic(&module_path, &updated) {
+        let _ = change.rollback();
+        return Err(error);
+    }
+
+    Ok(change)
+}
+
+fn write_atomic(path: &Path, content: &str) -> Result<(), String> {
+    fs::write(path, content)
+        .map_err(|e| format!("failed to write {}: {}", path.display(), e))
+}
+
+
 fn ensure_import(
     flake_root: &Path,
     config: &ConfigState,
     module_path: &Path,
-    change: &mut DedicatedPackageChange,
+    backups: &mut Vec<FileBackup>,
 ) -> Result<(), String> {
     if find_importing_file(flake_root, config, module_path)?.is_some() {
         return Ok(());
@@ -136,7 +223,7 @@ fn ensure_import(
     fs::write(&target, updated)
         .map_err(|e| format!("failed to update imports in {}: {}", target.display(), e))?;
 
-    change.backups.push(backup);
+    backups.push(backup);
     Ok(())
 }
 

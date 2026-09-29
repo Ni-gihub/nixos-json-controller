@@ -203,6 +203,7 @@ fn string_matches_package(value: &str, package: &str) -> bool {
     normalized == package
         || normalized.starts_with(&format!("{package}-"))
         || normalized.ends_with(&format!("-{package}"))
+        || normalized.contains(&format!("-{package}-"))
 }
 
 #[cfg(test)]
@@ -241,9 +242,13 @@ mod tests {
     fn resolves_store_source_definition() {
         let root =
             std::env::temp_dir().join(format!("nxc-provenance-source-{}", std::process::id()));
-        let source = root.join("source");
+        let source = std::env::temp_dir().join(format!(
+            "nxc-provenance-store-source-{}",
+            std::process::id()
+        ));
         let local = root.join("configuration.nix");
 
+        std::fs::create_dir_all(&root).unwrap();
         std::fs::create_dir_all(&source).unwrap();
         std::fs::write(&local, "{}").unwrap();
 
@@ -257,6 +262,7 @@ mod tests {
         );
 
         let _ = std::fs::remove_dir_all(root);
+        let _ = std::fs::remove_dir_all(source);
     }
 
     #[test]

@@ -141,6 +141,14 @@ pub fn execute_with_change(plan: ExecutionPlan) -> Result<PackageChange, Executo
                 let mut change = PackageChange::default();
 
                 for path in provenance_paths {
+                    if !config.is_safe_write_target(&path) {
+                        return Err(ExecutorError::NixosError(format!(
+                            "package '{}' is declared in a configuration file outside the safe write boundary: {}",
+                            plan.target.name,
+                            path.display(),
+                        )));
+                    }
+
                     change
                         .backups
                         .push(FileBackup::capture(&path).map_err(ExecutorError::NixosError)?);
@@ -155,6 +163,14 @@ pub fn execute_with_change(plan: ExecutionPlan) -> Result<PackageChange, Executo
                         let mut change = PackageChange::default();
 
                         for path in paths {
+                            if !config.is_safe_write_target(&path) {
+                                return Err(ExecutorError::NixosError(format!(
+                                    "package '{}' is declared in a configuration file outside the safe write boundary: {}",
+                                    plan.target.name,
+                                    path.display(),
+                                )));
+                            }
+
                             change
                                 .backups
                                 .push(FileBackup::capture(&path).map_err(ExecutorError::NixosError)?);

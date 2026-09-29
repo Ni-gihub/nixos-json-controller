@@ -4,125 +4,151 @@ use super::config::ConfigState;
 use super::system::SystemState;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PackageWriteStrategy {
-    Noop {
-        declared_in: Vec<PathBuf>,
-    },
-    SystemOnly,
-
-    ExistingFile {
-        path: PathBuf,
-    },
-    Ambiguous {
-        candidates: Vec<PathBuf>,
-    },
+pub enum PackageInstallStrategy {
+    AlreadyDeclared { paths: Vec<PathBuf> },
+    AlreadyPresentInSystem,
+    ExistingFile { path: PathBuf },
+    Ambiguous { candidates: Vec<PathBuf> },
     Unsupported,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ServiceWriteStrategy {
-    Noop {
-        declared_in: Vec<PathBuf>,
-    },
+pub enum PackageRemoveStrategy {
+    Declared { paths: Vec<PathBuf> },
+    NotDeclared,
     SystemOnly,
+    Ambiguous { candidates: Vec<PathBuf> },
+}
 
-    ExistingFile {
-        path: PathBuf,
-    },
-    Ambiguous {
-        candidates: Vec<PathBuf>,
-    },
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ServiceEnableStrategy {
+    AlreadyDeclared { paths: Vec<PathBuf> },
+    AlreadyEnabledInSystem,
+    ExistingFile { path: PathBuf },
+    Ambiguous { candidates: Vec<PathBuf> },
     Unsupported,
 }
 
-pub fn package_strategy(
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ServiceDisableStrategy {
+    Declared { paths: Vec<PathBuf> },
+    NotDeclared,
+    SystemOnly,
+    Ambiguous { candidates: Vec<PathBuf> },
+}
+
+pub fn install_package_strategy(
     config: &ConfigState,
     system: &SystemState,
     package: &str,
-) -> PackageWriteStrategy {
-    let declared_in = config
-        .package_declarations(package)
-        .into_iter()
-        .map(Path::to_path_buf)
-        .collect::<Vec<_>>();
+) -> PackageInstallStrategy {
+    let declared = paths(config.package_declarations(package));
 
-    if !declared_in.is_empty() {
-        return PackageWriteStrategy::Noop { declared_in };
+    if !declared.is_empty() {
+        return PackageInstallStrategy::AlreadyDeclared { paths: declared };
     }
 
     if system.has_command(package) {
-        return PackageWriteStrategy::SystemOnly;
+        return PackageInstallStrategy::AlreadyPresentInSystem;
     }
 
-    let candidates = config
-        .package_write_targets()
-        .into_iter()
-        .map(Path::to_path_buf)
-        .collect::<Vec<_>>();
-
-    match candidates.as_slice() {
-        [path] => PackageWriteStrategy::ExistingFile {
+    match paths(config.package_write_targets()).as_slice() {
+        [path] => PackageInstallStrategy::ExistingFile {
             path: path.clone(),
         },
-        [] => PackageWriteStrategy::Unsupported,
-        _ => PackageWriteStrategy::Ambiguous {
-            candidates,
+        [] => PackageInstallStrategy::Unsupported,
+        candidates => PackageInstallStrategy::Ambiguous {
+            candidates: candidates.to_vec(),
         },
     }
 }
 
-pub fn service_strategy(
+pub fn remove_package_strategy(
+    config: &ConfigState,
+    system: &SystemState,
+    package: &str,
+) -> PackageRemoveStrategy {
+    let declared = paths(config.package_declarations(package));
+
+    if !declared.is_empty() {
+        return PackageRemoveStrategy::Declared { paths: declared };
+    }
+
+    if system.has_command(package) {
+        return PackageRemoveStrategy::SystemOnly;
+    }
+
+    PackageRemoveStrategy::NotDeclared
+}
+
+pub fn enable_service_strategy(
     config: &ConfigState,
     system: &SystemState,
     service: &str,
-) -> ServiceWriteStrategy {
-    let declared_in = config
-        .service_declarations(service)
-        .into_iter()
-        .map(Path::to_path_buf)
-        .collect::<Vec<_>>();
+) -> ServiceEnableStrategy {
+    let declared = paths(config.service_declarations(service));
 
-    if !declared_in.is_empty() {
-        return ServiceWriteStrategy::Noop { declared_in };
+    if !declared.is_empty() {
+        return ServiceEnableStrategy::AlreadyDeclared { paths: declared };
     }
 
     if system.is_service_enabled(service) {
-        return ServiceWriteStrategy::SystemOnly;
+        return ServiceEnableStrategy::AlreadyEnabledInSystem;
     }
 
-    let candidates = config
-        .service_write_targets()
-        .into_iter()
-        .map(Path::to_path_buf)
-        .collect::<Vec<_>>();
-
-    match candidates.as_slice() {
-        [path] => ServiceWriteStrategy::ExistingFile {
+    match paths(config.service_write_targets()).as_slice() {
+        [path] => ServiceEnableStrategy::ExistingFile {
             path: path.clone(),
         },
-        [] => ServiceWriteStrategy::Unsupported,
-        _ => ServiceWriteStrategy::Ambiguous {
-            candidates,
+        [] => ServiceEnableStrategy::Unsupported,
+        candidates => ServiceEnableStrategy::Ambiguous {
+            candidates: candidates.to_vec(),
         },
     }
+}
+
+pub fn disable_service_strategy(
+    config: &ConfigState,
+    system: &SystemState,
+    service: &str,
+) -> ServiceDisableStrategy {
+    let declared = paths(config.service_declarations(service));
+
+    if !declared.is_empty() {
+        return ServiceDisableStrategy::Declared { paths: declared };
+    }
+
+    if system.is_service_enabled(service) {
+        return ServiceDisableStrategy::SystemOnly;
+    }
+
+    ServiceDisableStrategy::NotDeclared
+}
+
+fn paths<'a>(paths: impl IntoIterator<Item = &'a Path>) -> Vec<PathBuf> {
+    paths
+        .into_iter()
+        .map(Path::to_path_buf)
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::nixos::config::ConfigFile;
     use std::collections::BTreeSet;
 
     fn config() -> ConfigState {
         ConfigState {
             files: vec![
-                super::super::config::ConfigFile {
+                ConfigFile {
                     path: PathBuf::from("packages.nix"),
                     has_system_packages: true,
                     has_systemd_services: false,
                     declared_packages: BTreeSet::new(),
                     declared_services: BTreeSet::new(),
                 },
-                super::super::config::ConfigFile {
+                ConfigFile {
                     path: PathBuf::from("services.nix"),
                     has_system_packages: false,
                     has_systemd_services: true,
@@ -133,7 +159,7 @@ mod tests {
         }
     }
 
-    fn empty_system() -> SystemState {
+    fn system() -> SystemState {
         SystemState {
             current_generation: PathBuf::from("/nix/store/example"),
             binaries: Default::default(),
@@ -142,81 +168,71 @@ mod tests {
     }
 
     #[test]
-    fn chooses_the_only_package_file() {
-        let result = package_strategy(
-            &config(),
-            &empty_system(),
-            "firefox",
-        );
-
+    fn install_chooses_the_only_package_file() {
         assert_eq!(
-            result,
-            PackageWriteStrategy::ExistingFile {
+            install_package_strategy(&config(), &system(), "firefox"),
+            PackageInstallStrategy::ExistingFile {
                 path: PathBuf::from("packages.nix"),
             }
         );
     }
 
     #[test]
-    fn does_not_write_when_package_is_already_declared() {
+    fn install_reports_declared_package_without_writing() {
         let mut config = config();
-        config.files[0]
-            .declared_packages
-            .insert("firefox".to_string());
-
-        let result = package_strategy(
-            &config,
-            &empty_system(),
-            "firefox",
-        );
+        config.files[0].declared_packages.insert("firefox".to_string());
 
         assert!(matches!(
-            result,
-            PackageWriteStrategy::Noop { .. }
+            install_package_strategy(&config, &system(), "firefox"),
+            PackageInstallStrategy::AlreadyDeclared { .. }
         ));
     }
 
     #[test]
-    fn reports_system_only_when_package_is_present_but_undeclared() {
-        let mut system = empty_system();
-        system
-            .binaries
-            .insert(
-                "firefox".to_string(),
-                PathBuf::from("/run/current-system/sw/bin/firefox"),
-            );
-
-        let result = package_strategy(
-            &config(),
-            &system,
-            "firefox",
+    fn install_distinguishes_system_only_package() {
+        let mut system = system();
+        system.binaries.insert(
+            "firefox".to_string(),
+            PathBuf::from("/run/current-system/sw/bin/firefox"),
         );
 
-        assert_eq!(result, PackageWriteStrategy::SystemOnly);
+        assert_eq!(
+            install_package_strategy(&config(), &system, "firefox"),
+            PackageInstallStrategy::AlreadyPresentInSystem
+        );
     }
 
     #[test]
-    fn refuses_ambiguous_package_target() {
+    fn remove_uses_declared_package_locations() {
         let mut config = config();
-        config.files.push(
-            super::super::config::ConfigFile {
-                path: PathBuf::from("desktop.nix"),
-                has_system_packages: true,
-                has_systemd_services: false,
-                declared_packages: BTreeSet::new(),
-                declared_services: BTreeSet::new(),
-            },
-        );
+        config.files[0].declared_packages.insert("firefox".to_string());
 
-        let result = package_strategy(
-            &config,
-            &empty_system(),
-            "firefox",
+        assert_eq!(
+            remove_package_strategy(&config, &system(), "firefox"),
+            PackageRemoveStrategy::Declared {
+                paths: vec![PathBuf::from("packages.nix")],
+            }
         );
+    }
 
-        assert!(matches!(
-            result,
-            PackageWriteStrategy::Ambiguous { .. }
-        ));
+    #[test]
+    fn enable_chooses_the_only_service_file() {
+        assert_eq!(
+            enable_service_strategy(&config(), &system(), "sshd"),
+            ServiceEnableStrategy::ExistingFile {
+                path: PathBuf::from("services.nix"),
+            }
+        );
+    }
+
+    #[test]
+    fn disable_distinguishes_system_only_service() {
+        let mut system = system();
+        system.enabled_services.insert("sshd".to_string());
+
+        assert_eq!(
+            disable_service_strategy(&config(), &system, "sshd"),
+            ServiceDisableStrategy::SystemOnly
+        );
     }
 }

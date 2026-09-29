@@ -7,6 +7,7 @@ pub mod module;
 pub mod rebuild;
 pub mod system;
 pub mod write_strategy;
+pub mod writer;
 
 #[cfg(test)]
 mod tests;

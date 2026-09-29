@@ -43,6 +43,11 @@ pub fn add_package_to_content(content: &str, package: &str) -> Result<String, St
     let list_end = find_matching_delimiter(content, list_start, '[', ']')
         .ok_or("environment.systemPackages list is not balanced")?;
 
+    let region = &content[list_start + 1..list_end];
+    if simple_package_list_contains(region, package) {
+        return Err(format!("package '{}' is already present in the package list", package));
+    }
+
     let indentation = indentation_for_list_item(content, list_start);
     let insertion = format!("\n{}{}", indentation, package);
 
@@ -70,9 +75,28 @@ pub fn remove_package_from_content(content: &str, package: &str) -> Result<Strin
     let list_end = find_matching_delimiter(content, list_start, '[', ']')
         .ok_or("environment.systemPackages list is not balanced")?;
 
-    let variants = [package.to_string(), format!("pkgs.{package}")];
     let region = &content[list_start + 1..list_end];
 
+    if is_simple_package_list(region) {
+        if let Some((start, end)) = find_package_token(region, package) {
+            let mut result = String::with_capacity(content.len());
+            result.push_str(&content[..list_start + 1]);
+            result.push_str(&region[..start]);
+            result.push_str(&region[end..]);
+            result.push_str(&content[list_end..]);
+            return Ok(result);
+        }
+
+        return Err(format!(
+            "package '{}' not found as a standalone list item",
+            package
+        ));
+    }
+
+    // Keep the conservative line-based fallback for lists containing more
+    // complex expressions. It avoids rewriting a package token inside an
+    // arbitrary Nix expression.
+    let variants = [package.to_string(), format!("pkgs.{package}")];
     let mut removed = false;
     let mut output_region = String::with_capacity(region.len());
 
@@ -105,6 +129,46 @@ pub fn remove_package_from_content(content: &str, package: &str) -> Result<Strin
 
     result.push_str(&content[list_end..]);
     Ok(result)
+}
+
+fn is_simple_package_list(region: &str) -> bool {
+    !region.chars().any(|c| matches!(c, '(' | ')' | '{' | '}' | ';' | '#' | '"'))
+        && !region.contains("''")
+        && !region.contains(" if ")
+        && !region.contains(" then ")
+        && !region.contains(" else ")
+        && !region.contains(" with ")
+}
+
+fn simple_package_list_contains(region: &str, package: &str) -> bool {
+    find_package_token(region, package).is_some()
+}
+
+fn find_package_token(region: &str, package: &str) -> Option<(usize, usize)> {
+    let variants = [package.to_string(), format!("pkgs.{package}")];
+
+    for variant in variants {
+        let mut search_start = 0usize;
+
+        while let Some(relative) = region[search_start..].find(&variant) {
+            let start = search_start + relative;
+            let end = start + variant.len();
+
+            let before = region[..start].chars().next_back();
+            let after = region[end..].chars().next();
+
+            let valid_before = before.map_or(true, |c| c.is_whitespace());
+            let valid_after = after.map_or(true, |c| c.is_whitespace());
+
+            if valid_before && valid_after {
+                return Some((start, end));
+            }
+
+            search_start = end;
+        }
+    }
+
+    None
 }
 
 pub fn add_service_to_content(
@@ -242,6 +306,37 @@ mod tests {
 
         assert!(!result.contains("pkgs.firefox"));
         assert!(result.contains("git"));
+    }
+
+    #[test]
+    fn removes_package_from_inline_simple_list() {
+        let content = "{ environment.systemPackages = [ pkgs.firefox git ]; }";
+        let result = remove_package_from_content(content, "firefox").unwrap();
+
+        assert_eq!(
+            result,
+            "{ environment.systemPackages = [  git ]; }"
+        );
+        assert!(result.contains("git"));
+        assert!(!result.contains("firefox"));
+    }
+
+    #[test]
+    fn rejects_duplicate_package_in_simple_list() {
+        let content = "{ environment.systemPackages = [ pkgs.firefox git ]; }";
+        let result = add_package_to_content(content, "firefox");
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("already present"));
+    }
+
+    #[test]
+    fn does_not_remove_package_substring_from_other_identifier() {
+        let content = "{ environment.systemPackages = [ pkgs.firefox-nightly ]; }";
+        let result = remove_package_from_content(content, "firefox");
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not found"));
     }
 
     #[test]

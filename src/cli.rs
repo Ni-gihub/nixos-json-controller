@@ -16,6 +16,7 @@ use nixos_json_controller::{
             DiscoveryStatus,
             SearchOptions,
         },
+        status::{explain_package, explain_service},
         system::SystemState,
     },
     planner::Planner,
@@ -39,6 +40,14 @@ pub fn run() -> Result<(), String> {
 
     if args.len() == 1 && args[0] == "list" {
         return run_list();
+    }
+
+    if args.len() == 1 && args[0] == "status" {
+        return run_status();
+    }
+
+    if args.len() == 3 && args[0] == "explain" {
+        return run_explain(&args[1], &args[2]);
     }
 
     let (action, target) = match args.as_slice() {
@@ -91,6 +100,9 @@ fn print_help() {
     println!("  nxc e <service>     enable service");
     println!("  nxc d <service>     disable service");
     println!("  nxc list            list installed system commands/apps");
+    println!("  nxc status          show current system status");
+    println!("  nxc explain package <name>  explain package state and provenance");
+    println!("  nxc explain service <name>  explain service state and provenance");
     println!("  nxc discover        discover NixOS flake");
 }
 
@@ -109,6 +121,132 @@ fn run_list() -> Result<(), String> {
 
     Ok(())
 }
+
+fn run_status() -> Result<(), String> {
+    let system = SystemState::discover()?;
+
+    println!("NXC Status");
+    println!();
+    println!("Current generation: {}", system.current_generation.display());
+    println!("System commands/apps: {}", system.binaries.len());
+    println!("Detected packages: {}", system.packages.len());
+    println!("Enabled services: {}", system.enabled_services.len());
+
+    match nixos_json_controller::nixos::discovery::DiscoveryContext::load() {
+        Ok(context) => {
+            println!();
+            println!("Discovery:");
+            println!("  Flake: {}", context.flake_root().display());
+            println!("  Configuration: {}", context.configuration_name());
+        }
+        Err(_) => {
+            println!();
+            println!("Discovery: unavailable");
+            println!("  Run nxc discover before configuration-changing commands.");
+        }
+    }
+
+    Ok(())
+}
+
+fn run_explain(kind: &str, target: &str) -> Result<(), String> {
+    let context =
+        nixos_json_controller::nixos::discovery::DiscoveryContext::load()?;
+    let system = SystemState::discover()?;
+
+    match kind {
+        "package" => {
+            let dictionary =
+                nixos_json_controller::dictionary::Dictionary::load()?;
+            let package = dictionary
+                .resolve_package(target)
+                .ok_or_else(|| format!("unknown package target: {}", target))?;
+
+            let explanation =
+                explain_package(&context, &system, package)?;
+
+            println!("Package: {}", explanation.name);
+            println!("System present: {}", yes_no(explanation.system_present));
+            println!(
+                "Declared in config: {}",
+                yes_no(explanation.declared_in_config)
+            );
+
+            print_locations(
+                "Declaration locations",
+                &explanation.declaration_locations,
+            );
+            print_locations(
+                "Safe write locations",
+                &explanation.safe_declaration_locations,
+            );
+            print_locations(
+                "Unsafe write locations",
+                &explanation.unsafe_declaration_locations,
+            );
+        }
+
+        "service" => {
+            let dictionary =
+                nixos_json_controller::dictionary::Dictionary::load()?;
+            let service = dictionary
+                .resolve_service(target)
+                .ok_or_else(|| format!("unknown service target: {}", target))?;
+
+            let explanation =
+                explain_service(&context, &system, service)?;
+
+            println!("Service: {}", explanation.name);
+            println!("System enabled: {}", yes_no(explanation.system_enabled));
+            println!(
+                "Declared in config: {}",
+                yes_no(explanation.declared_in_config)
+            );
+            println!(
+                "Enabled in evaluated config: {}",
+                yes_no(explanation.enabled_in_config)
+            );
+
+            print_locations(
+                "Declaration locations",
+                &explanation.declaration_locations,
+            );
+            print_locations(
+                "Safe write locations",
+                &explanation.safe_declaration_locations,
+            );
+            print_locations(
+                "Unsafe write locations",
+                &explanation.unsafe_declaration_locations,
+            );
+        }
+
+        _ => {
+            return Err(
+                "usage: nxc explain [package|service] <target>".to_string()
+            );
+        }
+    }
+
+    Ok(())
+}
+
+fn print_locations(label: &str, paths: &[std::path::PathBuf]) {
+    println!("{}: {}", label, paths.len());
+
+    for path in paths {
+        println!("  {}", path.display());
+    }
+}
+
+fn yes_no(value: bool) -> &'static str {
+    if value {
+        "yes"
+    } else {
+        "no"
+    }
+}
+
 
 fn run_discover() -> Result<(), String> {
     println!("NixOS Flake Discovery");

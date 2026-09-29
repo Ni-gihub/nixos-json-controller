@@ -347,6 +347,8 @@ mod tests {
         }
     }
 
+    #[ignore = "requires the developer's NixOS configuration"]
+
     #[test]
     fn inspect_nix_config_candidate() {
         let root =

@@ -520,6 +520,30 @@ mod tests {
     use super::*;
 
     #[test]
+    fn rejects_existing_package_file_without_nxc_shape() {
+        let dir = std::env::temp_dir().join(format!("nxc-dedicated-pkg-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("packages.nix");
+        fs::write(&path, "{ environment.systemPackages = [ pkgs.git ]; }").unwrap();
+
+        assert!(validate_dedicated_package_module(&path).is_err());
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn accepts_existing_service_file_with_nxc_shape() {
+        let dir = std::env::temp_dir().join(format!("nxc-dedicated-svc-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("services.nix");
+        fs::write(&path, "{ ... }:\n\n{\n}\n").unwrap();
+
+        assert!(validate_dedicated_service_module(&path).is_ok());
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
     fn adds_import_to_existing_list() {
         let content = r#"{ imports = [
   ./hardware.nix

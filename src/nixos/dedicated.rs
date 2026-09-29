@@ -295,12 +295,59 @@ fn import_targets(flake_root: &Path, config: &ConfigState) -> Result<Vec<PathBuf
 }
 
 fn find_import_list(content: &str) -> Option<usize> {
-    let marker = "imports";
-    let marker_position = content.find(marker)?;
-    let assignment = content[marker_position..].find('=')? + marker_position;
-    let list = content[assignment + 1..].find('[')? + assignment + 1;
-    find_matching_delimiter(content, list, '[', ']')?;
-    Some(list)
+    let mut found = None;
+    let mut offset = 0usize;
+
+    for line in content.split_inclusive('\n') {
+        let code = line.split_once('#').map_or(line, |(code, _)| code);
+        let trimmed = code.trim_start();
+
+        if !trimmed.starts_with("imports") {
+            offset += line.len();
+            continue;
+        }
+
+        let after_name = &trimmed["imports".len()..];
+        if !after_name.starts_with(char::is_whitespace) && !after_name.starts_with('=') {
+            offset += line.len();
+            continue;
+        }
+
+        let Some(equals) = after_name.find('=') else {
+            offset += line.len();
+            continue;
+        };
+
+        let after_equals = &after_name[equals + 1..];
+        let Some(list_offset) = after_equals.find('[') else {
+            offset += line.len();
+            continue;
+        };
+
+        let list_start = offset
+            + code.len()
+            - code.trim_start().len()
+            + "imports".len()
+            + equals
+            + 1
+            + list_offset;
+
+        let Some(list_end) = find_matching_delimiter(content, list_start, '[', ']') else {
+            offset += line.len();
+            continue;
+        };
+
+        if found.replace(list_start).is_some() {
+            // Multiple direct imports lists are ambiguous. The fallback must
+            // never guess which module graph entry should be modified.
+            return None;
+        }
+
+        let _ = list_end;
+        offset += line.len();
+    }
+
+    found
 }
 
 fn add_import_to_content(content: &str, import_path: &str) -> Result<String, String> {

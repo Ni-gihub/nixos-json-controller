@@ -38,7 +38,17 @@ pub fn execute(plan: ExecutionPlan) -> Result<bool, ExecutorError> {
                     )));
                 }
 
-                nixos::writer::enable_service(&provenance_paths[0], &plan.target.name)
+                let path = &provenance_paths[0];
+                if !config.is_safe_write_target(path) {
+                    return install_service_in_dedicated_module(
+                        context.flake_root(),
+                        &config,
+                        &plan.target.name,
+                        "existing service declaration is outside the safe write boundary",
+                    );
+                }
+
+                nixos::writer::enable_service(path, &plan.target.name)
                     .map_err(ExecutorError::NixosError)?;
                 return Ok(true);
             }
@@ -57,9 +67,12 @@ pub fn execute(plan: ExecutionPlan) -> Result<bool, ExecutorError> {
                         format_paths(&candidates),
                     )),
                 ),
-                ServiceEnableStrategy::Unsupported => Err(ExecutorError::NixosError(
-                    "no safe service configuration target was found".to_string(),
-                )),
+                ServiceEnableStrategy::Unsupported => install_service_in_dedicated_module(
+                    context.flake_root(),
+                    &config,
+                    &plan.target.name,
+                    "no safe service configuration target was found",
+                ),
             }
         }
 
@@ -77,7 +90,16 @@ pub fn execute(plan: ExecutionPlan) -> Result<bool, ExecutorError> {
                     )));
                 }
 
-                nixos::writer::disable_service(&provenance_paths[0], &plan.target.name)
+                let path = &provenance_paths[0];
+                if !config.is_safe_write_target(path) {
+                    return Err(ExecutorError::NixosError(format!(
+                        "service '{}' is declared in a configuration file outside the safe write boundary: {}",
+                        plan.target.name,
+                        path.display(),
+                    )));
+                }
+
+                nixos::writer::disable_service(path, &plan.target.name)
                     .map_err(ExecutorError::NixosError)?;
                 return Ok(true);
             }
@@ -108,6 +130,21 @@ pub fn execute(plan: ExecutionPlan) -> Result<bool, ExecutorError> {
         _ => Ok(false),
     }
 }
+
+fn install_service_in_dedicated_module(
+    flake_root: &std::path::Path,
+    config: &nixos::config::ConfigState,
+    service: &str,
+    reason: &str,
+) -> Result<bool, ExecutorError> {
+    println!("Falling back to the NXC dedicated service module: {}", reason);
+
+    nixos::dedicated::enable_service(flake_root, config, service)
+        .map_err(ExecutorError::NixosError)?;
+
+    Ok(true)
+}
+
 
 fn format_paths(paths: &[std::path::PathBuf]) -> String {
     paths

@@ -156,6 +156,7 @@ mod tests {
                     declared_packages: BTreeSet::new(),
                     declared_services: BTreeSet::new(),
                     imports: Vec::new(),
+                    write_safety: crate::nixos::config::WriteSafety::Safe,
                 },
                 ConfigFile {
                     path: PathBuf::from("services.nix"),
@@ -165,6 +166,7 @@ mod tests {
                     declared_packages: BTreeSet::new(),
                     declared_services: BTreeSet::new(),
                     imports: Vec::new(),
+                    write_safety: crate::nixos::config::WriteSafety::Safe,
                 },
             ],
         }

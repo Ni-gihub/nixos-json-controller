@@ -50,7 +50,12 @@ pub fn run() -> Result<(), String> {
         return run_explain(&args[1], &args[2]);
     }
 
-    let (action, target) = match args.as_slice() {
+    let (dry_run, command_args) = match args.last().map(String::as_str) {
+        Some("--dry-run") => (true, &args[..args.len() - 1]),
+        _ => (false, args.as_slice()),
+    };
+
+    let (action, target) = match command_args {
         [target] => (Action::InstallPackage, target.clone()),
         [operation, target] => {
             let action = match operation.as_str() {
@@ -82,16 +87,20 @@ pub fn run() -> Result<(), String> {
 
     let target = Resolver::resolve(command.action.clone(), command.target)?;
 
-    let plan = Planner::create(command.action, target);
+    let mut plan = Planner::create(command.action, target);
+    plan.dry_run = dry_run;
+    plan = Planner::prepare(plan).map_err(|e| format!("failed to create execution plan: {e}"))?;
 
-    Executor::execute(plan)
+    print_plan(&plan);
+
+    Executor::execute(plan).map_err(|e| format!("{e:?}"))?
         .map_err(|e| format!("{e:?}"))?;
 
     Ok(())
 }
 
 fn print_help() {
-    println!("usage: nxc [i|r|e|d] <target>");
+    println!("usage: nxc [i|r|e|d] <target> [--dry-run]");
     println!();
     println!("commands:");
     println!("  nxc <package>       install package");
@@ -104,6 +113,7 @@ fn print_help() {
     println!("  nxc explain package <name>  explain package state and provenance");
     println!("  nxc explain service <name>  explain service state and provenance");
     println!("  nxc discover        discover NixOS flake");
+    println!("  append --dry-run to preview the execution plan without changes");
 }
 
 fn run_list() -> Result<(), String> {
@@ -229,6 +239,31 @@ fn run_explain(kind: &str, target: &str) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+
+fn print_plan(plan: &nixos_json_controller::planner::ExecutionPlan) {
+    println!("Execution Plan");
+    println!();
+    println!("  Action: {:?}", plan.action);
+    println!("  Target: {}", plan.target.name);
+
+    if let Some(details) = &plan.details {
+        println!("  Strategy: {}", details.strategy);
+        println!("  Change required: {}", yes_no(details.change_required));
+        println!("  Rebuild required: {}", yes_no(details.rebuild_required));
+        println!("  Reason: {}", details.reason);
+        println!("  Affected files: {}", details.affected_files.len());
+
+        for path in &details.affected_files {
+            println!("    {}", path.display());
+        }
+    }
+
+    if plan.dry_run {
+        println!();
+        println!("Dry run: no configuration changes or rebuild will be performed.");
+    }
 }
 
 fn print_locations(label: &str, paths: &[std::path::PathBuf]) {

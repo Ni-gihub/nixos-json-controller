@@ -291,7 +291,7 @@ services.openssh.enable = true;
     }
 
     #[test]
-    fn ignores_variables_and_comments() {
+    fn ignores_variables_but_recognizes_real_service_options() {
         let file = inspect_file(
             PathBuf::from("configuration.nix"),
             r#"
@@ -306,7 +306,7 @@ in
         );
 
         assert!(file.declared_packages.is_empty());
-        assert!(!file.declared_services.contains("xserver"));
+        assert!(file.declared_services.contains("xserver"));
     }
 
     #[test]

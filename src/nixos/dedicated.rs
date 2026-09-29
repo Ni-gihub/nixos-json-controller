@@ -318,7 +318,7 @@ fn find_importing_file(
 /// and a generic default.nix. This makes a layout such as
 /// hosts/laptop/default.nix -> ../common.nix -> ../modules/*.nix resolve to
 /// the host entrypoint instead of common.nix or hardware configuration.
-fn find_import_target(flake_root: &Path, config: &ConfigState) -> Result<PathBuf, String> {
+fn find_import_target(config: &ConfigState) -> Result<PathBuf, String> {
     let imported_files = config
         .files
         .iter()
@@ -348,6 +348,12 @@ fn find_import_target(flake_root: &Path, config: &ConfigState) -> Result<PathBuf
         .collect::<Vec<_>>();
 
     let best_score = ranked.iter().map(|(score, _)| *score).max().unwrap_or(0);
+    if best_score < 60 {
+        return Err(
+            "cannot connect NXC dedicated module: no conventional NixOS module graph root was found"
+                .to_string(),
+        );
+    }
     let best = ranked
         .into_iter()
         .filter(|(score, _)| *score == best_score)
@@ -668,7 +674,7 @@ mod tests {
         };
 
         assert_eq!(
-            find_import_target(&root, &config).unwrap(),
+            find_import_target(&config).unwrap(),
             PathBuf::from("/tmp/nix-config/hosts/laptop/default.nix")
         );
     }
@@ -684,7 +690,7 @@ mod tests {
         };
 
         assert_eq!(
-            find_import_target(&root, &config).unwrap(),
+            find_import_target(&config).unwrap(),
             PathBuf::from("/tmp/nix-config/configuration.nix")
         );
     }
@@ -699,7 +705,7 @@ mod tests {
             ],
         };
 
-        let error = find_import_target(&root, &config).unwrap_err();
+        let error = find_import_target(&config).unwrap_err();
 
         assert!(error.contains("multiple NixOS module graph roots"));
     }

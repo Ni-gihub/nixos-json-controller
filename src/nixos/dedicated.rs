@@ -308,7 +308,11 @@ fn find_import_list(content: &str) -> Option<usize> {
         }
 
         let after_name = &trimmed["imports".len()..];
-        if !after_name.starts_with(char::is_whitespace) && !after_name.starts_with('=') {
+        if !after_name
+            .chars()
+            .next()
+            .is_some_and(char::is_whitespace)
+            && !after_name.starts_with('=') {
             offset += line.len();
             continue;
         }

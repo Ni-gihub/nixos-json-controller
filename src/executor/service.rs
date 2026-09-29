@@ -11,7 +11,7 @@ use crate::planner::ExecutionPlan;
 use super::error::ExecutorError;
 
 pub fn execute(plan: ExecutionPlan) -> Result<bool, ExecutorError> {
-    let context = nixos::discovery_context().map_err(ExecutorError::NixosError)?;
+    let context = nixos::flake::discovery_context().map_err(ExecutorError::NixosError)?;
     let config = nixos::config::ConfigState::discover(context.flake_root())
         .map_err(ExecutorError::NixosError)?;
     let system = nixos::system::SystemState::discover()

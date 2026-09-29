@@ -307,31 +307,86 @@ fn find_importing_file(
     Ok(None)
 }
 
-fn import_targets(flake_root: &Path, config: &ConfigState) -> Result<Vec<PathBuf>, String> {
-    let mut targets = Vec::new();
+/// Select the NixOS module that should connect a newly-created NXC module.
+///
+/// The configuration files form an import graph. A file that is not imported by
+/// another discovered Nix file is a graph root and is therefore a better
+/// connection point than an arbitrary file that happens to contain an imports list.
+///
+/// Conventional NixOS layouts get an additional preference: a unique
+/// hosts/<name>/default.nix root is preferred, followed by configuration.nix
+/// and a generic default.nix. This makes a layout such as
+/// hosts/laptop/default.nix -> ../common.nix -> ../modules/*.nix resolve to
+/// the host entrypoint instead of common.nix or hardware configuration.
+fn find_import_target(flake_root: &Path, config: &ConfigState) -> Result<PathBuf, String> {
+    let imported_files = config
+        .files
+        .iter()
+        .flat_map(|file| file.imports.iter().cloned())
+        .collect::<std::collections::BTreeSet<_>>();
 
-    for file in &config.files {
-        let content = fs::read_to_string(&file.path)
-            .map_err(|e| format!("failed to read {}: {}", file.path.display(), e))?;
+    let mut roots = config
+        .files
+        .iter()
+        .filter(|file| file.path.file_name().and_then(|name| name.to_str()) != Some("flake.nix"))
+        .filter(|file| !imported_files.contains(&file.path))
+        .map(|file| file.path.clone())
+        .collect::<Vec<_>>();
 
-        if find_import_list(content.as_str()).is_some() {
-            targets.push(file.path.clone());
-        }
+    roots.sort();
+
+    if roots.is_empty() {
+        return Err(
+            "cannot connect NXC dedicated module: no NixOS module graph root was found"
+                .to_string(),
+        );
     }
 
-    let flake_file = flake_root.join("flake.nix");
-    if flake_file.is_file() {
-        let content = fs::read_to_string(&flake_file)
-            .map_err(|e| format!("failed to read {}: {}", flake_file.display(), e))?;
+    let ranked = roots
+        .iter()
+        .map(|path| (root_score(path), path))
+        .collect::<Vec<_>>();
 
-        if find_import_list(&content).is_some() {
-            targets.push(flake_file);
-        }
+    let best_score = ranked.iter().map(|(score, _)| *score).max().unwrap_or(0);
+    let best = ranked
+        .into_iter()
+        .filter(|(score, _)| *score == best_score)
+        .map(|(_, path)| path.clone())
+        .collect::<Vec<_>>();
+
+    match best.as_slice() {
+        [target] => Ok(target.clone()),
+        _ => Err(format!(
+            "cannot connect NXC dedicated module: multiple NixOS module graph roots found: {}",
+            format_paths(&best),
+        )),
     }
+}
 
-    targets.sort();
-    targets.dedup();
-    Ok(targets)
+fn root_score(path: &Path) -> u8 {
+    let file_name = path.file_name().and_then(|name| name.to_str());
+    let parent_name = path
+        .parent()
+        .and_then(|parent| parent.file_name())
+        .and_then(|name| name.to_str());
+    let grandparent_name = path
+        .parent()
+        .and_then(|parent| parent.parent())
+        .and_then(|parent| parent.file_name())
+        .and_then(|name| name.to_str());
+
+    if file_name == Some("default.nix")
+        && parent_name.is_some()
+        && grandparent_name == Some("hosts")
+    {
+        100
+    } else if file_name == Some("configuration.nix") {
+        80
+    } else if file_name == Some("default.nix") {
+        60
+    } else {
+        10
+    }
 }
 
 fn find_import_list(content: &str) -> Option<usize> {
@@ -576,6 +631,77 @@ mod tests {
 "#;
 
         assert!(find_import_list(content).is_none());
+    }
+
+    fn config_file(path: &str, imports: &[&str]) -> ConfigFile {
+        ConfigFile {
+            path: PathBuf::from(path),
+            has_system_packages: false,
+            has_systemd_services: false,
+            has_service_options: false,
+            declared_packages: Default::default(),
+            declared_services: Default::default(),
+            imports: imports.iter().map(PathBuf::from).collect(),
+            write_safety: WriteSafety::Unsafe,
+        }
+    }
+
+    #[test]
+    fn selects_host_default_as_import_graph_root() {
+        let root = PathBuf::from("/tmp/nix-config");
+        let config = ConfigState {
+            files: vec![
+                config_file(
+                    "/tmp/nix-config/hosts/laptop/default.nix",
+                    &[
+                        "/tmp/nix-config/hosts/laptop/hardware-configuration.nix",
+                        "/tmp/nix-config/hosts/common.nix",
+                    ],
+                ),
+                config_file(
+                    "/tmp/nix-config/hosts/laptop/hardware-configuration.nix",
+                    &[],
+                ),
+                config_file("/tmp/nix-config/hosts/common.nix", &[]),
+                config_file("/tmp/nix-config/modules/core.nix", &[]),
+            ],
+        };
+
+        assert_eq!(
+            find_import_target(&root, &config).unwrap(),
+            PathBuf::from("/tmp/nix-config/hosts/laptop/default.nix")
+        );
+    }
+
+    #[test]
+    fn prefers_configuration_root_when_no_host_default_exists() {
+        let root = PathBuf::from("/tmp/nix-config");
+        let config = ConfigState {
+            files: vec![
+                config_file("/tmp/nix-config/configuration.nix", &[]),
+                config_file("/tmp/nix-config/hardware.nix", &[]),
+            ],
+        };
+
+        assert_eq!(
+            find_import_target(&root, &config).unwrap(),
+            PathBuf::from("/tmp/nix-config/configuration.nix")
+        );
+    }
+
+    #[test]
+    fn rejects_ambiguous_graph_roots_with_equal_priority() {
+        let root = PathBuf::from("/tmp/nix-config");
+        let config = ConfigState {
+            files: vec![
+                config_file("/tmp/nix-config/hosts/laptop/default.nix", &[]),
+                config_file("/tmp/nix-config/hosts/desktop/default.nix", &[]),
+            ],
+        };
+
+        let error = find_import_target(&root, &config).unwrap_err();
+
+        assert!(error.contains("multiple NixOS module graph roots"));
     }
 
     #[test]

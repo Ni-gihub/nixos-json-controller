@@ -1,4 +1,6 @@
+pub mod application;
 pub mod config;
+pub mod dedicated;
 pub mod discovery;
 pub mod flake;
 pub mod generator;

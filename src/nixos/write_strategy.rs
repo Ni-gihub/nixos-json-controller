@@ -174,6 +174,7 @@ mod tests {
         SystemState {
             current_generation: PathBuf::from("/nix/store/example"),
             binaries: Default::default(),
+            packages: Default::default(),
             enabled_services: Default::default(),
         }
     }

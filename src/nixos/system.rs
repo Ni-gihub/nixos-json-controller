@@ -10,6 +10,7 @@ use std::process::Command;
 pub struct SystemState {
     pub current_generation: PathBuf,
     pub binaries: BTreeMap<String, PathBuf>,
+    pub packages: BTreeSet<String>,
     pub enabled_services: BTreeSet<String>,
 }
 
@@ -40,11 +41,13 @@ impl SystemState {
             Path::new("/run/current-system/sw/bin"),
         )?;
 
+        let packages = discover_system_packages()?;
         let enabled_services = discover_enabled_services()?;
 
         Ok(Self {
             current_generation,
             binaries,
+            packages,
             enabled_services,
         })
     }
@@ -57,6 +60,15 @@ impl SystemState {
     /// 指定したコマンドのsystem-wideな実体を取得する。
     pub fn command_path(&self, command: &str) -> Option<&Path> {
         self.binaries.get(command).map(PathBuf::as_path)
+    }
+
+    /// 現在のNixOS system generationに指定したpackageが含まれるか確認する。
+    ///
+    /// 実行ファイル名とpackage名が一致しない場合も、store path名から判定できる。
+    pub fn has_package(&self, package: &str) -> bool {
+        self.packages.iter().any(|name| {
+            name == package || name.starts_with(&format!("{package}-"))
+        })
     }
 
     /// systemd上で指定したsystem serviceが有効になっているか確認する。
@@ -101,6 +113,32 @@ fn discover_binaries(
     }
 
     Ok(binaries)
+}
+
+/// 現在のsystem generationが直接参照しているNix store pathを取得する。
+fn discover_system_packages() -> Result<BTreeSet<String>, String> {
+    let output = Command::new("nix-store")
+        .args(["--query", "--references", "/run/current-system/sw"])
+        .output()
+        .map_err(|e| format!("failed to execute nix-store: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!(
+            "nix-store --query --references failed: {}",
+            stderr.trim()
+        ));
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| {
+            let path = Path::new(line.trim());
+            let name = path.file_name()?.to_string_lossy();
+            let (_, name) = name.split_once('-')?;
+            Some(name.to_string())
+        })
+        .collect())
 }
 
 /// systemdで現在enableされているsystem serviceを取得する。
@@ -207,6 +245,7 @@ sshd.service enabled enabled
                 "/nix/store/example-nixos-system",
             ),
             binaries,
+            packages: BTreeSet::from(["firefox-1.0".to_string()]),
             enabled_services: services,
         };
 
@@ -218,6 +257,8 @@ sshd.service enabled enabled
             ))
         );
         assert!(!state.has_command("chromium"));
+        assert!(state.has_package("firefox"));
+        assert!(!state.has_package("chromium"));
 
         assert!(state.is_service_enabled("sshd"));
         assert!(!state.is_service_enabled("nginx"));

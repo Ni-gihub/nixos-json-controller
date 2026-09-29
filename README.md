@@ -57,6 +57,8 @@ DiscoveryによってNixOS設定の場所と使用する `nixosConfiguration` �
 * JSONによる構造化された入力
 * Rustによる入力検証・名前解決・実行制御
 * NixOSの既存設定を利用した設定変更
+* 既存構成を編集できない場合のNXC専用パッケージmodule fallback
+* 現在のsystem-wideなコマンド/アプリ一覧表示
 * `nixos-rebuild switch` まで一連の処理を実行
 * NixOS設定用Flakeの自動Discovery
 * `nixosConfigurations` のNix評価
@@ -274,9 +276,10 @@ nxc i firefox
 nxc r firefox
 nxc e openssh
 nxc d openssh
+nxc list
 ```
 
-などの通常操作で毎回Flake探索やNix評価を行いません。
+などの通常操作で毎回Flake探索や候補探索を行いません。パッケージ操作では、既存設定の定義元を確認するため必要に応じてNix評価を行います。
 
 ---
 
@@ -360,6 +363,14 @@ nxc i 火狐
 として処理されます。
 
 ---
+
+## List installed system commands/apps
+
+```bash
+nxc list
+```
+
+現在の `/run/current-system/sw/bin` に公開されているsystem-wideなコマンド/アプリ名を一覧表示します。
 
 ## Remove package
 
@@ -505,6 +516,28 @@ environment.systemPackages = with pkgs; [
 ```
 
 ---
+
+## Package configuration fallback
+
+パッケージが現在のsystemに存在せず、既存NixOS設定をNXCが安全に編集できない場合は、既存構成を推測して書き換えません。代わりに、Flake内の `nxc/packages.nix` を生成し、既存の一意な `imports` リストへ接続します。
+
+```text
+既存構成を安全に編集できる
+        ↓
+既存Nixファイルへ追加
+
+安全に編集できない
+        ↓
+nxc/packages.nix を生成
+        ↓
+既存 imports へ接続
+        ↓
+Nix evaluation
+        ↓
+nixos-rebuild
+```
+
+生成された `nxc/packages.nix` は通常のNixOS moduleなので、以後のNXC操作でも編集対象として再利用できます。既存の `imports` リストを一意に特定できない場合は、設定構造を勝手に変更せずエラーで停止します。
 
 ## 6. nixos-rebuild
 
@@ -861,6 +894,10 @@ cargo fmt
 * [x] Configuration selection
 * [x] Discovery state persistence
 * [x] Saved Discovery result validation
+* [x] Installed system command/app listing
+* [x] Application state detection
+* [x] NXC dedicated package module fallback
+* [x] Nix evaluation validation and package-change rollback
 
 今後の予定:
 

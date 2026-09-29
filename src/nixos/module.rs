@@ -174,7 +174,7 @@ fn indentation_for_list_item(content: &str, list_start: usize) -> String {
         .unwrap_or_else(|| "  ".to_string())
 }
 
-fn find_matching_delimiter(
+pub(crate) fn find_matching_delimiter(
     content: &str,
     start: usize,
     open: char,

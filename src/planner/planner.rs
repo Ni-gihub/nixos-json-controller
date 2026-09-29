@@ -69,12 +69,12 @@ impl Planner {
 
         if state.declared_in_config {
             return Ok(PlanDetails {
-                strategy: "already-declared".to_string(),
+                strategy: "declared-not-active".to_string(),
                 affected_files: state.declaration_locations,
                 change_required: false,
-                rebuild_required: false,
+                rebuild_required: true,
                 reason:
-                    "package is declared in the NixOS configuration but not in the active system"
+                    "package is declared in the NixOS configuration but is not present in the active system"
                         .to_string(),
             });
         }

@@ -132,7 +132,8 @@ pub fn remove_package_from_content(content: &str, package: &str) -> Result<Strin
 }
 
 fn is_simple_package_list(region: &str) -> bool {
-    !region.chars().any(|c| matches!(c, '(' | ')' | '{' | '}' | ';'))
+    !region.chars().any(|c| matches!(c, '(' | ')' | '{' | '}' | ';' | '#' | '"'))
+        && !region.contains("''")
         && !region.contains(" if ")
         && !region.contains(" then ")
         && !region.contains(" else ")

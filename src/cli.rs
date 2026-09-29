@@ -1,5 +1,6 @@
 use std::env;
 
+use clap::Parser;
 use nixos_json_controller::{
     command::{
         Action,
@@ -24,38 +25,51 @@ use nixos_json_controller::{
     validator::Validator,
 };
 
-pub fn run() -> Result<(), String> {
-    let args: Vec<String> = env::args().skip(1).collect();
+#[derive(Debug, Parser)]
+#[command(
+    name = "nxc",
+    version,
+    about = "Safe NixOS configuration controller"
+)]
+struct CliArgs {
+    /// Preview the execution plan without changing configuration or rebuilding.
+    #[arg(long)]
+    dry_run: bool,
 
-    if args.len() == 1
-        && (args[0] == "--help" || args[0] == "-h")
-    {
+    /// NXC command and its arguments.
+    #[arg(value_name = "COMMAND", num_args = 0..)]
+    command: Vec<String>,
+}
+
+pub fn run() -> Result<(), String> {
+    let args = CliArgs::parse();
+
+    if args.command.is_empty() {
         print_help();
         return Ok(());
     }
 
-    if args.len() == 1 && args[0] == "discover" {
-        return run_discover();
+    if args.dry_run
+        && matches!(
+            args.command.first().map(String::as_str),
+            Some("discover" | "list" | "status" | "explain")
+        )
+    {
+        return Err("--dry-run is only valid for configuration actions".to_string());
     }
 
-    if args.len() == 1 && args[0] == "list" {
-        return run_list();
+    match args.command.as_slice() {
+        [command] if command == "discover" => return run_discover(),
+        [command] if command == "list" => return run_list(),
+        [command] if command == "status" => return run_status(),
+        ["explain", kind, target] => return run_explain(kind, target),
+        ["discover", ..] | ["list", ..] | ["status", ..] | ["explain", ..] => {
+            return Err("invalid command arguments. use nxc --help for usage".to_string());
+        }
+        _ => {}
     }
 
-    if args.len() == 1 && args[0] == "status" {
-        return run_status();
-    }
-
-    if args.len() == 3 && args[0] == "explain" {
-        return run_explain(&args[1], &args[2]);
-    }
-
-    let (dry_run, command_args) = match args.last().map(String::as_str) {
-        Some("--dry-run") => (true, &args[..args.len() - 1]),
-        _ => (false, args.as_slice()),
-    };
-
-    let (action, target) = match command_args {
+    let (action, target) = match args.command.as_slice() {
         [target] => (Action::InstallPackage, target.clone()),
         [operation, target] => {
             let action = match operation.as_str() {
@@ -65,7 +79,8 @@ pub fn run() -> Result<(), String> {
                 "d" => Action::DisableService,
                 _ => {
                     return Err(
-                        "unknown operation. use i, r, e, or d".to_string()
+                        "unknown operation. use i, r, e, or d; or nxc --help for usage"
+                            .to_string(),
                     );
                 }
             };
@@ -73,7 +88,7 @@ pub fn run() -> Result<(), String> {
             (action, target.clone())
         }
         _ => {
-            return Err("usage: nxc [i|r|e|d] <target>".to_string());
+            return Err("usage: nxc [i|r|e|d] <target> [--dry-run]".to_string());
         }
     };
 
@@ -82,39 +97,26 @@ pub fn run() -> Result<(), String> {
         target: Target { raw: target },
     };
 
-    Validator::validate(&command)
-        .map_err(|e| format!("{e:?}"))?;
+    Validator::validate(&command).map_err(|e| e.to_string())?;
 
     let target = Resolver::resolve(command.action.clone(), command.target)?;
 
     let mut plan = Planner::create(command.action, target);
-    plan.dry_run = dry_run;
-    plan = Planner::prepare(plan).map_err(|e| format!("failed to create execution plan: {e}"))?;
+    plan.dry_run = args.dry_run;
+    plan = Planner::prepare(plan)
+        .map_err(|e| format!("failed to create execution plan: {e}"))?;
 
     print_plan(&plan);
 
-    Executor::execute(plan).map_err(|e| format!("{e:?}"))?
-        .map_err(|e| format!("{e:?}"))?;
+    Executor::execute(plan).map_err(|e| e.to_string())?;
 
     Ok(())
 }
 
 fn print_help() {
-    println!("usage: nxc [i|r|e|d] <target> [--dry-run]");
-    println!();
-    println!("commands:");
-    println!("  nxc <package>       install package");
-    println!("  nxc i <package>     install package");
-    println!("  nxc r <package>     remove package");
-    println!("  nxc e <service>     enable service");
-    println!("  nxc d <service>     disable service");
-    println!("  nxc list            list installed system commands/apps");
-    println!("  nxc status          show current system status");
-    println!("  nxc explain package <name>  explain package state and provenance");
-    println!("  nxc explain service <name>  explain service state and provenance");
-    println!("  nxc discover        discover NixOS flake");
-    println!("  append --dry-run to preview the execution plan without changes");
+    println!("Use nxc --help for full command-line help.");
 }
+
 
 fn run_list() -> Result<(), String> {
     let system = SystemState::discover()?;

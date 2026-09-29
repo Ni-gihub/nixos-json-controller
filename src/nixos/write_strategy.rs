@@ -53,9 +53,7 @@ pub fn install_package_strategy(
     }
 
     match paths(config.package_write_targets()).as_slice() {
-        [path] => PackageInstallStrategy::ExistingFile {
-            path: path.clone(),
-        },
+        [path] => PackageInstallStrategy::ExistingFile { path: path.clone() },
         [] => PackageInstallStrategy::Unsupported,
         candidates => PackageInstallStrategy::Ambiguous {
             candidates: candidates.to_vec(),
@@ -97,9 +95,7 @@ pub fn enable_service_strategy(
     }
 
     match paths(config.service_write_targets()).as_slice() {
-        [path] => ServiceEnableStrategy::ExistingFile {
-            path: path.clone(),
-        },
+        [path] => ServiceEnableStrategy::ExistingFile { path: path.clone() },
         [] => ServiceEnableStrategy::Unsupported,
         candidates => ServiceEnableStrategy::Ambiguous {
             candidates: candidates.to_vec(),
@@ -122,9 +118,7 @@ pub fn disable_service_strategy(
 
     if system.is_service_enabled(service) {
         return match candidates.as_slice() {
-            [path] => ServiceDisableStrategy::ExistingFile {
-                path: path.clone(),
-            },
+            [path] => ServiceDisableStrategy::ExistingFile { path: path.clone() },
             [] => ServiceDisableStrategy::NotDeclared,
             candidates => ServiceDisableStrategy::Ambiguous {
                 candidates: candidates.to_vec(),
@@ -136,10 +130,7 @@ pub fn disable_service_strategy(
 }
 
 fn paths<'a>(paths: impl IntoIterator<Item = &'a Path>) -> Vec<PathBuf> {
-    paths
-        .into_iter()
-        .map(Path::to_path_buf)
-        .collect()
+    paths.into_iter().map(Path::to_path_buf).collect()
 }
 
 #[cfg(test)]
@@ -155,15 +146,19 @@ mod tests {
                     path: PathBuf::from("packages.nix"),
                     has_system_packages: true,
                     has_systemd_services: false,
+                    has_service_options: false,
                     declared_packages: BTreeSet::new(),
                     declared_services: BTreeSet::new(),
+                    imports: Vec::new(),
                 },
                 ConfigFile {
                     path: PathBuf::from("services.nix"),
                     has_system_packages: false,
                     has_systemd_services: true,
+                    has_service_options: true,
                     declared_packages: BTreeSet::new(),
                     declared_services: BTreeSet::new(),
+                    imports: Vec::new(),
                 },
             ],
         }

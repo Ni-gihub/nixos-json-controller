@@ -4,6 +4,7 @@ pub mod flake;
 pub mod generator;
 pub mod import;
 pub mod module;
+pub mod provenance;
 pub mod rebuild;
 pub mod system;
 pub mod write_strategy;

@@ -43,6 +43,11 @@ pub fn add_package_to_content(content: &str, package: &str) -> Result<String, St
     let list_end = find_matching_delimiter(content, list_start, '[', ']')
         .ok_or("environment.systemPackages list is not balanced")?;
 
+    let region = &content[list_start + 1..list_end];
+    if simple_package_list_contains(region, package) {
+        return Err(format!("package '{}' is already present in the package list", package));
+    }
+
     let indentation = indentation_for_list_item(content, list_start);
     let insertion = format!("\n{}{}", indentation, package);
 
@@ -70,9 +75,28 @@ pub fn remove_package_from_content(content: &str, package: &str) -> Result<Strin
     let list_end = find_matching_delimiter(content, list_start, '[', ']')
         .ok_or("environment.systemPackages list is not balanced")?;
 
-    let variants = [package.to_string(), format!("pkgs.{package}")];
     let region = &content[list_start + 1..list_end];
 
+    if is_simple_package_list(region) {
+        if let Some((start, end)) = find_package_token(region, package) {
+            let mut result = String::with_capacity(content.len());
+            result.push_str(&content[..list_start + 1]);
+            result.push_str(&region[..start]);
+            result.push_str(&region[end..]);
+            result.push_str(&content[list_end..]);
+            return Ok(result);
+        }
+
+        return Err(format!(
+            "package '{}' not found as a standalone list item",
+            package
+        ));
+    }
+
+    // Keep the conservative line-based fallback for lists containing more
+    // complex expressions. It avoids rewriting a package token inside an
+    // arbitrary Nix expression.
+    let variants = [package.to_string(), format!("pkgs.{package}")];
     let mut removed = false;
     let mut output_region = String::with_capacity(region.len());
 
@@ -107,58 +131,40 @@ pub fn remove_package_from_content(content: &str, package: &str) -> Result<Strin
     Ok(result)
 }
 
-pub fn add_service_to_content(
-    content: &str,
-    service: &str,
-    enabled: bool,
-) -> Result<String, String> {
-    let attributes = [
-        format!("systemd.services.{service}.enable"),
-        format!("services.{service}.enable"),
-    ];
-
-    for attribute in &attributes {
-        if let Some((start, end)) = find_boolean_assignment(content, attribute) {
-            let mut result = content.to_string();
-            result.replace_range(start..end, if enabled { "true" } else { "false" });
-            return Ok(result);
-        }
-    }
-
-    let closing_brace = content
-        .rfind('}')
-        .ok_or("Nix module closing brace not found")?;
-
-    let setting = format!("  services.{service}.enable = {enabled};\n");
-    let mut result = content.to_string();
-    result.insert_str(closing_brace, &setting);
-    Ok(result)
+fn is_simple_package_list(region: &str) -> bool {
+    !region.contains(['(', ')', '{', '}', ';'])
+        && !region.contains(" if ")
+        && !region.contains(" then ")
+        && !region.contains(" else ")
+        && !region.contains(" with ")
 }
 
-fn find_boolean_assignment(content: &str, attribute: &str) -> Option<(usize, usize)> {
-    let mut offset = 0usize;
+fn simple_package_list_contains(region: &str, package: &str) -> bool {
+    find_package_token(region, package).is_some()
+}
 
-    for line in content.split_inclusive('\n') {
-        let code = line.split_once('#').map_or(line, |(code, _)| code);
+fn find_package_token(region: &str, package: &str) -> Option<(usize, usize)> {
+    let variants = [package.to_string(), format!("pkgs.{package}")];
 
-        if let Some(attribute_pos) = code.find(attribute) {
-            let after_attribute = &code[attribute_pos + attribute.len()..];
-            let equals = after_attribute.find('=')?;
-            let value_part = &after_attribute[equals + 1..];
-            let value_start = value_part.len() - value_part.trim_start().len();
-            let value = value_part.trim_start();
-            let start = offset + attribute_pos + attribute.len() + equals + 1 + value_start;
+    for variant in variants {
+        let mut search_start = 0usize;
 
-            if value.starts_with("true") {
-                return Some((start, start + 4));
+        while let Some(relative) = region[search_start..].find(&variant) {
+            let start = search_start + relative;
+            let end = start + variant.len();
+
+            let before = region[..start].chars().next_back();
+            let after = region[end..].chars().next();
+
+            let valid_before = before.is_none_or(char::is_whitespace);
+            let valid_after = after.is_none_or(char::is_whitespace);
+
+            if valid_before && valid_after {
+                return Some((start, end));
             }
 
-            if value.starts_with("false") {
-                return Some((start, start + 5));
-            }
+            search_start = end;
         }
-
-        offset += line.len();
     }
 
     None

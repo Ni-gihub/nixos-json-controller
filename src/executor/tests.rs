@@ -12,6 +12,7 @@ fn create_rebuild_command() {
             name: "firefox".to_string(),
         },
         dry_run: false,
+        details: None,
     };
 
     let command = Executor::execute_with_rebuild;
@@ -29,6 +30,7 @@ fn execute_dry_run() {
             name: "firefox".to_string(),
         },
         dry_run: true,
+        details: None,
     };
 
     let result = Executor::execute(plan);
@@ -45,6 +47,7 @@ fn execute_install_package() {
             name: "firefox".to_string(),
         },
         dry_run: false,
+        details: None,
     };
 
     let result = Executor::execute_with_rebuild(plan, false);
@@ -61,6 +64,7 @@ fn execute_remove_package() {
             name: "firefox".to_string(),
         },
         dry_run: false,
+        details: None,
     };
 
     let result = Executor::execute_with_rebuild(plan, false);
@@ -77,6 +81,7 @@ fn execute_enable_service() {
             name: "openssh".to_string(),
         },
         dry_run: false,
+        details: None,
     };
 
     let result = Executor::execute_with_rebuild(plan, false);
@@ -93,6 +98,7 @@ fn execute_disable_service() {
             name: "openssh".to_string(),
         },
         dry_run: false,
+        details: None,
     };
 
     let result = Executor::execute_with_rebuild(plan, false);

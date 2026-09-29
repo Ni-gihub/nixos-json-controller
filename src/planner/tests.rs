@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use crate::command::{Action, Target};
 use crate::resolver::{ResolvedTarget, Resolver};
 
-use super::{ExecutionPlan, Planner};
+use super::Planner;
 
 fn create_resolved_target(name: &str) -> ResolvedTarget {
     ResolvedTarget { name: name.to_string() }

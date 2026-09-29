@@ -115,6 +115,32 @@ fn discover_binaries(
     Ok(binaries)
 }
 
+/// 現在のsystem generationが直接参照しているNix store pathを取得する。
+fn discover_system_packages() -> Result<BTreeSet<String>, String> {
+    let output = Command::new("nix-store")
+        .args(["--query", "--references", "/run/current-system"])
+        .output()
+        .map_err(|e| format!("failed to execute nix-store: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!(
+            "nix-store --query --references failed: {}",
+            stderr.trim()
+        ));
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| {
+            let path = Path::new(line.trim());
+            let name = path.file_name()?.to_string_lossy();
+            let (_, name) = name.split_once('-')?;
+            Some(name.to_string())
+        })
+        .collect())
+}
+
 /// systemdで現在enableされているsystem serviceを取得する。
 fn discover_enabled_services() -> Result<BTreeSet<String>, String> {
     let output = Command::new("systemctl")

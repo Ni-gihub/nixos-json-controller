@@ -55,8 +55,6 @@ fn write_atomic(path: &Path, content: &str) -> Result<(), String> {
 
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
-
         fs::set_permissions(&temporary, metadata.permissions()).map_err(|e| {
             format!(
                 "failed to preserve permissions on {}: {}",

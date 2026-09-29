@@ -7,7 +7,6 @@ use crate::nixos::{
     system::SystemState,
     write_strategy::{
         disable_service_strategy, enable_service_strategy, install_package_strategy,
-        remove_package_strategy, PackageInstallStrategy, PackageRemoveStrategy,
         ServiceDisableStrategy, ServiceEnableStrategy,
     },
 };

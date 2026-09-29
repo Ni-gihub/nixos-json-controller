@@ -8,6 +8,8 @@ pub enum PackageWriteStrategy {
     Noop {
         declared_in: Vec<PathBuf>,
     },
+    SystemOnly,
+
     ExistingFile {
         path: PathBuf,
     },
@@ -22,6 +24,8 @@ pub enum ServiceWriteStrategy {
     Noop {
         declared_in: Vec<PathBuf>,
     },
+    SystemOnly,
+
     ExistingFile {
         path: PathBuf,
     },
@@ -47,9 +51,7 @@ pub fn package_strategy(
     }
 
     if system.has_command(package) {
-        return PackageWriteStrategy::Noop {
-            declared_in: Vec::new(),
-        };
+        return PackageWriteStrategy::SystemOnly;
     }
 
     let candidates = config
@@ -85,9 +87,7 @@ pub fn service_strategy(
     }
 
     if system.is_service_enabled(service) {
-        return ServiceWriteStrategy::Noop {
-            declared_in: Vec::new(),
-        };
+        return ServiceWriteStrategy::SystemOnly;
     }
 
     let candidates = config
@@ -177,7 +177,7 @@ mod tests {
     }
 
     #[test]
-    fn does_not_write_when_package_is_already_in_system() {
+    fn reports_system_only_when_package_is_present_but_undeclared() {
         let mut system = empty_system();
         system
             .binaries
@@ -192,10 +192,7 @@ mod tests {
             "firefox",
         );
 
-        assert!(matches!(
-            result,
-            PackageWriteStrategy::Noop { .. }
-        ));
+        assert_eq!(result, PackageWriteStrategy::SystemOnly);
     }
 
     #[test]

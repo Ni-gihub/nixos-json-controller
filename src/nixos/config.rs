@@ -107,12 +107,30 @@ fn collect_nix_files(
 fn inspect_file(path: PathBuf, content: &str) -> ConfigFile {
     let mut declared_packages = BTreeSet::new();
     let mut declared_services = BTreeSet::new();
+    let mut in_system_packages = false;
+    let mut bracket_depth = 0usize;
 
     for line in content.lines() {
         let trimmed = line.trim();
 
-        if let Some(package) = parse_package_line(trimmed) {
-            declared_packages.insert(package);
+        if !in_system_packages && trimmed.contains("environment.systemPackages") {
+            in_system_packages = true;
+            bracket_depth = 0;
+        }
+
+        if in_system_packages {
+            if let Some(package) = parse_package_line(trimmed) {
+                declared_packages.insert(package);
+            }
+
+            bracket_depth += trimmed.chars().filter(|c| *c == '[').count();
+            bracket_depth = bracket_depth.saturating_sub(
+                trimmed.chars().filter(|c| *c == ']').count(),
+            );
+
+            if bracket_depth == 0 && trimmed.contains(']') {
+                in_system_packages = false;
+            }
         }
 
         if let Some(service) = parse_service_line(trimmed) {
@@ -133,9 +151,9 @@ fn parse_package_line(line: &str) -> Option<String> {
     if line.is_empty()
         || line.starts_with('#')
         || line.contains('=')
-        || line.contains('[')
-        || line.contains(']')
         || line.contains(';')
+        || line == "["
+        || line == "]"
     {
         return None;
     }
@@ -195,21 +213,20 @@ systemd.services.sshd.enable = true;
     }
 
     #[test]
-    fn ignores_comments_and_option_lines_as_packages() {
+    fn does_not_treat_unrelated_lines_as_packages() {
         let file = inspect_file(
             PathBuf::from("configuration.nix"),
             r#"
-# firefox
-environment.systemPackages = with pkgs; [
-  firefox
-  foo = bar;
-];
+let
+  firefox = something;
+in
+{
+  services.xserver.enable = true;
+}
 "#,
         );
 
-        assert!(file.declared_packages.contains("firefox"));
-        assert!(!file.declared_packages.contains("environment.systemPackages"));
-        assert!(!file.declared_packages.contains("foo"));
+        assert!(file.declared_packages.is_empty());
     }
 
     #[test]

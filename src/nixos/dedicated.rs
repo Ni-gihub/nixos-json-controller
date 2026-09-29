@@ -85,7 +85,7 @@ pub fn install_package(
         change.created_files.push(module_path.clone());
     }
 
-    if let Err(error) = ensure_import(flake_root, config, &module_path, &mut change) {
+    if let Err(error) = ensure_import(flake_root, config, &module_path, &mut change.backups) {
         let _ = change.rollback();
         return Err(error);
     }

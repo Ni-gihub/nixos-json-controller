@@ -84,9 +84,15 @@ pub fn install_package(
         change.created_files.push(module_path.clone());
     }
 
-    ensure_import(flake_root, config, &module_path, &mut change)?;
+    if let Err(error) = ensure_import(flake_root, config, &module_path, &mut change) {
+        let _ = change.rollback();
+        return Err(error);
+    }
 
-    writer::install_package(&module_path, package)?;
+    if let Err(error) = writer::install_package(&module_path, package) {
+        let _ = change.rollback();
+        return Err(error);
+    }
 
     Ok(change)
 }

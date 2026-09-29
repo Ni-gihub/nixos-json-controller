@@ -439,4 +439,28 @@ mod tests {
         let content = r#"{ imports = [ ./hardware.nix ]; }"#;
         assert!(find_import_list(content).is_some());
     }
+
+    #[test]
+    fn rejects_multiple_import_lists() {
+        let content = r#"
+{
+  imports = [ ./hardware.nix ];
+  imports = [ ./desktop.nix ];
+}
+"#;
+
+        assert!(find_import_list(content).is_none());
+    }
+
+    #[test]
+    fn ignores_comment_and_string_mentions() {
+        let content = r#"
+{
+  # imports = [ ./ignored.nix ];
+  description = "imports = [ ./ignored.nix ]";
+}
+"#;
+
+        assert!(find_import_list(content).is_none());
+    }
 }

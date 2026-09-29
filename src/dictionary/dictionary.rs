@@ -48,7 +48,18 @@ impl Dictionary {
     ) -> Option<&str> {
         resolve(&self.services, input)
     }
-}
+
+    pub fn packages(&self) -> impl Iterator<Item = (&str, &[String])> {
+        self.packages
+            .iter()
+            .map(|(canonical, aliases)| (canonical.as_str(), aliases.as_slice()))
+    }
+
+    pub fn services(&self) -> impl Iterator<Item = (&str, &[String])> {
+        self.services
+            .iter()
+            .map(|(canonical, aliases)| (canonical.as_str(), aliases.as_slice()))
+    }
 
 // ============================================================
 // Dictionary validation

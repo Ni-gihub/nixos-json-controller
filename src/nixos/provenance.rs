@@ -18,30 +18,37 @@ pub struct EvaluatedProvenance {
 }
 
 impl EvaluatedProvenance {
-    pub fn files(&self) -> Vec<PathBuf> {
-        let mut files = self
-            .definitions
-            .iter()
-            .map(|definition| definition.file.clone())
-            .collect::<BTreeSet<_>>();
+    pub fn local_files(&self, flake_root: &Path) -> Vec<PathBuf> {
+        let root = match flake_root.canonicalize() {
+            Ok(root) => root,
+            Err(_) => return Vec::new(),
+        };
 
-        files.retain(|path| path.exists());
-
-        files.into_iter().collect()
-    }
-
-    pub fn contains_package(&self, package: &str) -> bool {
         self.definitions
             .iter()
-            .any(|definition| value_contains_package(&definition.value, package))
+            .filter_map(|definition| {
+                let path = definition.file.canonicalize().ok()?;
+                path.starts_with(&root).then_some(path)
+            })
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect()
     }
 
-    pub fn contains_boolean(&self, expected: bool) -> bool {
+    pub fn contains_local_package(&self, flake_root: &Path, package: &str) -> bool {
         self.definitions.iter().any(|definition| {
-            definition
-                .value
-                .as_bool()
-                .is_some_and(|value| value == expected)
+            definition.file.starts_with(flake_root)
+                && value_contains_package(&definition.value, package)
+        })
+    }
+
+    pub fn contains_local_boolean(&self, flake_root: &Path, expected: bool) -> bool {
+        self.definitions.iter().any(|definition| {
+            definition.file.starts_with(flake_root)
+                && definition
+                    .value
+                    .as_bool()
+                    .is_some_and(|value| value == expected)
         })
     }
 }
@@ -89,17 +96,21 @@ pub fn evaluate_package_provenance(
     configuration_name: &str,
     package: &str,
 ) -> Result<EvaluatedProvenance, String> {
-    let provenance = evaluate_option(
+    evaluate_option(
         flake_root,
         configuration_name,
         "environment.systemPackages",
-    )?;
-
-    if provenance.contains_package(package) {
-        Ok(provenance)
-    } else {
-        Ok(EvaluatedProvenance::default())
-    }
+    )
+    .map(|provenance| {
+        if provenance.contains_local_package(flake_root, package) {
+            provenance
+        } else {
+            EvaluatedProvenance {
+                option: "environment.systemPackages".to_string(),
+                definitions: Vec::new(),
+            }
+        }
+    })
 }
 
 pub fn evaluate_service_provenance(
@@ -161,27 +172,32 @@ mod tests {
             }],
         };
 
-        assert!(provenance.contains_boolean(true));
-        assert!(!provenance.contains_boolean(false));
+        assert!(provenance.contains_local_boolean(Path::new("/tmp"), true));
+        assert!(!provenance.contains_local_boolean(Path::new("/tmp"), false));
     }
 
     #[test]
-    fn collects_existing_definition_files() {
-        let path = std::env::temp_dir().join(format!(
-            "nxc-provenance-{}-config.nix",
-            std::process::id()
-        ));
-        std::fs::write(&path, "{}").unwrap();
+    fn excludes_nix_store_definition_files() {
+        let root = std::env::temp_dir().join(format!("nxc-provenance-{}", std::process::id()));
+        let local = root.join("configuration.nix");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(&local, "{}").unwrap();
 
         let provenance = EvaluatedProvenance {
             option: "services.openssh.enable".to_string(),
-            definitions: vec![OptionDefinition {
-                file: path.clone(),
-                value: Value::Bool(true),
-            }],
+            definitions: vec![
+                OptionDefinition {
+                    file: local.clone(),
+                    value: Value::Bool(true),
+                },
+                OptionDefinition {
+                    file: PathBuf::from("/nix/store/nixos-module.nix"),
+                    value: Value::Bool(false),
+                },
+            ],
         };
 
-        assert_eq!(provenance.files(), vec![path.clone()]);
-        let _ = std::fs::remove_file(path);
+        assert_eq!(provenance.local_files(&root), vec![local]);
+        let _ = std::fs::remove_dir_all(root);
     }
 }

@@ -26,7 +26,7 @@ impl ApplicationState {
         let declaration_locations = provenance.local_files(context.flake_root());
 
         Ok(Self {
-            system_present: system.has_command(package),
+            system_present: system.has_command(package) || system.has_package(package),
             declared_in_config: !declaration_locations.is_empty(),
             declaration_locations,
         })

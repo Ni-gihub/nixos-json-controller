@@ -132,7 +132,7 @@ pub fn remove_package_from_content(content: &str, package: &str) -> Result<Strin
 }
 
 fn is_simple_package_list(region: &str) -> bool {
-    !region.contains(['(', ')', '{', '}', ';'])
+    !region.chars().any(|c| matches!(c, '(' | ')' | '{' | '}' | ';'))
         && !region.contains(" if ")
         && !region.contains(" then ")
         && !region.contains(" else ")
@@ -156,8 +156,8 @@ fn find_package_token(region: &str, package: &str) -> Option<(usize, usize)> {
             let before = region[..start].chars().next_back();
             let after = region[end..].chars().next();
 
-            let valid_before = before.is_none_or(char::is_whitespace);
-            let valid_after = after.is_none_or(char::is_whitespace);
+            let valid_before = before.map_or(true, |c| c.is_whitespace());
+            let valid_after = after.map_or(true, |c| c.is_whitespace());
 
             if valid_before && valid_after {
                 return Some((start, end));

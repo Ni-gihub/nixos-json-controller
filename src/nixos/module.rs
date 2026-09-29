@@ -170,6 +170,63 @@ fn find_package_token(region: &str, package: &str) -> Option<(usize, usize)> {
     None
 }
 
+pub fn add_service_to_content(
+    content: &str,
+    service: &str,
+    enabled: bool,
+) -> Result<String, String> {
+    let attributes = [
+        format!("systemd.services.{service}.enable"),
+        format!("services.{service}.enable"),
+    ];
+
+    for attribute in &attributes {
+        if let Some((start, end)) = find_boolean_assignment(content, attribute) {
+            let mut result = content.to_string();
+            result.replace_range(start..end, if enabled { "true" } else { "false" });
+            return Ok(result);
+        }
+    }
+
+    let closing_brace = content
+        .rfind('}')
+        .ok_or("Nix module closing brace not found")?;
+
+    let setting = format!("  services.{service}.enable = {enabled};\n");
+    let mut result = content.to_string();
+    result.insert_str(closing_brace, &setting);
+    Ok(result)
+}
+
+fn find_boolean_assignment(content: &str, attribute: &str) -> Option<(usize, usize)> {
+    let mut offset = 0usize;
+
+    for line in content.split_inclusive('\n') {
+        let code = line.split_once('#').map_or(line, |(code, _)| code);
+
+        if let Some(attribute_pos) = code.find(attribute) {
+            let after_attribute = &code[attribute_pos + attribute.len()..];
+            let equals = after_attribute.find('=')?;
+            let value_part = &after_attribute[equals + 1..];
+            let value_start = value_part.len() - value_part.trim_start().len();
+            let value = value_part.trim_start();
+            let start = offset + attribute_pos + attribute.len() + equals + 1 + value_start;
+
+            if value.starts_with("true") {
+                return Some((start, start + 4));
+            }
+
+            if value.starts_with("false") {
+                return Some((start, start + 5));
+            }
+        }
+
+        offset += line.len();
+    }
+
+    None
+}
+
 fn indentation_for_list_item(content: &str, list_start: usize) -> String {
     let after = &content[list_start + 1..];
 

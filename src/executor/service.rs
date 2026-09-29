@@ -76,55 +76,42 @@ pub fn execute(plan: ExecutionPlan) -> Result<ServiceChange, ExecutorError> {
 
                 let path = &provenance_paths[0];
                 if !config.is_safe_write_target(path) {
-                    return install_service_in_dedicated_module(
-                        context.flake_root(),
-                        &config,
-                        &plan.target.name,
-                        "existing service declaration is outside the safe write boundary",
-                    );
+                    return Err(ExecutorError::NixosError(format!(
+                        "service '{}' is declared in a configuration file outside the safe write boundary: {}",
+                        plan.target.name,
+                        path.display(),
+                    )));
                 }
 
-                let backup = nixos::dedicated::FileBackup::capture(path)
-                    .map_err(ExecutorError::NixosError)?;
-                if let Err(error) =
-                    nixos::writer::enable_service(path, &plan.target.name)
-                {
-                    return Err(ExecutorError::NixosError(error));
-                }
-
-                return Ok(ServiceChange {
-                    backups: vec![backup],
-                    created_files: vec![],
-                });
+                return write_service_file(path, &plan.target.name, true);
             }
 
             match enable_service_strategy(&config, &system, &plan.target.name) {
                 ServiceEnableStrategy::ExistingFile { path } => {
-                    nixos::writer::enable_service(&path, &plan.target.name)
-                        .map_err(ExecutorError::NixosError)?;
-                    Ok(true)
+                    write_service_file(&path, &plan.target.name, true)
                 }
                 ServiceEnableStrategy::AlreadyDeclared { .. }
-                | ServiceEnableStrategy::AlreadyEnabledInSystem => Ok(false),
+                | ServiceEnableStrategy::AlreadyEnabledInSystem => Ok(ServiceChange::default()),
                 ServiceEnableStrategy::Ambiguous { candidates } => Err(
                     ExecutorError::NixosError(format!(
                         "multiple service configuration files found: {}",
                         format_paths(&candidates),
                     )),
                 ),
-                ServiceEnableStrategy::Unsupported => install_service_in_dedicated_module(
-                    context.flake_root(),
-                    &config,
-                    &plan.target.name,
-                    "no safe service configuration target was found",
-                ),
+                ServiceEnableStrategy::Unsupported => {
+                    install_service_in_dedicated_module(
+                        context.flake_root(),
+                        &config,
+                        &plan.target.name,
+                    )
+                }
             }
         }
 
         Action::DisableService => {
             if !provenance_paths.is_empty() {
                 if provenance.contains_local_boolean(context.flake_root(), false) {
-                    return Ok(false);
+                    return Ok(ServiceChange::default());
                 }
 
                 if provenance_paths.len() != 1 {
@@ -144,25 +131,33 @@ pub fn execute(plan: ExecutionPlan) -> Result<ServiceChange, ExecutorError> {
                     )));
                 }
 
-                nixos::writer::disable_service(path, &plan.target.name)
-                    .map_err(ExecutorError::NixosError)?;
-                return Ok(true);
+                return write_service_file(path, &plan.target.name, false);
             }
 
             match disable_service_strategy(&config, &system, &plan.target.name) {
                 ServiceDisableStrategy::Declared { paths } => {
+                    let mut change = ServiceChange::default();
+
                     for path in paths {
-                        nixos::writer::disable_service(&path, &plan.target.name)
+                        let backup = nixos::dedicated::FileBackup::capture(&path)
                             .map_err(ExecutorError::NixosError)?;
+
+                        if let Err(error) =
+                            nixos::writer::disable_service(&path, &plan.target.name)
+                        {
+                            let _ = change.rollback();
+                            return Err(ExecutorError::NixosError(error));
+                        }
+
+                        change.backups.push(backup);
                     }
-                    Ok(true)
+
+                    Ok(change)
                 }
                 ServiceDisableStrategy::ExistingFile { path } => {
-                    nixos::writer::disable_service(&path, &plan.target.name)
-                        .map_err(ExecutorError::NixosError)?;
-                    Ok(true)
+                    write_service_file(&path, &plan.target.name, false)
                 }
-                ServiceDisableStrategy::NotDeclared => Ok(false),
+                ServiceDisableStrategy::NotDeclared => Ok(ServiceChange::default()),
                 ServiceDisableStrategy::Ambiguous { candidates } => Err(
                     ExecutorError::NixosError(format!(
                         "multiple service configuration files found: {}",
@@ -172,25 +167,45 @@ pub fn execute(plan: ExecutionPlan) -> Result<ServiceChange, ExecutorError> {
             }
         }
 
-        _ => Ok(false),
+        _ => Ok(ServiceChange::default()),
     }
+}
+
+fn write_service_file(
+    path: &std::path::Path,
+    service: &str,
+    enabled: bool,
+) -> Result<ServiceChange, ExecutorError> {
+    let backup =
+        nixos::dedicated::FileBackup::capture(path).map_err(ExecutorError::NixosError)?;
+
+    let result = if enabled {
+        nixos::writer::enable_service(path, service)
+    } else {
+        nixos::writer::disable_service(path, service)
+    };
+
+    if let Err(error) = result {
+        return Err(ExecutorError::NixosError(error));
+    }
+
+    Ok(ServiceChange {
+        backups: vec![backup],
+        created_files: Vec::new(),
+    })
 }
 
 fn install_service_in_dedicated_module(
     flake_root: &std::path::Path,
     config: &nixos::config::ConfigState,
     service: &str,
-    reason: &str,
-) -> Result<bool, ExecutorError> {
-    println!("Falling back to the NXC dedicated service module: {}", reason);
+) -> Result<ServiceChange, ExecutorError> {
+    println!("Using the NXC dedicated service module for '{}'.", service);
 
-    Ok(nixos::dedicated::enable_service(flake_root, config, service)
-        .map_err(ExecutorError::NixosError)?
-        .into());
-
-    Ok(true)
+    nixos::dedicated::enable_service(flake_root, config, service)
+        .map(Into::into)
+        .map_err(ExecutorError::NixosError)
 }
-
 
 fn format_paths(paths: &[std::path::PathBuf]) -> String {
     paths

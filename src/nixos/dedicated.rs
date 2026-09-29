@@ -5,8 +5,71 @@ use super::config::ConfigState;
 use super::module::find_matching_delimiter;
 use super::writer;
 
-const DEDICATED_PACKAGE_MODULE: &str = "nxc/packages.nix";
-const DEDICATED_SERVICE_MODULE: &str = "nxc/services.nix";
+pub const DEDICATED_PACKAGE_MODULE: &str = "nxc/packages.nix";
+pub const DEDICATED_SERVICE_MODULE: &str = "nxc/services.nix";
+
+const DEDICATED_PACKAGE_TEMPLATE: &str = "{ pkgs, ... }:
+
+{
+  environment.systemPackages = with pkgs; [
+  ];
+
+    #[test]
+    fn accepts_expected_package_module() {
+        let dir = std::env::temp_dir().join(format!("nxc-dedicated-package-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("packages.nix");
+        fs::write(&path, DEDICATED_PACKAGE_TEMPLATE).unwrap();
+
+        assert!(validate_dedicated_package_module(&path).is_ok());
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn rejects_user_owned_package_module() {
+        let dir = std::env::temp_dir().join(format!("nxc-dedicated-package-invalid-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("packages.nix");
+        fs::write(&path, "{ environment.systemPackages = [ pkgs.git ]; }").unwrap();
+
+        assert!(validate_dedicated_package_module(&path).is_err());
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn accepts_expected_service_module() {
+        let dir = std::env::temp_dir().join(format!("nxc-dedicated-service-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("services.nix");
+        fs::write(&path, DEDICATED_SERVICE_TEMPLATE).unwrap();
+
+        assert!(validate_dedicated_service_module(&path).is_ok());
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn rejects_service_module_crossing_home_manager_boundary() {
+        let dir = std::env::temp_dir().join(format!("nxc-dedicated-service-invalid-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("services.nix");
+        fs::write(&path, "{ ... }:\n\n{ home-manager = {}; }\n").unwrap();
+
+        assert!(validate_dedicated_service_module(&path).is_err());
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+}
+";
+
+const DEDICATED_SERVICE_TEMPLATE: &str = "{ ... }:
+
+{
+}
+";
 
 #[derive(Debug, Clone)]
 pub struct FileBackup {
@@ -62,6 +125,7 @@ pub fn install_package(
 
     if module_path.is_file() {
         change.backups.push(FileBackup::capture(&module_path)?);
+        validate_dedicated_package_module(&module_path)?;
     } else {
         let parent = module_path
             .parent()
@@ -70,16 +134,7 @@ pub fn install_package(
         fs::create_dir_all(parent)
             .map_err(|e| format!("failed to create {}: {}", parent.display(), e))?;
 
-        fs::write(
-            &module_path,
-            "{ pkgs, ... }:
-
-{
-  environment.systemPackages = with pkgs; [
-  ];
-}
-",
-        )
+        fs::write(&module_path, DEDICATED_PACKAGE_TEMPLATE)
         .map_err(|e| format!("failed to create {}: {}", module_path.display(), e))?;
 
         change.created_files.push(module_path.clone());
@@ -148,6 +203,7 @@ fn write_service(
 
     if module_path.is_file() {
         change.backups.push(FileBackup::capture(&module_path)?);
+        validate_dedicated_service_module(&module_path)?;
     } else {
         let parent = module_path
             .parent()
@@ -156,7 +212,7 @@ fn write_service(
         fs::create_dir_all(parent)
             .map_err(|e| format!("failed to create {}: {}", parent.display(), e))?;
 
-        fs::write(&module_path, "{ ... }:\n\n{\n}\n")
+        fs::write(&module_path, DEDICATED_SERVICE_TEMPLATE)
             .map_err(|e| format!("failed to create {}: {}", module_path.display(), e))?;
 
         change.created_files.push(module_path.clone());
@@ -179,6 +235,60 @@ fn write_service(
     Ok(change)
 }
 
+
+fn validate_dedicated_package_module(path: &Path) -> Result<(), String> {
+    let content = fs::read_to_string(path)
+        .map_err(|e| format!("failed to read {}: {}", path.display(), e))?;
+
+    if !content.contains("environment.systemPackages")
+        || !content.contains("environment.systemPackages =")
+    {
+        return Err(format!(
+            "existing dedicated package module is not in the expected NXC format: {}",
+            path.display()
+        ));
+    }
+
+    if !content.contains("with pkgs;") {
+        return Err(format!(
+            "existing dedicated package module does not use the expected package list form: {}",
+            path.display()
+        ));
+    }
+
+    Ok(())
+}
+
+fn validate_dedicated_service_module(path: &Path) -> Result<(), String> {
+    let content = fs::read_to_string(path)
+        .map_err(|e| format!("failed to read {}: {}", path.display(), e))?;
+
+    if !content.contains("{ ... }:") {
+        return Err(format!(
+            "existing dedicated service module is not in the expected NXC format: {}",
+            path.display()
+        ));
+    }
+
+    if content.contains("home-manager")
+        || content.contains("home.packages")
+    {
+        return Err(format!(
+            "existing dedicated service module crosses the NXC service-module boundary: {}",
+            path.display()
+        ));
+    }
+
+    Ok(())
+}
+
+pub fn dedicated_package_path(flake_root: &Path) -> PathBuf {
+    flake_root.join(DEDICATED_PACKAGE_MODULE)
+}
+
+pub fn dedicated_service_path(flake_root: &Path) -> PathBuf {
+    flake_root.join(DEDICATED_SERVICE_MODULE)
+}
 
 fn ensure_import(
     flake_root: &Path,

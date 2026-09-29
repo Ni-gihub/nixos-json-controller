@@ -40,13 +40,7 @@ impl Executor {
             .or_else(|| service_change.as_ref().map(|change| change.is_changed()))
             .unwrap_or(false);
 
-        let plan_requires_rebuild = plan
-            .details
-            .as_ref()
-            .is_some_and(|details| details.rebuild_required);
-
-        if rebuild
-            && (changed || plan_requires_rebuild)
+        if should_rebuild(&plan, changed, rebuild)
             && let Err(error) = nixos::rebuild::switch()
         {
             let rollback_result = if let Some(change) = package_change {
@@ -69,6 +63,18 @@ impl Executor {
 
         Ok(())
     }
+}
+
+fn should_rebuild(plan: &ExecutionPlan, changed: bool, rebuild: bool) -> bool {
+    if !rebuild {
+        return false;
+    }
+
+    changed
+        || plan
+            .details
+            .as_ref()
+            .is_some_and(|details| details.rebuild_required)
 }
 
 #[cfg(test)]
@@ -95,22 +101,23 @@ mod tests {
     }
 
     #[test]
-    fn rebuild_is_required_when_plan_requires_it_without_file_changes() {
+    fn rebuilds_when_plan_requires_it_without_file_changes() {
         let plan = plan_with_rebuild_required(true);
 
-        assert!(plan
-            .details
-            .as_ref()
-            .is_some_and(|details| details.rebuild_required));
+        assert!(should_rebuild(&plan, false, true));
     }
 
     #[test]
-    fn rebuild_is_not_required_when_plan_does_not_require_it() {
+    fn does_not_rebuild_when_plan_does_not_require_it_without_changes() {
         let plan = plan_with_rebuild_required(false);
 
-        assert!(!plan
-            .details
-            .as_ref()
-            .is_some_and(|details| details.rebuild_required));
+        assert!(!should_rebuild(&plan, false, true));
+    }
+
+    #[test]
+    fn does_not_rebuild_when_rebuild_is_disabled() {
+        let plan = plan_with_rebuild_required(true);
+
+        assert!(!should_rebuild(&plan, false, false));
     }
 }

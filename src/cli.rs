@@ -2,20 +2,12 @@ use std::env;
 
 use clap::Parser;
 use nixos_json_controller::{
-    command::{
-        Action,
-        Command,
-        Target,
-    },
+    command::{Action, Command, Target},
     executor::Executor,
     nixos::{
         discovery::{
-            discover_candidates,
-            inspect_candidates,
-            save_discovery,
-            select_candidate,
-            DiscoveryStatus,
-            SearchOptions,
+            DiscoveryStatus, SearchOptions, discover_candidates, inspect_candidates,
+            save_discovery, select_candidate,
         },
         status::{explain_package, explain_service},
         system::SystemState,
@@ -64,9 +56,7 @@ pub fn run() -> Result<(), String> {
         [command] if command == "list" => return run_list(),
         [command] if command == "status" => return run_status(),
         [command, kind, target] if command == "explain" => return run_explain(kind, target),
-        [command, ..]
-            if matches!(command.as_str(), "discover" | "list" | "status" | "explain") =>
-        {
+        [command, ..] if matches!(command.as_str(), "discover" | "list" | "status" | "explain") => {
             return Err("invalid command arguments. use nxc --help for usage".to_string());
         }
         _ => {}
@@ -82,8 +72,7 @@ pub fn run() -> Result<(), String> {
                 "d" => Action::DisableService,
                 _ => {
                     return Err(
-                        "unknown operation. use i, r, e, or d; or nxc --help for usage"
-                            .to_string(),
+                        "unknown operation. use i, r, e, or d; or nxc --help for usage".to_string(),
                     );
                 }
             };
@@ -106,8 +95,7 @@ pub fn run() -> Result<(), String> {
 
     let mut plan = Planner::create(command.action, target);
     plan.dry_run = args.dry_run;
-    plan = Planner::prepare(plan)
-        .map_err(|e| format!("failed to create execution plan: {e}"))?;
+    plan = Planner::prepare(plan).map_err(|e| format!("failed to create execution plan: {e}"))?;
 
     print_plan(&plan);
 
@@ -119,7 +107,6 @@ pub fn run() -> Result<(), String> {
 fn print_help() {
     println!("Use nxc --help for full command-line help.");
 }
-
 
 fn run_list() -> Result<(), String> {
     let system = SystemState::discover()?;
@@ -142,7 +129,10 @@ fn run_status() -> Result<(), String> {
 
     println!("NXC Status");
     println!();
-    println!("Current generation: {}", system.current_generation.display());
+    println!(
+        "Current generation: {}",
+        system.current_generation.display()
+    );
     println!("System commands/apps: {}", system.binaries.len());
     println!("Detected packages: {}", system.packages.len());
     println!("Enabled services: {}", system.enabled_services.len());
@@ -165,20 +155,17 @@ fn run_status() -> Result<(), String> {
 }
 
 fn run_explain(kind: &str, target: &str) -> Result<(), String> {
-    let context =
-        nixos_json_controller::nixos::discovery::DiscoveryContext::load()?;
+    let context = nixos_json_controller::nixos::discovery::DiscoveryContext::load()?;
     let system = SystemState::discover()?;
 
     match kind {
         "package" => {
-            let dictionary =
-                nixos_json_controller::dictionary::Dictionary::load()?;
+            let dictionary = nixos_json_controller::dictionary::Dictionary::load()?;
             let package = dictionary
                 .resolve_package(target)
                 .ok_or_else(|| format!("unknown package target: {}", target))?;
 
-            let explanation =
-                explain_package(&context, &system, package)?;
+            let explanation = explain_package(&context, &system, package)?;
 
             println!("Package: {}", explanation.name);
             println!("System present: {}", yes_no(explanation.system_present));
@@ -187,10 +174,7 @@ fn run_explain(kind: &str, target: &str) -> Result<(), String> {
                 yes_no(explanation.declared_in_config)
             );
 
-            print_locations(
-                "Declaration locations",
-                &explanation.declaration_locations,
-            );
+            print_locations("Declaration locations", &explanation.declaration_locations);
             print_locations(
                 "Safe write locations",
                 &explanation.safe_declaration_locations,
@@ -202,14 +186,12 @@ fn run_explain(kind: &str, target: &str) -> Result<(), String> {
         }
 
         "service" => {
-            let dictionary =
-                nixos_json_controller::dictionary::Dictionary::load()?;
+            let dictionary = nixos_json_controller::dictionary::Dictionary::load()?;
             let service = dictionary
                 .resolve_service(target)
                 .ok_or_else(|| format!("unknown service target: {}", target))?;
 
-            let explanation =
-                explain_service(&context, &system, service)?;
+            let explanation = explain_service(&context, &system, service)?;
 
             println!("Service: {}", explanation.name);
             println!("System enabled: {}", yes_no(explanation.system_enabled));
@@ -222,10 +204,7 @@ fn run_explain(kind: &str, target: &str) -> Result<(), String> {
                 yes_no(explanation.enabled_in_config)
             );
 
-            print_locations(
-                "Declaration locations",
-                &explanation.declaration_locations,
-            );
+            print_locations("Declaration locations", &explanation.declaration_locations);
             print_locations(
                 "Safe write locations",
                 &explanation.safe_declaration_locations,
@@ -237,15 +216,12 @@ fn run_explain(kind: &str, target: &str) -> Result<(), String> {
         }
 
         _ => {
-            return Err(
-                "usage: nxc explain [package|service] <target>".to_string()
-            );
+            return Err("usage: nxc explain [package|service] <target>".to_string());
         }
     }
 
     Ok(())
 }
-
 
 fn print_plan(plan: &nixos_json_controller::planner::ExecutionPlan) {
     println!("Execution Plan");
@@ -280,21 +256,16 @@ fn print_locations(label: &str, paths: &[std::path::PathBuf]) {
 }
 
 fn yes_no(value: bool) -> &'static str {
-    if value {
-        "yes"
-    } else {
-        "no"
-    }
+    if value { "yes" } else { "no" }
 }
-
 
 fn run_discover() -> Result<(), String> {
     println!("NixOS Flake Discovery");
     println!();
     println!("Searching for candidates...");
 
-    let home = env::var_os("HOME")
-        .ok_or_else(|| "HOME environment variable is not set".to_string())?;
+    let home =
+        env::var_os("HOME").ok_or_else(|| "HOME environment variable is not set".to_string())?;
 
     let options = SearchOptions {
         roots: vec![home.into()],
@@ -319,19 +290,13 @@ fn run_discover() -> Result<(), String> {
     println!("Candidate ranking:");
 
     for (index, candidate) in candidates.iter().enumerate() {
-        println!(
-            "[{}] {}",
-            index + 1,
-            candidate.flake_root.display()
-        );
+        println!("[{}] {}", index + 1, candidate.flake_root.display());
 
         println!("    score: {}", candidate.score.total);
 
         if let Some(inspection) = &candidate.inspection {
             match &inspection.nix_evaluation {
-                nixos_json_controller::nixos::discovery::NixEvaluation::Success {
-                    outputs,
-                } => {
+                nixos_json_controller::nixos::discovery::NixEvaluation::Success { outputs } => {
                     println!(
                         "    NixOS configurations: {}",
                         outputs.nixos_configurations.len()
@@ -347,13 +312,8 @@ fn run_discover() -> Result<(), String> {
                     }
                 }
 
-                nixos_json_controller::nixos::discovery::NixEvaluation::Failed {
-                    error,
-                } => {
-                    println!(
-                        "    Nix evaluation: failed ({:?})",
-                        error.category
-                    );
+                nixos_json_controller::nixos::discovery::NixEvaluation::Failed { error } => {
+                    println!("    Nix evaluation: failed ({:?})", error.category);
                 }
 
                 nixos_json_controller::nixos::discovery::NixEvaluation::NotEvaluated => {
@@ -372,27 +332,24 @@ fn run_discover() -> Result<(), String> {
             let selected = report
                 .selected
                 .as_ref()
-                .ok_or_else(|| {
-                    "discovery succeeded without a selected result".to_string()
-                })?;
+                .ok_or_else(|| "discovery succeeded without a selected result".to_string())?;
 
             println!("Discovery successful.");
             println!();
             println!("Flake: {}", selected.flake_root.display());
-            println!(
-                "Configuration: {}",
-                selected.selected_configuration.name
-            );
+            println!("Configuration: {}", selected.selected_configuration.name);
             println!(
                 "Hostname: {}",
-                selected.selected_configuration
+                selected
+                    .selected_configuration
                     .hostname
                     .as_deref()
                     .unwrap_or("unknown")
             );
             println!(
                 "System: {}",
-                selected.selected_configuration
+                selected
+                    .selected_configuration
                     .system
                     .as_deref()
                     .unwrap_or("unknown")
@@ -418,9 +375,7 @@ fn run_discover() -> Result<(), String> {
 
             println!();
             println!("No candidate was selected automatically.");
-            println!(
-                "Use the discovery information above to identify the intended flake."
-            );
+            println!("Use the discovery information above to identify the intended flake.");
         }
 
         DiscoveryStatus::NoCandidates => {
@@ -458,7 +413,6 @@ fn selection_method_name(
         SelectionMethod::UserSelection => "user selection",
     }
 }
-
 
 #[cfg(test)]
 mod tests {

@@ -53,9 +53,7 @@ pub fn install_package_strategy(
     }
 
     match paths(config.package_write_targets()).as_slice() {
-        [path] => PackageInstallStrategy::ExistingFile {
-            path: path.clone(),
-        },
+        [path] => PackageInstallStrategy::ExistingFile { path: path.clone() },
         [] => PackageInstallStrategy::Unsupported,
         candidates => PackageInstallStrategy::Ambiguous {
             candidates: candidates.to_vec(),
@@ -97,9 +95,7 @@ pub fn enable_service_strategy(
     }
 
     match paths(config.service_write_targets()).as_slice() {
-        [path] => ServiceEnableStrategy::ExistingFile {
-            path: path.clone(),
-        },
+        [path] => ServiceEnableStrategy::ExistingFile { path: path.clone() },
         [] => ServiceEnableStrategy::Unsupported,
         candidates => ServiceEnableStrategy::Ambiguous {
             candidates: candidates.to_vec(),
@@ -122,9 +118,7 @@ pub fn disable_service_strategy(
 
     if system.is_service_enabled(service) {
         return match candidates.as_slice() {
-            [path] => ServiceDisableStrategy::ExistingFile {
-                path: path.clone(),
-            },
+            [path] => ServiceDisableStrategy::ExistingFile { path: path.clone() },
             [] => ServiceDisableStrategy::NotDeclared,
             candidates => ServiceDisableStrategy::Ambiguous {
                 candidates: candidates.to_vec(),
@@ -194,7 +188,9 @@ mod tests {
     #[test]
     fn install_reports_declared_package_without_writing() {
         let mut config = config();
-        config.files[0].declared_packages.insert("firefox".to_string());
+        config.files[0]
+            .declared_packages
+            .insert("firefox".to_string());
 
         assert!(matches!(
             install_package_strategy(&config, &system(), "firefox"),
@@ -219,7 +215,9 @@ mod tests {
     #[test]
     fn remove_uses_declared_package_locations() {
         let mut config = config();
-        config.files[0].declared_packages.insert("firefox".to_string());
+        config.files[0]
+            .declared_packages
+            .insert("firefox".to_string());
 
         assert_eq!(
             remove_package_strategy(&config, &system(), "firefox"),

@@ -29,8 +29,7 @@ pub fn disable_service(path: &Path, service: &str) -> Result<(), String> {
 }
 
 fn read(path: &Path) -> Result<String, String> {
-    fs::read_to_string(path)
-        .map_err(|e| format!("failed to read {}: {}", path.display(), e))
+    fs::read_to_string(path).map_err(|e| format!("failed to read {}: {}", path.display(), e))
 }
 
 fn write_atomic(path: &Path, content: &str) -> Result<(), String> {
@@ -40,8 +39,8 @@ fn write_atomic(path: &Path, content: &str) -> Result<(), String> {
         .and_then(|name| name.to_str())
         .ok_or_else(|| format!("invalid output path: {}", path.display()))?;
 
-    let metadata = fs::metadata(path)
-        .map_err(|e| format!("failed to inspect {}: {}", path.display(), e))?;
+    let metadata =
+        fs::metadata(path).map_err(|e| format!("failed to inspect {}: {}", path.display(), e))?;
 
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -50,8 +49,13 @@ fn write_atomic(path: &Path, content: &str) -> Result<(), String> {
 
     let temporary = parent.join(format!(".{}.nxc-{}", file_name, timestamp));
 
-    fs::write(&temporary, content)
-        .map_err(|e| format!("failed to write temporary file {}: {}", temporary.display(), e))?;
+    fs::write(&temporary, content).map_err(|e| {
+        format!(
+            "failed to write temporary file {}: {}",
+            temporary.display(),
+            e
+        )
+    })?;
 
     #[cfg(unix)]
     {
@@ -78,8 +82,7 @@ mod tests {
 
     #[test]
     fn writes_package_changes_atomically() {
-        let directory =
-            std::env::temp_dir().join(format!("nxc-writer-{}", std::process::id()));
+        let directory = std::env::temp_dir().join(format!("nxc-writer-{}", std::process::id()));
         fs::create_dir_all(&directory).unwrap();
 
         let path = directory.join("packages.nix");

@@ -24,22 +24,14 @@ impl SystemState {
 
         if !current_system.exists() {
             return Err(
-                "current NixOS system generation was not found at /run/current-system"
-                    .to_string(),
+                "current NixOS system generation was not found at /run/current-system".to_string(),
             );
         }
 
         let current_generation = std::fs::canonicalize(current_system)
-            .map_err(|e| {
-                format!(
-                    "failed to resolve /run/current-system: {}",
-                    e
-                )
-            })?;
+            .map_err(|e| format!("failed to resolve /run/current-system: {}", e))?;
 
-        let binaries = discover_binaries(
-            Path::new("/run/current-system/sw/bin"),
-        )?;
+        let binaries = discover_binaries(Path::new("/run/current-system/sw/bin"))?;
 
         let packages = discover_system_packages()?;
         let enabled_services = discover_enabled_services()?;
@@ -66,9 +58,9 @@ impl SystemState {
     ///
     /// 実行ファイル名とpackage名が一致しない場合も、store path名から判定できる。
     pub fn has_package(&self, package: &str) -> bool {
-        self.packages.iter().any(|name| {
-            name == package || name.starts_with(&format!("{package}-"))
-        })
+        self.packages
+            .iter()
+            .any(|name| name == package || name.starts_with(&format!("{package}-")))
     }
 
     /// systemd上で指定したsystem serviceが有効になっているか確認する。
@@ -78,27 +70,20 @@ impl SystemState {
 }
 
 /// /run/current-system/sw/bin の内容を取得する。
-fn discover_binaries(
-    bin_directory: &Path,
-) -> Result<BTreeMap<String, PathBuf>, String> {
-    let entries = std::fs::read_dir(bin_directory)
-        .map_err(|e| {
-            format!(
-                "failed to read system binary directory {}: {}",
-                bin_directory.display(),
-                e
-            )
-        })?;
+fn discover_binaries(bin_directory: &Path) -> Result<BTreeMap<String, PathBuf>, String> {
+    let entries = std::fs::read_dir(bin_directory).map_err(|e| {
+        format!(
+            "failed to read system binary directory {}: {}",
+            bin_directory.display(),
+            e
+        )
+    })?;
 
     let mut binaries = BTreeMap::new();
 
     for entry in entries {
-        let entry = entry.map_err(|e| {
-            format!(
-                "failed to read system binary directory entry: {}",
-                e
-            )
-        })?;
+        let entry =
+            entry.map_err(|e| format!("failed to read system binary directory entry: {}", e))?;
 
         let path = entry.path();
 
@@ -152,12 +137,7 @@ fn discover_enabled_services() -> Result<BTreeSet<String>, String> {
             "--no-pager",
         ])
         .output()
-        .map_err(|e| {
-            format!(
-                "failed to execute systemctl: {}",
-                e
-            )
-        })?;
+        .map_err(|e| format!("failed to execute systemctl: {}", e))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -187,10 +167,7 @@ fn parse_enabled_services(output: &[u8]) -> BTreeSet<String> {
                 return None;
             }
 
-            Some(
-                unit.trim_end_matches(".service")
-                    .to_string(),
-            )
+            Some(unit.trim_end_matches(".service").to_string())
         })
         .collect()
 }
@@ -241,9 +218,7 @@ sshd.service enabled enabled
         services.insert("sshd".to_string());
 
         let state = SystemState {
-            current_generation: PathBuf::from(
-                "/nix/store/example-nixos-system",
-            ),
+            current_generation: PathBuf::from("/nix/store/example-nixos-system"),
             binaries,
             packages: BTreeSet::from(["firefox-1.0".to_string()]),
             enabled_services: services,
@@ -252,9 +227,7 @@ sshd.service enabled enabled
         assert!(state.has_command("firefox"));
         assert_eq!(
             state.command_path("firefox"),
-            Some(Path::new(
-                "/run/current-system/sw/bin/firefox"
-            ))
+            Some(Path::new("/run/current-system/sw/bin/firefox"))
         );
         assert!(!state.has_command("chromium"));
         assert!(state.has_package("firefox"));

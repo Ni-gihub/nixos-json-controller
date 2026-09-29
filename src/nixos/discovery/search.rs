@@ -2,12 +2,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::{
-    inspect_flake,
-    DiscoverySource,
-    Evidence,
-    FlakeCandidate,
-};
+use super::{DiscoverySource, Evidence, FlakeCandidate, inspect_flake};
 
 #[derive(Debug, Clone)]
 pub struct SearchOptions {
@@ -25,9 +20,7 @@ impl Default for SearchOptions {
 }
 
 /// Flake候補を探索する。
-pub fn discover_candidates(
-    options: &SearchOptions,
-) -> Vec<FlakeCandidate> {
+pub fn discover_candidates(options: &SearchOptions) -> Vec<FlakeCandidate> {
     let mut candidates = Vec::new();
     let mut seen = HashSet::new();
 
@@ -36,28 +29,18 @@ pub fn discover_candidates(
             continue;
         }
 
-        search_directory(
-            root,
-            0,
-            options.max_depth,
-            &mut seen,
-            &mut candidates,
-        );
+        search_directory(root, 0, options.max_depth, &mut seen, &mut candidates);
     }
 
     candidates
 }
 
 /// 発見した候補をNixまで含めて検査する。
-pub fn inspect_candidates(
-    candidates: &mut [FlakeCandidate],
-) {
+pub fn inspect_candidates(candidates: &mut [FlakeCandidate]) {
     for candidate in &mut *candidates {
-        let inspection =
-            inspect_flake(candidate);
+        let inspection = inspect_flake(candidate);
 
-        candidate.inspection =
-            Some(inspection);
+        candidate.inspection = Some(inspection);
 
         candidate.calculate_score();
     }
@@ -66,10 +49,7 @@ pub fn inspect_candidates(
         b.score
             .total
             .cmp(&a.score.total)
-            .then_with(|| {
-                a.flake_root
-                    .cmp(&b.flake_root)
-            })
+            .then_with(|| a.flake_root.cmp(&b.flake_root))
     });
 }
 
@@ -84,33 +64,25 @@ fn search_directory(
         return;
     }
 
-    let flake_file =
-        directory.join("flake.nix");
+    let flake_file = directory.join("flake.nix");
 
     if flake_file.is_file() {
-        let root =
-            directory.to_path_buf();
+        let root = directory.to_path_buf();
 
         if seen.insert(root.clone()) {
-            let candidate =
-                inspect_candidate(
-                    root,
-                    flake_file,
-                );
+            let candidate = inspect_candidate(root, flake_file);
 
             candidates.push(candidate);
         }
     }
 
-    let entries =
-        match fs::read_dir(directory) {
-            Ok(entries) => entries,
-            Err(_) => return,
-        };
+    let entries = match fs::read_dir(directory) {
+        Ok(entries) => entries,
+        Err(_) => return,
+    };
 
     for entry in entries.flatten() {
-        let path =
-            entry.path();
+        let path = entry.path();
 
         let metadata = match fs::symlink_metadata(&path) {
             Ok(metadata) => metadata,
@@ -125,150 +97,73 @@ fn search_directory(
             continue;
         }
 
-        search_directory(
-            &path,
-            depth + 1,
-            max_depth,
-            seen,
-            candidates,
-        );
+        search_directory(&path, depth + 1, max_depth, seen, candidates);
     }
 }
 
-fn inspect_candidate(
-    flake_root: PathBuf,
-    flake_file: PathBuf,
-) -> FlakeCandidate {
-    let mut candidate =
-        FlakeCandidate::new(
-            flake_root.clone(),
-            flake_file,
-        );
+fn inspect_candidate(flake_root: PathBuf, flake_file: PathBuf) -> FlakeCandidate {
+    let mut candidate = FlakeCandidate::new(flake_root.clone(), flake_file);
 
-    candidate
-        .sources
-        .push(
-            DiscoverySource::HomeDirectory
-        );
+    candidate.sources.push(DiscoverySource::HomeDirectory);
 
-    candidate
-        .evidence
-        .push(Evidence::FlakeFile);
+    candidate.evidence.push(Evidence::FlakeFile);
 
-    let lock_file =
-        flake_root.join("flake.lock");
+    let lock_file = flake_root.join("flake.lock");
 
     if lock_file.is_file() {
-        candidate
-            .evidence
-            .push(Evidence::FlakeLock);
+        candidate.evidence.push(Evidence::FlakeLock);
     }
 
-    if flake_root
-        .join(".git")
-        .is_dir()
-    {
-        candidate
-            .evidence
-            .push(Evidence::GitRepository);
+    if flake_root.join(".git").is_dir() {
+        candidate.evidence.push(Evidence::GitRepository);
     }
 
-    if flake_root
-        .join("hosts")
-        .is_dir()
-    {
-        candidate
-            .evidence
-            .push(Evidence::HostsDirectory);
+    if flake_root.join("hosts").is_dir() {
+        candidate.evidence.push(Evidence::HostsDirectory);
     }
 
-    if flake_root
-        .join("modules")
-        .is_dir()
-    {
-        candidate
-            .evidence
-            .push(Evidence::ModulesDirectory);
+    if flake_root.join("modules").is_dir() {
+        candidate.evidence.push(Evidence::ModulesDirectory);
     }
 
-    if flake_root
-        .join("home")
-        .is_dir()
-    {
-        candidate
-            .evidence
-            .push(Evidence::HomeDirectory);
+    if flake_root.join("home").is_dir() {
+        candidate.evidence.push(Evidence::HomeDirectory);
     }
 
-    if flake_root
-        .join("system")
-        .is_dir()
-    {
-        candidate
-            .evidence
-            .push(Evidence::SystemDirectory);
+    if flake_root.join("system").is_dir() {
+        candidate.evidence.push(Evidence::SystemDirectory);
     }
 
-    if flake_root
-        .join("configuration.nix")
-        .is_file()
-    {
-        candidate
-            .evidence
-            .push(
-                Evidence::ConfigurationNix
-            );
+    if flake_root.join("configuration.nix").is_file() {
+        candidate.evidence.push(Evidence::ConfigurationNix);
     }
 
-    if flake_root
-        .join("hardware-configuration.nix")
-        .is_file()
-    {
-        candidate
-            .evidence
-            .push(
-                Evidence::HardwareConfigurationNix
-            );
+    if flake_root.join("hardware-configuration.nix").is_file() {
+        candidate.evidence.push(Evidence::HardwareConfigurationNix);
     }
 
-    if contains_nixos_configurations(
-        &candidate.flake_file,
-    ) {
-        candidate
-            .evidence
-            .push(
-                Evidence::NixosConfigurationsText
-            );
+    if contains_nixos_configurations(&candidate.flake_file) {
+        candidate.evidence.push(Evidence::NixosConfigurationsText);
     }
 
     candidate
 }
 
-fn contains_nixos_configurations(
-    path: &Path,
-) -> bool {
-    let content =
-        match fs::read_to_string(path) {
-            Ok(content) => content,
-            Err(_) => return false,
-        };
+fn contains_nixos_configurations(path: &Path) -> bool {
+    let content = match fs::read_to_string(path) {
+        Ok(content) => content,
+        Err(_) => return false,
+    };
 
-    content.contains(
-        "nixosConfigurations"
-    )
+    content.contains("nixosConfigurations")
 }
 
 /// Discoveryで探索する価値が低いディレクトリ。
 ///
 /// 特に `.nix-defexpr` はNixが生成する巨大な領域なので、
 /// HOME全体探索では除外する。
-fn should_skip_directory(
-    path: &Path,
-) -> bool {
-    let Some(name) =
-        path.file_name()
-            .and_then(|name| name.to_str())
-    else {
+fn should_skip_directory(path: &Path) -> bool {
+    let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
         return true;
     };
 
@@ -294,147 +189,69 @@ mod tests {
 
     #[test]
     fn discover_candidates_from_home() {
-        let home =
-            std::env::var_os("HOME")
-                .expect(
-                    "HOME environment variable is not set"
-                );
+        let home = std::env::var_os("HOME").expect("HOME environment variable is not set");
 
-        let options =
-            SearchOptions {
-                roots: vec![
-                    PathBuf::from(home)
-                ],
-                max_depth: 4,
-            };
+        let options = SearchOptions {
+            roots: vec![PathBuf::from(home)],
+            max_depth: 4,
+        };
 
-        let candidates =
-            discover_candidates(&options);
+        let candidates = discover_candidates(&options);
 
-        println!(
-            "found {} flake candidates",
-            candidates.len()
-        );
+        println!("found {} flake candidates", candidates.len());
 
         for candidate in &candidates {
-            println!(
-                "--------------------------------"
-            );
+            println!("--------------------------------");
 
-            println!(
-                "flake root: {}",
-                candidate
-                    .flake_root
-                    .display()
-            );
+            println!("flake root: {}", candidate.flake_root.display());
 
-            println!(
-                "flake file: {}",
-                candidate
-                    .flake_file
-                    .display()
-            );
+            println!("flake file: {}", candidate.flake_file.display());
 
-            println!(
-                "sources: {:?}",
-                candidate.sources
-            );
+            println!("sources: {:?}", candidate.sources);
 
-            println!(
-                "evidence: {:?}",
-                candidate.evidence
-            );
+            println!("evidence: {:?}", candidate.evidence);
         }
     }
 
     #[ignore = "requires the developer's NixOS configuration"]
-
     #[test]
     fn inspect_nix_config_candidate() {
-        let root =
-            PathBuf::from(
-                "/home/nakaoku/Projects/nix-config"
-            );
+        let root = PathBuf::from("/home/nakaoku/Projects/nix-config");
 
-        let flake_file =
-            root.join("flake.nix");
+        let flake_file = root.join("flake.nix");
 
-        let mut candidate =
-            FlakeCandidate::new(
-                root,
-                flake_file,
-            );
+        let mut candidate = FlakeCandidate::new(root, flake_file);
 
-        candidate
-            .evidence
-            .push(
-                Evidence::NixosConfigurationsText
-            );
+        candidate.evidence.push(Evidence::NixosConfigurationsText);
 
-        inspect_candidates(
-            std::slice::from_mut(
-                &mut candidate
-            )
-        );
+        inspect_candidates(std::slice::from_mut(&mut candidate));
 
-        let inspection =
-            candidate
-                .inspection
-                .expect(
-                    "inspection result not found"
-                );
+        let inspection = candidate.inspection.expect("inspection result not found");
 
         match inspection.nix_evaluation {
-            super::super::NixEvaluation::Success {
-                outputs
-            } => {
-                assert_eq!(
-                    outputs
-                        .nixos_configurations
-                        .len(),
-                    1
-                );
+            super::super::NixEvaluation::Success { outputs } => {
+                assert_eq!(outputs.nixos_configurations.len(), 1);
 
-                let laptop =
-                    &outputs
-                        .nixos_configurations[0];
+                let laptop = &outputs.nixos_configurations[0];
 
-                assert_eq!(
-                    laptop.name,
-                    "laptop"
-                );
+                assert_eq!(laptop.name, "laptop");
 
-                assert_eq!(
-                    laptop.system.as_deref(),
-                    Some("x86_64-linux")
-                );
+                assert_eq!(laptop.system.as_deref(), Some("x86_64-linux"));
 
-                assert_eq!(
-                    laptop.hostname.as_deref(),
-                    Some("nixos-laptop")
-                );
+                assert_eq!(laptop.hostname.as_deref(), Some("nixos-laptop"));
             }
 
-            super::super::NixEvaluation::Failed {
-                error
-            } => {
-                panic!(
-                    "Nix evaluation failed: {error:?}"
-                );
+            super::super::NixEvaluation::Failed { error } => {
+                panic!("Nix evaluation failed: {error:?}");
             }
 
             super::super::NixEvaluation::NotEvaluated => {
-                panic!(
-                    "Nix evaluation was not performed"
-                );
+                panic!("Nix evaluation was not performed");
             }
         }
 
         assert_eq!(
-            inspection
-                .environment_match
-                .current_hostname
-                .as_deref(),
+            inspection.environment_match.current_hostname.as_deref(),
             Some("nixos-laptop")
         );
 
@@ -442,22 +259,16 @@ mod tests {
             inspection
                 .environment_match
                 .hostname_matches
-                .contains(
-                    &"laptop".to_string()
-                )
+                .contains(&"laptop".to_string())
         );
 
         assert!(
             inspection
                 .environment_match
                 .system_matches
-                .contains(
-                    &"laptop".to_string()
-                )
+                .contains(&"laptop".to_string())
         );
 
-        assert!(
-            candidate.score.total > 0
-        );
+        assert!(candidate.score.total > 0);
     }
 }

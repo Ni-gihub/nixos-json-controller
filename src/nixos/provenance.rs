@@ -98,11 +98,7 @@ pub fn evaluate_package_provenance(
     configuration_name: &str,
     package: &str,
 ) -> Result<EvaluatedProvenance, String> {
-    let provenance = evaluate_option(
-        flake_root,
-        configuration_name,
-        "environment.systemPackages",
-    )?;
+    let provenance = evaluate_option(flake_root, configuration_name, "environment.systemPackages")?;
 
     if provenance.contains_local_package(flake_root, package) {
         Ok(provenance)
@@ -139,7 +135,9 @@ fn resolve_definition_file(
     definition_file: &Path,
 ) -> Option<PathBuf> {
     if definition_file.starts_with(flake_root) {
-        return definition_file.is_file().then(|| definition_file.to_path_buf());
+        return definition_file
+            .is_file()
+            .then(|| definition_file.to_path_buf());
     }
 
     let source_root = source_root?;
@@ -217,7 +215,6 @@ fn string_matches_package(value: &str, package: &str) -> bool {
             .is_some_and(|character| character.is_ascii_digit())
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -270,11 +267,7 @@ mod tests {
         std::fs::write(&local, "{}").unwrap();
 
         assert_eq!(
-            resolve_definition_file(
-                &root,
-                Some(&source),
-                &source.join("configuration.nix")
-            ),
+            resolve_definition_file(&root, Some(&source), &source.join("configuration.nix")),
             Some(local)
         );
 
@@ -284,10 +277,8 @@ mod tests {
 
     #[test]
     fn excludes_unrelated_store_definition() {
-        let root = std::env::temp_dir().join(format!(
-            "nxc-provenance-unrelated-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("nxc-provenance-unrelated-{}", std::process::id()));
         let source = root.join("source");
         let local = root.join("configuration.nix");
 

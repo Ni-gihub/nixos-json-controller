@@ -129,10 +129,7 @@ fn inspect_file(path: PathBuf, content: &str) -> ConfigFile {
     let declared_packages = parse_system_package_names(content).into_iter().collect();
     let declared_services = parse_service_names(content).into_iter().collect();
 
-    let imports = parse_relative_imports(
-        path.parent().unwrap_or_else(|| Path::new(".")),
-        content,
-    );
+    let imports = parse_relative_imports(path.parent().unwrap_or_else(|| Path::new(".")), content);
 
     let write_safety = classify_write_safety(&path, content, &imports);
 
@@ -297,9 +294,10 @@ fn parse_package_line(line: &str) -> Option<String> {
         return None;
     }
 
-    let token = line.split_whitespace().next()?.trim_matches(|c: char| {
-        matches!(c, '[' | ']' | '(' | ')' | ',')
-    });
+    let token = line
+        .split_whitespace()
+        .next()?
+        .trim_matches(|c: char| matches!(c, '[' | ']' | '(' | ')' | ','));
     let token = token.strip_prefix("pkgs.").unwrap_or(token);
 
     if token.is_empty() || token.contains('.') {
@@ -396,12 +394,7 @@ fn strip_comment(line: &str) -> &str {
     line.split_once('#').map_or(line, |(code, _)| code)
 }
 
-fn find_matching_delimiter(
-    content: &str,
-    start: usize,
-    open: char,
-    close: char,
-) -> Option<usize> {
+fn find_matching_delimiter(content: &str, start: usize, open: char, close: char) -> Option<usize> {
     let mut depth = 0usize;
     let mut in_string = false;
     let mut escaped = false;

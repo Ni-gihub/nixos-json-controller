@@ -42,41 +42,18 @@ pub struct FileMetadata {
 }
 
 impl FileMetadata {
-    pub fn from_path(
-        path: &std::path::Path,
-    ) -> Result<Self, String> {
-        let metadata =
-            std::fs::metadata(path)
-                .map_err(|e| {
-                    format!(
-                        "failed to read file metadata {}: {}",
-                        path.display(),
-                        e
-                    )
-                })?;
+    pub fn from_path(path: &std::path::Path) -> Result<Self, String> {
+        let metadata = std::fs::metadata(path)
+            .map_err(|e| format!("failed to read file metadata {}: {}", path.display(), e))?;
 
-        let modified =
-            metadata
-                .modified()
-                .map_err(|e| {
-                    format!(
-                        "failed to read modification time {}: {}",
-                        path.display(),
-                        e
-                    )
-                })?;
+        let modified = metadata
+            .modified()
+            .map_err(|e| format!("failed to read modification time {}: {}", path.display(), e))?;
 
-        let modified_ns =
-            modified
-                .duration_since(UNIX_EPOCH)
-                .map_err(|e| {
-                    format!(
-                        "invalid modification time {}: {}",
-                        path.display(),
-                        e
-                    )
-                })?
-                .as_nanos();
+        let modified_ns = modified
+            .duration_since(UNIX_EPOCH)
+            .map_err(|e| format!("invalid modification time {}: {}", path.display(), e))?
+            .as_nanos();
 
         Ok(Self {
             size: metadata.len(),
@@ -105,41 +82,23 @@ pub struct DiscoveryMetadata {
 
 impl DiscoveryMetadata {
     /// 現在のファイル状態からDiscoveryMetadataを作る。
-    pub fn capture(
-        flake_root: &std::path::Path,
-    ) -> Result<Self, String> {
-        let flake_file =
-            flake_root.join("flake.nix");
+    pub fn capture(flake_root: &std::path::Path) -> Result<Self, String> {
+        let flake_file = flake_root.join("flake.nix");
 
-        let flake_nix =
-            FileMetadata::from_path(
-                &flake_file,
-            )?;
+        let flake_nix = FileMetadata::from_path(&flake_file)?;
 
-        let flake_lock_path =
-            flake_root.join("flake.lock");
+        let flake_lock_path = flake_root.join("flake.lock");
 
-        let flake_lock =
-            if flake_lock_path.is_file() {
-                Some(
-                    FileMetadata::from_path(
-                        &flake_lock_path,
-                    )?
-                )
-            } else {
-                None
-            };
+        let flake_lock = if flake_lock_path.is_file() {
+            Some(FileMetadata::from_path(&flake_lock_path)?)
+        } else {
+            None
+        };
 
-        let discovered_at =
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map_err(|e| {
-                    format!(
-                        "failed to determine discovery time: {}",
-                        e
-                    )
-                })?
-                .as_secs();
+        let discovered_at = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|e| format!("failed to determine discovery time: {}", e))?
+            .as_secs();
 
         Ok(Self {
             discovered_at,

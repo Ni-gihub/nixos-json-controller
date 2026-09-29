@@ -6,7 +6,8 @@ use crate::nixos;
 use crate::nixos::application::ApplicationState;
 use crate::nixos::dedicated::{DedicatedPackageChange, FileBackup};
 use crate::nixos::write_strategy::{
-    install_package_strategy, remove_package_strategy, PackageInstallStrategy, PackageRemoveStrategy,
+    PackageInstallStrategy, PackageRemoveStrategy, install_package_strategy,
+    remove_package_strategy,
 };
 use crate::planner::ExecutionPlan;
 
@@ -56,17 +57,12 @@ pub fn execute_with_change(plan: ExecutionPlan) -> Result<PackageChange, Executo
     let context = nixos::flake::discovery_context().map_err(ExecutorError::NixosError)?;
     let config = nixos::config::ConfigState::discover(context.flake_root())
         .map_err(ExecutorError::NixosError)?;
-    let system =
-        nixos::system::SystemState::discover().map_err(ExecutorError::NixosError)?;
+    let system = nixos::system::SystemState::discover().map_err(ExecutorError::NixosError)?;
 
     match plan.action {
         Action::InstallPackage => {
-            let state = ApplicationState::inspect(
-                &context,
-                &plan.target.name,
-                &system,
-            )
-            .map_err(ExecutorError::NixosError)?;
+            let state = ApplicationState::inspect(&context, &plan.target.name, &system)
+                .map_err(ExecutorError::NixosError)?;
 
             if state.system_present {
                 println!("{} is already installed.", plan.target.name);
@@ -83,12 +79,9 @@ pub fn execute_with_change(plan: ExecutionPlan) -> Result<PackageChange, Executo
 
             match install_package_strategy(&config, &system, &plan.target.name) {
                 PackageInstallStrategy::ExistingFile { path } => {
-                    let backup = FileBackup::capture(&path)
-                        .map_err(ExecutorError::NixosError)?;
+                    let backup = FileBackup::capture(&path).map_err(ExecutorError::NixosError)?;
 
-                    if let Err(error) =
-                        nixos::writer::install_package(&path, &plan.target.name)
-                    {
+                    if let Err(error) = nixos::writer::install_package(&path, &plan.target.name) {
                         return install_package_in_dedicated_module(
                             context.flake_root(),
                             &config,
@@ -102,20 +95,13 @@ pub fn execute_with_change(plan: ExecutionPlan) -> Result<PackageChange, Executo
                         created_files: Vec::new(),
                     };
 
-                    validate_package_change(
-                        &context,
-                        &plan.target.name,
-                        &change,
-                    )?;
+                    validate_package_change(&context, &plan.target.name, &change)?;
 
                     Ok(change)
                 }
                 PackageInstallStrategy::AlreadyDeclared { .. }
-                | PackageInstallStrategy::AlreadyPresentInSystem => {
-                    Ok(PackageChange::default())
-                }
-                PackageInstallStrategy::Ambiguous { .. }
-                | PackageInstallStrategy::Unsupported => {
+                | PackageInstallStrategy::AlreadyPresentInSystem => Ok(PackageChange::default()),
+                PackageInstallStrategy::Ambiguous { .. } | PackageInstallStrategy::Unsupported => {
                     install_package_in_dedicated_module(
                         context.flake_root(),
                         &config,
@@ -171,23 +157,24 @@ pub fn execute_with_change(plan: ExecutionPlan) -> Result<PackageChange, Executo
                                 )));
                             }
 
-                            change
-                                .backups
-                                .push(FileBackup::capture(&path).map_err(ExecutorError::NixosError)?);
+                            change.backups.push(
+                                FileBackup::capture(&path).map_err(ExecutorError::NixosError)?,
+                            );
                             nixos::writer::remove_package(&path, &plan.target.name)
                                 .map_err(ExecutorError::NixosError)?;
                         }
 
                         Ok(change)
                     }
-                    PackageRemoveStrategy::NotDeclared
-                    | PackageRemoveStrategy::SystemOnly => Ok(PackageChange::default()),
-                    PackageRemoveStrategy::Ambiguous { candidates } => Err(
-                        ExecutorError::NixosError(format!(
+                    PackageRemoveStrategy::NotDeclared | PackageRemoveStrategy::SystemOnly => {
+                        Ok(PackageChange::default())
+                    }
+                    PackageRemoveStrategy::Ambiguous { candidates } => {
+                        Err(ExecutorError::NixosError(format!(
                             "multiple package configuration files found: {}",
                             format_paths(&candidates),
-                        )),
-                    ),
+                        )))
+                    }
                 }
             }
         }

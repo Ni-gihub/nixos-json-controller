@@ -6,7 +6,9 @@ use crate::resolver::{ResolvedTarget, Resolver};
 use super::Planner;
 
 fn create_resolved_target(name: &str) -> ResolvedTarget {
-    ResolvedTarget { name: name.to_string() }
+    ResolvedTarget {
+        name: name.to_string(),
+    }
 }
 
 #[test]
@@ -27,7 +29,9 @@ fn create_enable_service_plan() {
 
 #[test]
 fn create_install_package_plan_from_dictionary_alias() {
-    let target = Target { raw: "ファイヤーフォックス".to_string() };
+    let target = Target {
+        raw: "ファイヤーフォックス".to_string(),
+    };
     let resolved = Resolver::resolve(Action::InstallPackage, target).unwrap();
     let plan = Planner::create(Action::InstallPackage, resolved);
     assert!(matches!(plan.action, Action::InstallPackage));

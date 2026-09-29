@@ -1,9 +1,4 @@
-use super::discovery::{
-    save_discovery,
-    DiscoveryMetadata,
-    DiscoveryResult,
-    SelectionMethod,
-};
+use super::discovery::{DiscoveryMetadata, DiscoveryResult, SelectionMethod, save_discovery};
 use super::flake;
 use super::generator::NixModule;
 use super::module;
@@ -25,11 +20,9 @@ use std::path::PathBuf;
 /// これにより、通常操作側のDiscoveryContextが
 /// staleチェックを含めて実際のstateを検証できる。
 fn ensure_discovery_state() {
-    let repository =
-        PathBuf::from("/home/nakaoku/Projects/nix-config");
+    let repository = PathBuf::from("/home/nakaoku/Projects/nix-config");
 
-    let flake_file =
-        repository.join("flake.nix");
+    let flake_file = repository.join("flake.nix");
 
     assert!(
         flake_file.is_file(),
@@ -37,49 +30,28 @@ fn ensure_discovery_state() {
         flake_file.display()
     );
 
-    let result =
-        DiscoveryResult {
-            flake_root: repository.clone(),
-            flake_file,
-            selected_configuration:
-                NixosConfiguration {
-                    name: "laptop".to_string(),
-                    system:
-                        Some(
-                            "x86_64-linux"
-                                .to_string(),
-                        ),
-                    hostname:
-                        Some(
-                            "nixos-laptop"
-                                .to_string(),
-                        ),
-                    platform: None,
-                },
-            selection_method:
-                SelectionMethod::HostnameMatch,
-            metadata:
-                None,
-        };
+    let result = DiscoveryResult {
+        flake_root: repository.clone(),
+        flake_file,
+        selected_configuration: NixosConfiguration {
+            name: "laptop".to_string(),
+            system: Some("x86_64-linux".to_string()),
+            hostname: Some("nixos-laptop".to_string()),
+            platform: None,
+        },
+        selection_method: SelectionMethod::HostnameMatch,
+        metadata: None,
+    };
 
     let metadata =
-        DiscoveryMetadata::capture(
-            &repository,
-        )
-        .expect(
-            "failed to capture discovery metadata",
-        );
+        DiscoveryMetadata::capture(&repository).expect("failed to capture discovery metadata");
 
-    let result =
-        DiscoveryResult {
-            metadata: Some(metadata),
-            ..result
-        };
+    let result = DiscoveryResult {
+        metadata: Some(metadata),
+        ..result
+    };
 
-    save_discovery(&result)
-        .expect(
-            "failed to save discovery state",
-        );
+    save_discovery(&result).expect("failed to save discovery state");
 }
 
 // ============================================================
@@ -92,10 +64,7 @@ fn generate_empty_package_module() {
 
     let result = module.generate();
 
-    assert_eq!(
-        result,
-        "environment.systemPackages = with pkgs; [\n];\n"
-    );
+    assert_eq!(result, "environment.systemPackages = with pkgs; [\n];\n");
 }
 
 #[test]
@@ -115,11 +84,7 @@ fn generate_single_package_module() {
 #[test]
 fn generate_multiple_package_module() {
     let module = NixModule {
-        packages: vec![
-            "firefox".to_string(),
-            "git".to_string(),
-            "curl".to_string(),
-        ],
+        packages: vec!["firefox".to_string(), "git".to_string(), "curl".to_string()],
     };
 
     let result = module.generate();
@@ -146,24 +111,13 @@ environment.systemPackages = with pkgs; [
 }
 "#;
 
-    let result =
-        module::add_package_to_content(
-            content,
-            "firefox",
-        )
-        .unwrap();
+    let result = module::add_package_to_content(content, "firefox").unwrap();
 
-    assert!(
-        result.contains("  firefox")
-    );
+    assert!(result.contains("  firefox"));
 
-    assert!(
-        result.contains("  git")
-    );
+    assert!(result.contains("  git"));
 
-    assert!(
-        result.contains("  curl")
-    );
+    assert!(result.contains("  curl"));
 }
 
 #[test]
@@ -179,26 +133,13 @@ nixpkgs.config.allowUnfree = true;
 }
 "#;
 
-    let result =
-        module::add_package_to_content(
-            content,
-            "firefox",
-        )
-        .unwrap();
+    let result = module::add_package_to_content(content, "firefox").unwrap();
 
-    assert!(
-        result.contains("  git")
-    );
+    assert!(result.contains("  git"));
 
-    assert!(
-        result.contains("  firefox")
-    );
+    assert!(result.contains("  firefox"));
 
-    assert!(
-        result.contains(
-            "nixpkgs.config.allowUnfree = true;"
-        )
-    );
+    assert!(result.contains("nixpkgs.config.allowUnfree = true;"));
 }
 
 #[test]
@@ -209,11 +150,7 @@ fn module_add_package_requires_package_section() {
 }
 "#;
 
-    let result =
-        module::add_package_to_content(
-            content,
-            "firefox",
-        );
+    let result = module::add_package_to_content(content, "firefox");
 
     assert!(result.is_err());
 }
@@ -223,22 +160,15 @@ fn module_add_package_requires_package_section() {
 // ============================================================
 
 #[ignore = "requires the developer's NixOS configuration"]
-
 #[test]
 fn repository_paths() {
     ensure_discovery_state();
 
-    let repository =
-        flake::repository_path()
-            .unwrap();
+    let repository = flake::repository_path().unwrap();
 
     // 実際に発見されたリポジトリが
     // NixOS設定flakeであることを確認する。
-    assert!(
-        repository
-            .join("flake.nix")
-            .is_file()
-    );
+    assert!(repository.join("flake.nix").is_file());
 
     assert!(
         repository
@@ -250,53 +180,32 @@ fn repository_paths() {
 
     assert_eq!(
         flake::pkgs_path().unwrap(),
-        repository
-            .join("modules")
-            .join("pkgs.nix")
+        repository.join("modules").join("pkgs.nix")
     );
 }
 
 #[ignore = "requires the developer's NixOS configuration"]
-
 #[test]
 fn repository_path_is_not_controller_repository() {
     ensure_discovery_state();
 
-    let repository =
-        flake::repository_path()
-            .unwrap();
+    let repository = flake::repository_path().unwrap();
 
-    let controller_repository =
-        PathBuf::from(
-            env!("CARGO_MANIFEST_DIR")
-        );
+    let controller_repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
-    assert_ne!(
-        repository,
-        controller_repository
-    );
+    assert_ne!(repository, controller_repository);
 }
 
 #[ignore = "requires the developer's NixOS configuration"]
-
 #[test]
 fn repository_contains_nixos_configuration() {
     ensure_discovery_state();
 
-    let repository =
-        flake::repository_path()
-            .unwrap();
+    let repository = flake::repository_path().unwrap();
 
-    let flake_content =
-        std::fs::read_to_string(
-            repository.join("flake.nix"),
-        )
-        .unwrap();
+    let flake_content = std::fs::read_to_string(repository.join("flake.nix")).unwrap();
 
-    assert!(
-        flake_content
-            .contains("nixosConfigurations")
-    );
+    assert!(flake_content.contains("nixosConfigurations"));
 }
 
 // ============================================================
@@ -304,40 +213,22 @@ fn repository_contains_nixos_configuration() {
 // ============================================================
 
 #[ignore = "requires the developer's NixOS configuration"]
-
 #[test]
 fn create_rebuild_command() {
     ensure_discovery_state();
 
-    let command =
-        rebuild::build_command()
-            .unwrap();
+    let command = rebuild::build_command().unwrap();
 
-    assert_eq!(
-        command
-            .get_program()
-            .to_str()
-            .unwrap(),
-        "sudo"
-    );
+    assert_eq!(command.get_program().to_str().unwrap(), "sudo");
 
-    let args: Vec<_> =
-        command
-            .get_args()
-            .map(|arg| {
-                arg.to_str().unwrap()
-            })
-            .collect();
+    let args: Vec<_> = command
+        .get_args()
+        .map(|arg| arg.to_str().unwrap())
+        .collect();
 
-    let repository =
-        flake::repository_path()
-            .unwrap();
+    let repository = flake::repository_path().unwrap();
 
-    let expected_flake =
-        format!(
-            "{}#laptop",
-            repository.display()
-        );
+    let expected_flake = format!("{}#laptop", repository.display());
 
     assert_eq!(
         args,
@@ -357,22 +248,12 @@ fn create_rebuild_command() {
 #[test]
 fn generate_module_contains_package() {
     let module = NixModule {
-        packages:
-            vec![
-                "firefox".to_string()
-            ],
+        packages: vec!["firefox".to_string()],
     };
 
-    let result =
-        module.generate();
+    let result = module.generate();
 
-    assert!(
-        result.contains("firefox")
-    );
+    assert!(result.contains("firefox"));
 
-    assert!(
-        result.contains(
-            "environment.systemPackages"
-        )
-    );
+    assert!(result.contains("environment.systemPackages"));
 }

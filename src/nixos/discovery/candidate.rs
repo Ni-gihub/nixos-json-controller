@@ -63,10 +63,7 @@ pub struct FlakeCandidate {
 }
 
 impl FlakeCandidate {
-    pub fn new(
-        flake_root: PathBuf,
-        flake_file: PathBuf,
-    ) -> Self {
+    pub fn new(flake_root: PathBuf, flake_file: PathBuf) -> Self {
         Self {
             flake_root,
             flake_file,
@@ -83,146 +80,84 @@ impl FlakeCandidate {
     pub fn calculate_score(&mut self) {
         let mut score = CandidateScore::default();
 
-        if self
-            .evidence
-            .contains(&Evidence::FlakeFile)
-        {
+        if self.evidence.contains(&Evidence::FlakeFile) {
             score.total += 5;
-            score.reasons.push(
-                "flake.nix exists".to_string(),
-            );
+            score.reasons.push("flake.nix exists".to_string());
         }
 
-        if self
-            .evidence
-            .contains(&Evidence::FlakeLock)
-        {
+        if self.evidence.contains(&Evidence::FlakeLock) {
             score.total += 3;
-            score.reasons.push(
-                "flake.lock exists".to_string(),
-            );
+            score.reasons.push("flake.lock exists".to_string());
         }
 
-        if self
-            .evidence
-            .contains(&Evidence::GitRepository)
-        {
+        if self.evidence.contains(&Evidence::GitRepository) {
             score.total += 3;
-            score.reasons.push(
-                "Git repository".to_string(),
-            );
+            score.reasons.push("Git repository".to_string());
         }
 
-        if self
-            .evidence
-            .contains(&Evidence::HostsDirectory)
-        {
+        if self.evidence.contains(&Evidence::HostsDirectory) {
             score.total += 2;
-            score.reasons.push(
-                "hosts/ directory exists".to_string(),
-            );
+            score.reasons.push("hosts/ directory exists".to_string());
         }
 
-        if self
-            .evidence
-            .contains(&Evidence::ModulesDirectory)
-        {
+        if self.evidence.contains(&Evidence::ModulesDirectory) {
             score.total += 2;
-            score.reasons.push(
-                "modules/ directory exists".to_string(),
-            );
+            score.reasons.push("modules/ directory exists".to_string());
         }
 
-        if self
-            .evidence
-            .contains(&Evidence::HomeDirectory)
-        {
+        if self.evidence.contains(&Evidence::HomeDirectory) {
             score.total += 1;
-            score.reasons.push(
-                "home/ directory exists".to_string(),
-            );
+            score.reasons.push("home/ directory exists".to_string());
         }
 
-        if self
-            .evidence
-            .contains(&Evidence::SystemDirectory)
-        {
+        if self.evidence.contains(&Evidence::SystemDirectory) {
             score.total += 2;
-            score.reasons.push(
-                "system/ directory exists".to_string(),
-            );
+            score.reasons.push("system/ directory exists".to_string());
         }
 
-        if self
-            .evidence
-            .contains(&Evidence::ConfigurationNix)
-        {
+        if self.evidence.contains(&Evidence::ConfigurationNix) {
             score.total += 2;
-            score.reasons.push(
-                "configuration.nix exists".to_string(),
-            );
+            score.reasons.push("configuration.nix exists".to_string());
         }
 
-        if self
-            .evidence
-            .contains(&Evidence::HardwareConfigurationNix)
-        {
+        if self.evidence.contains(&Evidence::HardwareConfigurationNix) {
             score.total += 1;
-            score.reasons.push(
-                "hardware-configuration.nix exists"
-                    .to_string(),
-            );
+            score
+                .reasons
+                .push("hardware-configuration.nix exists".to_string());
         }
 
-        if self
-            .evidence
-            .contains(&Evidence::NixosConfigurationsText)
-        {
+        if self.evidence.contains(&Evidence::NixosConfigurationsText) {
             score.total += 3;
-            score.reasons.push(
-                "nixosConfigurations text found".to_string(),
-            );
+            score
+                .reasons
+                .push("nixosConfigurations text found".to_string());
         }
 
         if let Some(inspection) = &self.inspection {
-            if let super::NixEvaluation::Success {
-                outputs,
-            } = &inspection.nix_evaluation
-            {
-                if !outputs.nixos_configurations.is_empty()
-                {
+            if let super::NixEvaluation::Success { outputs } = &inspection.nix_evaluation {
+                if !outputs.nixos_configurations.is_empty() {
                     score.total += 20;
 
-                    score.reasons.push(
-                        "Nix evaluation found NixOS configurations"
-                            .to_string(),
-                    );
+                    score
+                        .reasons
+                        .push("Nix evaluation found NixOS configurations".to_string());
                 }
 
-                if !inspection
-                    .environment_match
-                    .hostname_matches
-                    .is_empty()
-                {
+                if !inspection.environment_match.hostname_matches.is_empty() {
                     score.total += 50;
 
-                    score.reasons.push(
-                        "hostname matches current system"
-                            .to_string(),
-                    );
+                    score
+                        .reasons
+                        .push("hostname matches current system".to_string());
                 }
 
-                if !inspection
-                    .environment_match
-                    .system_matches
-                    .is_empty()
-                {
+                if !inspection.environment_match.system_matches.is_empty() {
                     score.total += 20;
 
-                    score.reasons.push(
-                        "system matches current system"
-                            .to_string(),
-                    );
+                    score
+                        .reasons
+                        .push("system matches current system".to_string());
                 }
             }
         }

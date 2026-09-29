@@ -1,66 +1,41 @@
 use super::{
-    DiscoveryReport,
-    DiscoveryResult,
-    DiscoveryStatus,
-    FlakeCandidate,
-    FlakeOutputs,
-    InspectionResult,
-    NixEvaluation,
-    NixosConfiguration,
+    DiscoveryReport, DiscoveryResult, DiscoveryStatus, FlakeCandidate, FlakeOutputs,
+    InspectionResult, NixEvaluation, NixosConfiguration,
 };
 
 /// Discovery候補から最終的なFlake / NixOS configurationを選択する。
-pub fn select_candidate(
-    candidates: &[FlakeCandidate],
-) -> DiscoveryReport {
-    let mut report =
-        DiscoveryReport::new(
-            DiscoveryStatus::NoCandidates
-        );
+pub fn select_candidate(candidates: &[FlakeCandidate]) -> DiscoveryReport {
+    let mut report = DiscoveryReport::new(DiscoveryStatus::NoCandidates);
 
-    report.candidates =
-        candidates.to_vec();
+    report.candidates = candidates.to_vec();
 
     if candidates.is_empty() {
         report
             .diagnostics
-            .push(
-                "No flake candidates were found."
-                    .to_string()
-            );
+            .push("No flake candidates were found.".to_string());
 
         return report;
     }
 
-    let evaluated:
-        Vec<&FlakeCandidate> =
-        candidates
-            .iter()
-            .filter(|candidate| {
-                matches!(
-                    candidate
-                        .inspection
-                        .as_ref()
-                        .map(|inspection| {
-                            &inspection.nix_evaluation
-                        }),
-                    Some(
-                        NixEvaluation::Success { .. }
-                    )
-                )
-            })
-            .collect();
+    let evaluated: Vec<&FlakeCandidate> = candidates
+        .iter()
+        .filter(|candidate| {
+            matches!(
+                candidate
+                    .inspection
+                    .as_ref()
+                    .map(|inspection| { &inspection.nix_evaluation }),
+                Some(NixEvaluation::Success { .. })
+            )
+        })
+        .collect();
 
     if evaluated.is_empty() {
-        report.status =
-            DiscoveryStatus::EvaluationFailed;
+        report.status = DiscoveryStatus::EvaluationFailed;
 
         report
             .diagnostics
-            .push(
-                "No candidates could be successfully evaluated by Nix."
-                    .to_string()
-            );
+            .push("No candidates could be successfully evaluated by Nix.".to_string());
 
         return report;
     }
@@ -69,22 +44,13 @@ pub fn select_candidate(
     // 1. hostname一致
     // ------------------------------------------------------------
 
-    let hostname_matches =
-        matching_candidates(
-            &evaluated,
-            |candidate| {
-                candidate
-                    .inspection
-                    .as_ref()
-                    .map(|inspection| {
-                        !inspection
-                            .environment_match
-                            .hostname_matches
-                            .is_empty()
-                    })
-                    .unwrap_or(false)
-            },
-        );
+    let hostname_matches = matching_candidates(&evaluated, |candidate| {
+        candidate
+            .inspection
+            .as_ref()
+            .map(|inspection| !inspection.environment_match.hostname_matches.is_empty())
+            .unwrap_or(false)
+    });
 
     if hostname_matches.len() == 1 {
         return build_success_report(
@@ -95,15 +61,11 @@ pub fn select_candidate(
     }
 
     if hostname_matches.len() > 1 {
-        report.status =
-            DiscoveryStatus::MultipleCandidates;
+        report.status = DiscoveryStatus::MultipleCandidates;
 
         report
             .diagnostics
-            .push(
-                "Multiple candidates match the current hostname."
-                    .to_string()
-            );
+            .push("Multiple candidates match the current hostname.".to_string());
 
         return report;
     }
@@ -112,22 +74,13 @@ pub fn select_candidate(
     // 2. system一致
     // ------------------------------------------------------------
 
-    let system_matches =
-        matching_candidates(
-            &evaluated,
-            |candidate| {
-                candidate
-                    .inspection
-                    .as_ref()
-                    .map(|inspection| {
-                        !inspection
-                            .environment_match
-                            .system_matches
-                            .is_empty()
-                    })
-                    .unwrap_or(false)
-            },
-        );
+    let system_matches = matching_candidates(&evaluated, |candidate| {
+        candidate
+            .inspection
+            .as_ref()
+            .map(|inspection| !inspection.environment_match.system_matches.is_empty())
+            .unwrap_or(false)
+    });
 
     if system_matches.len() == 1 {
         return build_success_report(
@@ -138,15 +91,11 @@ pub fn select_candidate(
     }
 
     if system_matches.len() > 1 {
-        report.status =
-            DiscoveryStatus::MultipleCandidates;
+        report.status = DiscoveryStatus::MultipleCandidates;
 
         report
             .diagnostics
-            .push(
-                "Multiple candidates match the current system."
-                    .to_string()
-            );
+            .push("Multiple candidates match the current system.".to_string());
 
         return report;
     }
@@ -167,22 +116,17 @@ pub fn select_candidate(
     // 4. 複数候補
     // ------------------------------------------------------------
 
-    report.status =
-        DiscoveryStatus::MultipleCandidates;
+    report.status = DiscoveryStatus::MultipleCandidates;
 
-    report
-        .diagnostics
-        .push(format!(
-            "{} evaluated NixOS candidates remain after environment matching.",
-            evaluated.len()
-        ));
+    report.diagnostics.push(format!(
+        "{} evaluated NixOS candidates remain after environment matching.",
+        evaluated.len()
+    ));
 
-    report
-        .diagnostics
-        .push(
-            "Candidate scores are informational only; automatic selection was not performed."
-                .to_string()
-        );
+    report.diagnostics.push(
+        "Candidate scores are informational only; automatic selection was not performed."
+            .to_string(),
+    );
 
     report
 }
@@ -197,9 +141,7 @@ where
     candidates
         .iter()
         .copied()
-        .filter(|candidate| {
-            predicate(candidate)
-        })
+        .filter(|candidate| predicate(candidate))
         .collect()
 }
 
@@ -208,69 +150,45 @@ fn build_success_report(
     candidate: &FlakeCandidate,
     selection_method: super::SelectionMethod,
 ) -> DiscoveryReport {
-    let Some(inspection) =
-        candidate.inspection.as_ref()
-    else {
-        report.status =
-            DiscoveryStatus::EvaluationFailed;
+    let Some(inspection) = candidate.inspection.as_ref() else {
+        report.status = DiscoveryStatus::EvaluationFailed;
 
         report
             .diagnostics
-            .push(
-                "Selected candidate has no inspection result."
-                    .to_string()
-            );
+            .push("Selected candidate has no inspection result.".to_string());
 
         return report;
     };
 
-    let configuration =
-        match &inspection.nix_evaluation {
-            NixEvaluation::Success {
-                outputs
-            } => {
-                find_matching_configuration(
-                    outputs,
-                    inspection,
-                )
-            }
+    let configuration = match &inspection.nix_evaluation {
+        NixEvaluation::Success { outputs } => find_matching_configuration(outputs, inspection),
 
-            _ => None,
-        };
+        _ => None,
+    };
 
-    let Some(configuration) =
-        configuration
-    else {
-        report.status =
-            DiscoveryStatus::EvaluationFailed;
+    let Some(configuration) = configuration else {
+        report.status = DiscoveryStatus::EvaluationFailed;
 
-        report
-            .diagnostics
-            .push(format!(
-                "Candidate '{}' was selected, but no matching NixOS configuration was found.",
-                candidate.flake_root.display()
-            ));
+        report.diagnostics.push(format!(
+            "Candidate '{}' was selected, but no matching NixOS configuration was found.",
+            candidate.flake_root.display()
+        ));
 
         return report;
     };
 
-    report.status =
-        DiscoveryStatus::Success;
+    report.status = DiscoveryStatus::Success;
 
-    report.selected =
-        Some(DiscoveryResult {
-            flake_root:
-                candidate.flake_root.clone(),
+    report.selected = Some(DiscoveryResult {
+        flake_root: candidate.flake_root.clone(),
 
-            flake_file:
-                candidate.flake_file.clone(),
+        flake_file: candidate.flake_file.clone(),
 
-            selected_configuration:
-                configuration,
+        selected_configuration: configuration,
 
-            selection_method,
-            metadata: None,
-        });
+        selection_method,
+        metadata: None,
+    });
 
     report
 }
@@ -279,47 +197,28 @@ fn find_matching_configuration(
     outputs: &FlakeOutputs,
     inspection: &InspectionResult,
 ) -> Option<NixosConfiguration> {
-    for configuration
-        in &outputs.nixos_configurations
-    {
+    for configuration in &outputs.nixos_configurations {
         if inspection
             .environment_match
             .hostname_matches
-            .contains(
-                &configuration.name
-            )
+            .contains(&configuration.name)
         {
-            return Some(
-                configuration.clone()
-            );
+            return Some(configuration.clone());
         }
     }
 
-    for configuration
-        in &outputs.nixos_configurations
-    {
+    for configuration in &outputs.nixos_configurations {
         if inspection
             .environment_match
             .system_matches
-            .contains(
-                &configuration.name
-            )
+            .contains(&configuration.name)
         {
-            return Some(
-                configuration.clone()
-            );
+            return Some(configuration.clone());
         }
     }
 
-    if outputs
-        .nixos_configurations
-        .len()
-        == 1
-    {
-        return outputs
-            .nixos_configurations
-            .first()
-            .cloned();
+    if outputs.nixos_configurations.len() == 1 {
+        return outputs.nixos_configurations.first().cloned();
     }
 
     None
@@ -331,106 +230,50 @@ mod tests {
 
     use std::path::PathBuf;
 
-    use crate::nixos::discovery::{
-        inspect_candidates,
-        Evidence,
-        FlakeCandidate,
-        SelectionMethod,
-    };
+    use crate::nixos::discovery::{Evidence, FlakeCandidate, SelectionMethod, inspect_candidates};
 
     #[ignore = "requires the developer's NixOS configuration"]
-
     #[test]
     fn select_nix_config_by_hostname() {
-        let root =
-            PathBuf::from(
-                "/home/nakaoku/Projects/nix-config"
-            );
+        let root = PathBuf::from("/home/nakaoku/Projects/nix-config");
 
-        let flake_file =
-            root.join("flake.nix");
+        let flake_file = root.join("flake.nix");
 
-        let mut candidate =
-            FlakeCandidate::new(
-                root,
-                flake_file,
-            );
+        let mut candidate = FlakeCandidate::new(root, flake_file);
 
-        candidate
-            .evidence
-            .push(
-                Evidence::NixosConfigurationsText
-            );
+        candidate.evidence.push(Evidence::NixosConfigurationsText);
 
-        inspect_candidates(
-            std::slice::from_mut(
-                &mut candidate
-            ),
-        );
+        inspect_candidates(std::slice::from_mut(&mut candidate));
 
-        let report =
-            select_candidate(
-                &[candidate]
-            );
+        let report = select_candidate(&[candidate]);
 
-        assert_eq!(
-            report.status,
-            DiscoveryStatus::Success
-        );
+        assert_eq!(report.status, DiscoveryStatus::Success);
 
-        let selected =
-            report
-                .selected
-                .expect(
-                    "candidate should be selected"
-                );
+        let selected = report.selected.expect("candidate should be selected");
 
         assert_eq!(
             selected.flake_root,
-            PathBuf::from(
-                "/home/nakaoku/Projects/nix-config"
-            )
+            PathBuf::from("/home/nakaoku/Projects/nix-config")
         );
 
-        assert_eq!(
-            selected
-                .selected_configuration
-                .name,
-            "laptop"
-        );
+        assert_eq!(selected.selected_configuration.name, "laptop");
 
         assert_eq!(
-            selected
-                .selected_configuration
-                .hostname
-                .as_deref(),
+            selected.selected_configuration.hostname.as_deref(),
             Some("nixos-laptop")
         );
 
-        assert_eq!(
-            selected.selection_method,
-            SelectionMethod::HostnameMatch
-        );
+        assert_eq!(selected.selection_method, SelectionMethod::HostnameMatch);
     }
 
     #[test]
     fn select_empty_candidates() {
-        let report =
-            select_candidate(&[]);
+        let report = select_candidate(&[]);
 
-        assert_eq!(
-            report.status,
-            DiscoveryStatus::NoCandidates
-        );
+        assert_eq!(report.status, DiscoveryStatus::NoCandidates);
 
-        assert!(
-            report.selected.is_none()
-        );
+        assert!(report.selected.is_none());
 
-        assert!(
-            !report
-                .diagnostics
-                .is_empty()
-        );
+        assert!(!report.diagnostics.is_empty());
     }
 }

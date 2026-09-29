@@ -2,13 +2,13 @@ use crate::{
     command::{Action, Command, Target},
     executor::{Executor, ExecutorError},
     nixos::{
-        discovery::{
-            discover_candidates, inspect_candidates, save_discovery, select_candidate,
-            DiscoveryReport, DiscoveryStatus, SearchOptions,
-        },
-        status::{explain_package, explain_service, PackageExplanation, ServiceExplanation},
-        system::SystemState,
         discovery::DiscoveryContext,
+        discovery::{
+            DiscoveryReport, DiscoveryStatus, SearchOptions, discover_candidates,
+            inspect_candidates, save_discovery, select_candidate,
+        },
+        status::{PackageExplanation, ServiceExplanation, explain_package, explain_service},
+        system::SystemState,
     },
     planner::{ExecutionPlan, Planner},
     resolver::{ResolvedTarget, Resolver},
@@ -50,10 +50,7 @@ impl NxcCore {
         Executor::execute(plan)
     }
 
-    pub fn plan_and_execute(
-        action: Action,
-        target: impl Into<String>,
-    ) -> Result<(), String> {
+    pub fn plan_and_execute(action: Action, target: impl Into<String>) -> Result<(), String> {
         let plan = Self::plan(action, target)?;
         Self::execute(plan).map_err(|e| e.to_string())
     }

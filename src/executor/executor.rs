@@ -19,10 +19,7 @@ impl Executor {
         Self::execute_with_rebuild(plan, true)
     }
 
-    pub fn execute_with_rebuild(
-        plan: ExecutionPlan,
-        rebuild: bool,
-    ) -> Result<(), ExecutorError> {
+    pub fn execute_with_rebuild(plan: ExecutionPlan, rebuild: bool) -> Result<(), ExecutorError> {
         let package_change = match plan.action {
             Action::InstallPackage | Action::RemovePackage => {
                 Some(super::package::execute_with_change(plan.clone())?)
@@ -43,7 +40,10 @@ impl Executor {
             .or_else(|| service_change.as_ref().map(|change| change.is_changed()))
             .unwrap_or(false);
 
-        if rebuild && changed && let Err(error) = nixos::rebuild::switch() {
+        if rebuild
+            && changed
+            && let Err(error) = nixos::rebuild::switch()
+        {
             let rollback_result = if let Some(change) = package_change {
                 change.rollback()
             } else if let Some(change) = service_change {

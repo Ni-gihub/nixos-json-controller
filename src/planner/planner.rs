@@ -6,8 +6,8 @@ use crate::nixos::{
     provenance::evaluate_service_provenance,
     system::SystemState,
     write_strategy::{
-        disable_service_strategy, enable_service_strategy, install_package_strategy,
         PackageInstallStrategy, ServiceDisableStrategy, ServiceEnableStrategy,
+        disable_service_strategy, enable_service_strategy, install_package_strategy,
     },
 };
 use crate::resolver::ResolvedTarget;
@@ -32,10 +32,18 @@ impl Planner {
         let system = SystemState::discover()?;
 
         plan.details = Some(match plan.action {
-            Action::InstallPackage => Self::plan_install_package(&context, &config, &system, &plan.target.name)?,
-            Action::RemovePackage => Self::plan_remove_package(&context, &system, &plan.target.name)?,
-            Action::EnableService => Self::plan_enable_service(&context, &config, &system, &plan.target.name)?,
-            Action::DisableService => Self::plan_disable_service(&context, &config, &system, &plan.target.name)?,
+            Action::InstallPackage => {
+                Self::plan_install_package(&context, &config, &system, &plan.target.name)?
+            }
+            Action::RemovePackage => {
+                Self::plan_remove_package(&context, &system, &plan.target.name)?
+            }
+            Action::EnableService => {
+                Self::plan_enable_service(&context, &config, &system, &plan.target.name)?
+            }
+            Action::DisableService => {
+                Self::plan_disable_service(&context, &config, &system, &plan.target.name)?
+            }
         });
 
         Ok(plan)
@@ -65,7 +73,9 @@ impl Planner {
                 affected_files: state.declaration_locations,
                 change_required: false,
                 rebuild_required: false,
-                reason: "package is declared in the NixOS configuration but not in the active system".to_string(),
+                reason:
+                    "package is declared in the NixOS configuration but not in the active system"
+                        .to_string(),
             });
         }
 
@@ -263,5 +273,9 @@ impl Planner {
 }
 
 fn format_paths(paths: &[std::path::PathBuf]) -> String {
-    paths.iter().map(|path| path.display().to_string()).collect::<Vec<_>>().join(", ")
+    paths
+        .iter()
+        .map(|path| path.display().to_string())
+        .collect::<Vec<_>>()
+        .join(", ")
 }

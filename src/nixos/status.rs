@@ -37,11 +37,8 @@ pub fn explain_package(
     // provenance evaluation even when the package is already installed.
     // explain is a diagnostic command, so source provenance is part of the
     // requested answer rather than an optional optimization.
-    let provenance = evaluate_package_provenance(
-        context.flake_root(),
-        context.configuration_name(),
-        package,
-    )?;
+    let provenance =
+        evaluate_package_provenance(context.flake_root(), context.configuration_name(), package)?;
 
     let declaration_locations = provenance.local_files(context.flake_root());
     let config = ConfigState::discover(context.flake_root())?;
@@ -73,11 +70,8 @@ pub fn explain_service(
     system: &SystemState,
     service: &str,
 ) -> Result<ServiceExplanation, String> {
-    let provenance = evaluate_service_provenance(
-        context.flake_root(),
-        context.configuration_name(),
-        service,
-    )?;
+    let provenance =
+        evaluate_service_provenance(context.flake_root(), context.configuration_name(), service)?;
 
     let declaration_locations = provenance.local_files(context.flake_root());
     let config = ConfigState::discover(context.flake_root())?;

@@ -69,13 +69,9 @@ pub struct FlakeOutputs {
 pub enum NixEvaluation {
     NotEvaluated,
 
-    Success {
-        outputs: FlakeOutputs,
-    },
+    Success { outputs: FlakeOutputs },
 
-    Failed {
-        error: NixEvaluationError,
-    },
+    Failed { error: NixEvaluationError },
 }
 
 /// 現在の環境との照合結果

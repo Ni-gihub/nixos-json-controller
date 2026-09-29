@@ -1,11 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
-use crate::{
-    command::Action,
-    core::NxcCore,
-    nixos::system::SystemState,
-};
+use crate::{command::Action, core::NxcCore, nixos::system::SystemState};
 
 #[test]
 fn core_resolves_package_targets() {

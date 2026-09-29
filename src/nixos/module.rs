@@ -45,7 +45,10 @@ pub fn add_package_to_content(content: &str, package: &str) -> Result<String, St
 
     let region = &content[list_start + 1..list_end];
     if simple_package_list_contains(region, package) {
-        return Err(format!("package '{}' is already present in the package list", package));
+        return Err(format!(
+            "package '{}' is already present in the package list",
+            package
+        ));
     }
 
     let indentation = indentation_for_list_item(content, list_start);
@@ -132,7 +135,9 @@ pub fn remove_package_from_content(content: &str, package: &str) -> Result<Strin
 }
 
 fn is_simple_package_list(region: &str) -> bool {
-    !region.chars().any(|c| matches!(c, '(' | ')' | '{' | '}' | ';' | '#' | '"'))
+    !region
+        .chars()
+        .any(|c| matches!(c, '(' | ')' | '{' | '}' | ';' | '#' | '"'))
         && !region.contains("''")
         && !region.contains(" if ")
         && !region.contains(" then ")
@@ -300,8 +305,7 @@ mod tests {
 
     #[test]
     fn removes_package_as_a_standalone_item() {
-        let content =
-            "{\n  environment.systemPackages = [\n    pkgs.firefox\n    git\n  ];\n}\n";
+        let content = "{\n  environment.systemPackages = [\n    pkgs.firefox\n    git\n  ];\n}\n";
         let result = remove_package_from_content(content, "firefox").unwrap();
 
         assert!(!result.contains("pkgs.firefox"));
@@ -313,10 +317,7 @@ mod tests {
         let content = "{ environment.systemPackages = [ pkgs.firefox git ]; }";
         let result = remove_package_from_content(content, "firefox").unwrap();
 
-        assert_eq!(
-            result,
-            "{ environment.systemPackages = [  git ]; }"
-        );
+        assert_eq!(result, "{ environment.systemPackages = [  git ]; }");
         assert!(result.contains("git"));
         assert!(!result.contains("firefox"));
     }

@@ -1,7 +1,8 @@
 use crate::command::Action;
 use crate::nixos;
 use crate::nixos::write_strategy::{
-    disable_service_strategy, enable_service_strategy, ServiceDisableStrategy, ServiceEnableStrategy,
+    ServiceDisableStrategy, ServiceEnableStrategy, disable_service_strategy,
+    enable_service_strategy,
 };
 use crate::planner::ExecutionPlan;
 
@@ -47,8 +48,7 @@ pub fn execute(plan: ExecutionPlan) -> Result<ServiceChange, ExecutorError> {
     let context = nixos::flake::discovery_context().map_err(ExecutorError::NixosError)?;
     let config = nixos::config::ConfigState::discover(context.flake_root())
         .map_err(ExecutorError::NixosError)?;
-    let system =
-        nixos::system::SystemState::discover().map_err(ExecutorError::NixosError)?;
+    let system = nixos::system::SystemState::discover().map_err(ExecutorError::NixosError)?;
 
     let provenance = nixos::provenance::evaluate_service_provenance(
         context.flake_root(),
@@ -92,19 +92,17 @@ pub fn execute(plan: ExecutionPlan) -> Result<ServiceChange, ExecutorError> {
                 }
                 ServiceEnableStrategy::AlreadyDeclared { .. }
                 | ServiceEnableStrategy::AlreadyEnabledInSystem => Ok(ServiceChange::default()),
-                ServiceEnableStrategy::Ambiguous { candidates } => Err(
-                    ExecutorError::NixosError(format!(
+                ServiceEnableStrategy::Ambiguous { candidates } => {
+                    Err(ExecutorError::NixosError(format!(
                         "multiple service configuration files found: {}",
                         format_paths(&candidates),
-                    )),
-                ),
-                ServiceEnableStrategy::Unsupported => {
-                    install_service_in_dedicated_module(
-                        context.flake_root(),
-                        &config,
-                        &plan.target.name,
-                    )
+                    )))
                 }
+                ServiceEnableStrategy::Unsupported => install_service_in_dedicated_module(
+                    context.flake_root(),
+                    &config,
+                    &plan.target.name,
+                ),
             }
         }
 
@@ -142,8 +140,7 @@ pub fn execute(plan: ExecutionPlan) -> Result<ServiceChange, ExecutorError> {
                         let backup = nixos::dedicated::FileBackup::capture(&path)
                             .map_err(ExecutorError::NixosError)?;
 
-                        if let Err(error) =
-                            nixos::writer::disable_service(&path, &plan.target.name)
+                        if let Err(error) = nixos::writer::disable_service(&path, &plan.target.name)
                         {
                             let _ = change.rollback();
                             return Err(ExecutorError::NixosError(error));
@@ -158,12 +155,12 @@ pub fn execute(plan: ExecutionPlan) -> Result<ServiceChange, ExecutorError> {
                     write_service_file(&path, &plan.target.name, false)
                 }
                 ServiceDisableStrategy::NotDeclared => Ok(ServiceChange::default()),
-                ServiceDisableStrategy::Ambiguous { candidates } => Err(
-                    ExecutorError::NixosError(format!(
+                ServiceDisableStrategy::Ambiguous { candidates } => {
+                    Err(ExecutorError::NixosError(format!(
                         "multiple service configuration files found: {}",
                         format_paths(&candidates),
-                    )),
-                ),
+                    )))
+                }
             }
         }
 
@@ -176,8 +173,7 @@ fn write_service_file(
     service: &str,
     enabled: bool,
 ) -> Result<ServiceChange, ExecutorError> {
-    let backup =
-        nixos::dedicated::FileBackup::capture(path).map_err(ExecutorError::NixosError)?;
+    let backup = nixos::dedicated::FileBackup::capture(path).map_err(ExecutorError::NixosError)?;
 
     let result = if enabled {
         nixos::writer::enable_service(path, service)

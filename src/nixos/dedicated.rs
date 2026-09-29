@@ -184,7 +184,6 @@ fn write_service(
     Ok(change)
 }
 
-
 fn validate_dedicated_package_module(path: &Path) -> Result<(), String> {
     let content = fs::read_to_string(path)
         .map_err(|e| format!("failed to read {}: {}", path.display(), e))?;
@@ -221,7 +220,6 @@ pub fn dedicated_service_path(flake_root: &Path) -> PathBuf {
     flake_root.join(DEDICATED_SERVICE_MODULE)
 }
 
-
 fn ensure_import(
     flake_root: &Path,
     config: &ConfigState,
@@ -239,13 +237,13 @@ fn ensure_import(
             return Err(
                 "cannot connect NXC dedicated module: no unambiguous imports list was found"
                     .to_string(),
-            )
+            );
         }
         _ => {
             return Err(format!(
                 "cannot connect NXC dedicated module: multiple imports lists were found: {}",
                 format_paths(&candidates),
-            ))
+            ));
         }
     };
 
@@ -452,19 +450,26 @@ fn find_import_list(content: &str) -> Option<usize> {
 }
 
 fn add_import_to_content(content: &str, import_path: &str) -> Result<String, String> {
-    let list_start = find_import_list(content)
-        .ok_or_else(|| "imports list not found".to_string())?;
+    let list_start =
+        find_import_list(content).ok_or_else(|| "imports list not found".to_string())?;
     let insert_at = list_start + 1;
 
     let indentation = content[list_start..]
         .lines()
         .nth(1)
-        .map(|line| line.chars().take_while(|c| c.is_whitespace()).collect::<String>())
+        .map(|line| {
+            line.chars()
+                .take_while(|c| c.is_whitespace())
+                .collect::<String>()
+        })
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| "  ".to_string());
 
-    let entry = format!("
-{}{}", indentation, import_path);
+    let entry = format!(
+        "
+{}{}",
+        indentation, import_path
+    );
 
     let mut result = content.to_string();
     result.insert_str(insert_at, &entry);

@@ -168,20 +168,13 @@ impl DiscoveryContext {
             let current_hostname =
                 current_hostname();
 
-            if let Some(current_hostname) =
-                current_hostname
+            if let Some(current_hostname) = current_hostname
+                && current_hostname != saved_hostname
             {
-                if current_hostname != saved_hostname {
-                    return Err(
-                        Self::rediscover_message(
-                            &format!(
-                                "current hostname '{}' does not match discovered hostname '{}'",
-                                current_hostname,
-                                saved_hostname
-                            ),
-                        )
-                    );
-                }
+                return Err(Self::rediscover_message(&format!(
+                    "current hostname '{}' does not match discovered hostname '{}'",
+                    current_hostname, saved_hostname
+                )));
             }
         }
 

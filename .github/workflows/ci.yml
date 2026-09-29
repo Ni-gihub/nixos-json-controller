@@ -40,7 +40,7 @@ jobs:
         run: cargo check
 
   test:
-    name: Test
+    name: Test (portable)
     runs-on: ubuntu-latest
 
     steps:
@@ -52,6 +52,22 @@ jobs:
 
       - name: Test
         run: cargo test
+
+  nix:
+    name: Nix availability
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Verify Nix
+        run: nix eval --raw --expr 'builtins.toString (1 + 1)'
 
   build:
     name: Build

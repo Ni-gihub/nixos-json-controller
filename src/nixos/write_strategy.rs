@@ -32,8 +32,8 @@ pub enum ServiceEnableStrategy {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ServiceDisableStrategy {
     Declared { paths: Vec<PathBuf> },
+    ExistingFile { path: PathBuf },
     NotDeclared,
-    SystemOnly,
     Ambiguous { candidates: Vec<PathBuf> },
 }
 
@@ -118,8 +118,18 @@ pub fn disable_service_strategy(
         return ServiceDisableStrategy::Declared { paths: declared };
     }
 
+    let candidates = paths(config.service_write_targets());
+
     if system.is_service_enabled(service) {
-        return ServiceDisableStrategy::SystemOnly;
+        return match candidates.as_slice() {
+            [path] => ServiceDisableStrategy::ExistingFile {
+                path: path.clone(),
+            },
+            [] => ServiceDisableStrategy::NotDeclared,
+            candidates => ServiceDisableStrategy::Ambiguous {
+                candidates: candidates.to_vec(),
+            },
+        };
     }
 
     ServiceDisableStrategy::NotDeclared
@@ -226,13 +236,15 @@ mod tests {
     }
 
     #[test]
-    fn disable_distinguishes_system_only_service() {
+    fn disable_creates_declaration_for_system_only_service() {
         let mut system = system();
         system.enabled_services.insert("sshd".to_string());
 
         assert_eq!(
             disable_service_strategy(&config(), &system, "sshd"),
-            ServiceDisableStrategy::SystemOnly
+            ServiceDisableStrategy::ExistingFile {
+                path: PathBuf::from("services.nix"),
+            }
         );
     }
 }

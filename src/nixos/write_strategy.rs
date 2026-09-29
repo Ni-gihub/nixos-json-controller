@@ -136,10 +136,7 @@ pub fn disable_service_strategy(
 }
 
 fn paths<'a>(paths: impl IntoIterator<Item = &'a Path>) -> Vec<PathBuf> {
-    paths
-        .into_iter()
-        .map(Path::to_path_buf)
-        .collect()
+    paths.into_iter().map(Path::to_path_buf).collect()
 }
 
 #[cfg(test)]
@@ -155,15 +152,19 @@ mod tests {
                     path: PathBuf::from("packages.nix"),
                     has_system_packages: true,
                     has_systemd_services: false,
+                    has_service_options: false,
                     declared_packages: BTreeSet::new(),
                     declared_services: BTreeSet::new(),
+                    imports: Vec::new(),
                 },
                 ConfigFile {
                     path: PathBuf::from("services.nix"),
                     has_system_packages: false,
                     has_systemd_services: true,
+                    has_service_options: true,
                     declared_packages: BTreeSet::new(),
                     declared_services: BTreeSet::new(),
+                    imports: Vec::new(),
                 },
             ],
         }

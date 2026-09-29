@@ -40,6 +40,9 @@ fn write_atomic(path: &Path, content: &str) -> Result<(), String> {
         .and_then(|name| name.to_str())
         .ok_or_else(|| format!("invalid output path: {}", path.display()))?;
 
+    let metadata = fs::metadata(path)
+        .map_err(|e| format!("failed to inspect {}: {}", path.display(), e))?;
+
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|e| format!("failed to create temporary path: {}", e))?
@@ -50,13 +53,22 @@ fn write_atomic(path: &Path, content: &str) -> Result<(), String> {
     fs::write(&temporary, content)
         .map_err(|e| format!("failed to write temporary file {}: {}", temporary.display(), e))?;
 
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        fs::set_permissions(&temporary, metadata.permissions()).map_err(|e| {
+            format!(
+                "failed to preserve permissions on {}: {}",
+                temporary.display(),
+                e
+            )
+        })?;
+    }
+
     if let Err(error) = fs::rename(&temporary, path) {
         let _ = fs::remove_file(&temporary);
-        return Err(format!(
-            "failed to replace {}: {}",
-            path.display(),
-            error
-        ));
+        return Err(format!("failed to replace {}: {}", path.display(), error));
     }
 
     Ok(())
@@ -68,19 +80,12 @@ mod tests {
 
     #[test]
     fn writes_package_changes_atomically() {
-        let directory = std::env::temp_dir().join(format!(
-            "nxc-writer-{}",
-            std::process::id()
-        ));
-
+        let directory =
+            std::env::temp_dir().join(format!("nxc-writer-{}", std::process::id()));
         fs::create_dir_all(&directory).unwrap();
 
         let path = directory.join("packages.nix");
-        fs::write(
-            &path,
-            "environment.systemPackages = with pkgs; [\n];\n",
-        )
-        .unwrap();
+        fs::write(&path, "environment.systemPackages = with pkgs; [\n];\n").unwrap();
 
         install_package(&path, "firefox").unwrap();
 
@@ -92,11 +97,8 @@ mod tests {
 
     #[test]
     fn removes_package_from_file() {
-        let directory = std::env::temp_dir().join(format!(
-            "nxc-writer-remove-{}",
-            std::process::id()
-        ));
-
+        let directory =
+            std::env::temp_dir().join(format!("nxc-writer-remove-{}", std::process::id()));
         fs::create_dir_all(&directory).unwrap();
 
         let path = directory.join("packages.nix");
@@ -111,6 +113,29 @@ mod tests {
         let content = fs::read_to_string(&path).unwrap();
         assert!(!content.contains("\nfirefox\n"));
         assert!(content.contains("\ngit\n"));
+
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn preserves_file_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let directory =
+            std::env::temp_dir().join(format!("nxc-writer-perms-{}", std::process::id()));
+        fs::create_dir_all(&directory).unwrap();
+
+        let path = directory.join("config.nix");
+        fs::write(&path, "{\n}\n").unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o640)).unwrap();
+
+        enable_service(&path, "openssh").unwrap();
+
+        assert_eq!(
+            fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o640
+        );
 
         let _ = fs::remove_dir_all(directory);
     }

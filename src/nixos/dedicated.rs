@@ -230,22 +230,7 @@ fn ensure_import(
         return Ok(());
     }
 
-    let candidates = import_targets(flake_root, config)?;
-    let target = match candidates.as_slice() {
-        [target] => target.clone(),
-        [] => {
-            return Err(
-                "cannot connect NXC dedicated module: no unambiguous imports list was found"
-                    .to_string(),
-            );
-        }
-        _ => {
-            return Err(format!(
-                "cannot connect NXC dedicated module: multiple imports lists were found: {}",
-                format_paths(&candidates),
-            ));
-        }
-    };
+    let target = find_import_target(config)?;
 
     let backup = FileBackup::capture(&target)?;
     let content = backup.content.clone();
@@ -336,10 +321,7 @@ fn find_import_target(config: &ConfigState) -> Result<PathBuf, String> {
     roots.sort();
 
     if roots.is_empty() {
-        return Err(
-            "cannot connect NXC dedicated module: no NixOS module graph root was found"
-                .to_string(),
-        );
+        return Err("cannot connect NXC dedicated module: no NixOS module graph root was found".to_string());
     }
 
     let ranked = roots
@@ -349,10 +331,7 @@ fn find_import_target(config: &ConfigState) -> Result<PathBuf, String> {
 
     let best_score = ranked.iter().map(|(score, _)| *score).max().unwrap_or(0);
     if best_score < 60 {
-        return Err(
-            "cannot connect NXC dedicated module: no conventional NixOS module graph root was found"
-                .to_string(),
-        );
+        return Err("cannot connect NXC dedicated module: no conventional NixOS module graph root was found".to_string());
     }
     let best = ranked
         .into_iter()
@@ -584,6 +563,7 @@ fn format_paths(paths: &[PathBuf]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::nixos::config::{ConfigFile, WriteSafety};
 
     #[test]
     fn rejects_existing_package_file_without_nxc_shape() {

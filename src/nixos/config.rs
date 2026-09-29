@@ -134,12 +134,12 @@ fn inspect_file(path: PathBuf, content: &str) -> ConfigFile {
         has_service_options: content.contains("services.") && content.contains(".enable"),
         declared_packages,
         declared_services,
-        write_safety: classify_write_safety(content, &imports),
+        write_safety: classify_write_safety(&path, content, &imports),
         imports,
     }
 }
 
-fn classify_write_safety(content: &str, imports: &[PathBuf]) -> WriteSafety {
+fn classify_write_safety(path: &Path, content: &str, imports: &[PathBuf]) -> WriteSafety {
     // Existing files are edited only when their role is simple enough to be
     // established without guessing the user's module organization.
     //
@@ -172,30 +172,38 @@ fn classify_write_safety(content: &str, imports: &[PathBuf]) -> WriteSafety {
     let package_assignments = count_assignment(content, "environment.systemPackages");
     let service_assignments = count_service_enable_assignments(content);
 
-    // A file with exactly one relevant definition is potentially a leaf module
-    // whose purpose cannot be inferred safely. Only conventional aggregate
-    // files are accepted in that case. Files with multiple declarations are
-    // treated as explicit aggregate configuration files.
-    if package_assignments == 1 || service_assignments == 1 {
-        let aggregate_name = content_filename_is_aggregate(content);
-        if !aggregate_name {
-            return WriteSafety::Unsafe;
-        }
+    if package_assignments > 1 || service_assignments > 1 {
+        return WriteSafety::Unsafe;
     }
 
-    if package_assignments > 1 || service_assignments > 1 {
+    if package_assignments == 0 && service_assignments == 0 {
+        return WriteSafety::Safe;
+    }
+
+    // A single declaration is editable only in a conventional aggregate file.
+    // A file such as modules/browser/firefox.nix may be syntactically simple,
+    // but its intended scope cannot be inferred safely by NXC.
+    if !is_conventional_aggregate_file(path) {
         return WriteSafety::Unsafe;
     }
 
     WriteSafety::Safe
 }
 
-fn content_filename_is_aggregate(content: &str) -> bool {
-    // The caller cannot rely on path semantics alone here; these markers are
-    // intentionally narrow and only recognize common aggregate module names.
-    // The actual path check is performed by the path-aware helper below.
-    let _ = content;
-    true
+fn is_conventional_aggregate_file(path: &Path) -> bool {
+    matches!(
+        path.file_stem().and_then(|name| name.to_str()),
+        Some(
+            "configuration"
+                | "packages"
+                | "package"
+                | "services"
+                | "service"
+                | "system"
+                | "system-packages"
+                | "system-services"
+        )
+    )
 }
 
 fn count_assignment(content: &str, attribute: &str) -> usize {

@@ -57,7 +57,7 @@ DiscoveryによってNixOS設定の場所と使用する `nixosConfiguration` �
 * JSONによる構造化された入力
 * Rustによる入力検証・名前解決・実行制御
 * NixOSの既存設定を利用した設定変更
-* 既存構成を編集できない場合のNXC専用パッケージmodule fallback
+* 既存構成を編集できない場合のNXC専用package/service module fallback
 * 現在のsystem-wideなコマンド/アプリ一覧表示
 * `nixos-rebuild switch` まで一連の処理を実行
 * NixOS設定用Flakeの自動Discovery
@@ -828,15 +828,6 @@ src/
     ├── application.rs
     ├── config.rs
     ├── dedicated.rs
-    ├── discovery/
-    │   ├── candidate.rs
-    │   ├── context.rs
-    │   ├── inspection.rs
-    │   ├── nix.rs
-    │   ├── result.rs
-    │   ├── search.rs
-    │   ├── selector.rs
-    │   └── state.rs
     ├── flake.rs
     ├── generator.rs
     ├── import.rs

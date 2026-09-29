@@ -24,43 +24,33 @@ impl EvaluatedProvenance {
         self.definitions
             .iter()
             .filter_map(|definition| {
-                let candidate = if definition.file.starts_with(flake_root) {
-                    definition.file.clone()
-                } else {
-                    let source_root = source_root.as_ref()?;
-                    let relative = definition.file.strip_prefix(source_root).ok()?;
-                    flake_root.join(relative)
-                };
-
-                candidate.is_file().then_some(candidate)
+                resolve_definition_file(flake_root, source_root.as_deref(), &definition.file)
             })
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect()
     }
 
-    pub fn contains_local_package(
-        &self,
-        flake_root: &Path,
-        package: &str,
-    ) -> bool {
+    pub fn contains_local_package(&self, flake_root: &Path, package: &str) -> bool {
+        let source_root = flake_source_root(flake_root).ok();
+
         self.definitions.iter().any(|definition| {
-            definition_is_local(flake_root, &definition.file)
-                && value_contains_package(&definition.value, package)
+            resolve_definition_file(flake_root, source_root.as_deref(), &definition.file)
+                .is_some_and(|_| value_contains_package(&definition.value, package))
         })
     }
 
-    pub fn contains_local_boolean(
-        &self,
-        flake_root: &Path,
-        expected: bool,
-    ) -> bool {
+    pub fn contains_local_boolean(&self, flake_root: &Path, expected: bool) -> bool {
+        let source_root = flake_source_root(flake_root).ok();
+
         self.definitions.iter().any(|definition| {
-            definition_is_local(flake_root, &definition.file)
-                && definition
-                    .value
-                    .as_bool()
-                    .is_some_and(|value| value == expected)
+            resolve_definition_file(flake_root, source_root.as_deref(), &definition.file)
+                .is_some_and(|_| {
+                    definition
+                        .value
+                        .as_bool()
+                        .is_some_and(|value| value == expected)
+                })
         })
     }
 }
@@ -134,20 +124,20 @@ pub fn evaluate_service_provenance(
     )
 }
 
-fn definition_is_local(flake_root: &Path, definition_file: &Path) -> bool {
+fn resolve_definition_file(
+    flake_root: &Path,
+    source_root: Option<&Path>,
+    definition_file: &Path,
+) -> Option<PathBuf> {
     if definition_file.starts_with(flake_root) {
-        return true;
+        return definition_file.is_file().then(|| definition_file.to_path_buf());
     }
 
-    flake_source_root(flake_root)
-        .ok()
-        .and_then(|source_root| {
-            definition_file
-                .strip_prefix(source_root)
-                .ok()
-                .map(|_| ())
-        })
-        .is_some()
+    let source_root = source_root?;
+    let relative = definition_file.strip_prefix(source_root).ok()?;
+    let candidate = flake_root.join(relative);
+
+    candidate.is_file().then_some(candidate)
 }
 
 fn flake_source_root(flake_root: &Path) -> Result<PathBuf, String> {
@@ -156,7 +146,7 @@ fn flake_source_root(flake_root: &Path) -> Result<PathBuf, String> {
             "eval",
             "--raw",
             "--expr",
-            "builtins.getFlake (toString ./.).sourceInfo.outPath",
+            "(builtins.getFlake (toString ./.)).sourceInfo.outPath",
         ])
         .current_dir(flake_root)
         .output()
@@ -169,10 +159,11 @@ fn flake_source_root(flake_root: &Path) -> Result<PathBuf, String> {
         ));
     }
 
-    let path = String::from_utf8(output.stdout)
-        .map_err(|error| format!("invalid flake source path: {error}"))?;
-
-    let path = PathBuf::from(path.trim());
+    let path = PathBuf::from(
+        String::from_utf8(output.stdout)
+            .map_err(|error| format!("invalid flake source path: {error}"))?
+            .trim(),
+    );
 
     if path.is_dir() {
         Ok(path)
@@ -222,23 +213,28 @@ mod tests {
     }
 
     #[test]
-    fn recognizes_boolean_option_definition() {
-        let provenance = EvaluatedProvenance {
-            option: "services.openssh.enable".to_string(),
-            definitions: vec![OptionDefinition {
-                file: PathBuf::from("/tmp/configuration.nix"),
-                value: Value::Bool(true),
-            }],
-        };
+    fn resolves_worktree_definition() {
+        let root = std::env::temp_dir().join(format!(
+            "nxc-provenance-{}",
+            std::process::id()
+        ));
+        let local = root.join("configuration.nix");
 
-        assert!(provenance.contains_local_boolean(Path::new("/tmp"), true));
-        assert!(!provenance.contains_local_boolean(Path::new("/tmp"), false));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(&local, "{}").unwrap();
+
+        assert_eq!(
+            resolve_definition_file(&root, None, &local),
+            Some(local.clone())
+        );
+
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]
-    fn resolves_store_source_files_back_to_the_flake() {
+    fn resolves_store_source_definition() {
         let root = std::env::temp_dir().join(format!(
-            "nxc-provenance-{}",
+            "nxc-provenance-source-{}",
             std::process::id()
         ));
         let source = root.join("source");
@@ -247,24 +243,39 @@ mod tests {
         std::fs::create_dir_all(&source).unwrap();
         std::fs::write(&local, "{}").unwrap();
 
-        let provenance = EvaluatedProvenance {
-            option: "services.openssh.enable".to_string(),
-            definitions: vec![OptionDefinition {
-                file: source.join("configuration.nix"),
-                value: Value::Bool(true),
-            }],
-        };
+        assert_eq!(
+            resolve_definition_file(
+                &root,
+                Some(&source),
+                &source.join("configuration.nix")
+            ),
+            Some(local)
+        );
 
-        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]
-    fn excludes_unrelated_store_files() {
+    fn excludes_unrelated_store_definition() {
         let root = std::env::temp_dir().join(format!(
             "nxc-provenance-unrelated-{}",
             std::process::id()
         ));
+        let source = root.join("source");
+        let local = root.join("configuration.nix");
 
-        let _ = root;
+        std::fs::create_dir_all(&source).unwrap();
+        std::fs::write(&local, "{}").unwrap();
+
+        assert_eq!(
+            resolve_definition_file(
+                &root,
+                Some(&source),
+                Path::new("/nix/store/other-source/configuration.nix")
+            ),
+            None
+        );
+
+        let _ = std::fs::remove_dir_all(root);
     }
 }

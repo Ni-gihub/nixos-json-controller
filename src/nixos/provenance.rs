@@ -204,15 +204,19 @@ fn string_matches_package(value: &str, package: &str) -> bool {
         return true;
     }
 
-    let Some(position) = normalized.find(&format!("-{package}-")) else {
+    let Some(marker) = normalized.find(&format!("-{package}-")) else {
         return false;
     };
 
-    normalized[position + package.len() + 2..]
-        .split('-')
-        .next()
-        .is_some_and(|version| version.chars().next().is_some_and(|c| c.is_ascii_digit()))
+    let suffix = &normalized[marker + package.len() + 2..];
+    let version = suffix.split('-').next().unwrap_or_default();
+    !version.is_empty()
+        && version
+            .chars()
+            .next()
+            .is_some_and(|character| character.is_ascii_digit())
 }
+
 
 #[cfg(test)]
 mod tests {

@@ -222,6 +222,8 @@ fn module_add_package_requires_package_section() {
 // Flake discovery
 // ============================================================
 
+#[ignore = "requires the developer's NixOS configuration"]
+
 #[test]
 fn repository_paths() {
     ensure_discovery_state();
@@ -254,6 +256,8 @@ fn repository_paths() {
     );
 }
 
+#[ignore = "requires the developer's NixOS configuration"]
+
 #[test]
 fn repository_path_is_not_controller_repository() {
     ensure_discovery_state();
@@ -272,6 +276,8 @@ fn repository_path_is_not_controller_repository() {
         controller_repository
     );
 }
+
+#[ignore = "requires the developer's NixOS configuration"]
 
 #[test]
 fn repository_contains_nixos_configuration() {
@@ -296,6 +302,8 @@ fn repository_contains_nixos_configuration() {
 // ============================================================
 // Rebuild
 // ============================================================
+
+#[ignore = "requires the developer's NixOS configuration"]
 
 #[test]
 fn create_rebuild_command() {

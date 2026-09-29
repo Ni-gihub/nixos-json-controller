@@ -67,7 +67,7 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
 
       - name: Run Nix-dependent smoke test
-        run: cargo test nix_command_is_available -- --ignored --exact
+        run: cargo test nix_command_is_available -- --ignored
 
   build:
     name: Build

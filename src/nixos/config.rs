@@ -108,7 +108,14 @@ fn collect_nix_files(
             continue;
         }
 
-        if path.is_dir() {
+        let metadata = fs::symlink_metadata(&path)
+            .map_err(|e| format!("failed to inspect {}: {}", path.display(), e))?;
+
+        if metadata.file_type().is_symlink() {
+            continue;
+        }
+
+        if metadata.file_type().is_dir() {
             collect_nix_files(&path, depth + 1, paths)?;
         } else if path.extension().and_then(|ext| ext.to_str()) == Some("nix") {
             paths.push(path);

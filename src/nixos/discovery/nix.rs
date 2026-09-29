@@ -456,6 +456,18 @@ pub fn validate_nixos_configuration(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    #[ignore = "requires Nix in the test environment"]
+    fn nix_command_is_available() {
+        let output = std::process::Command::new("nix")
+            .args(["eval", "--raw", "--expr", "builtins.toString (1 + 1)"])
+            .output()
+            .expect("nix must be installed for Nix-dependent tests");
+
+        assert!(output.status.success(), "nix eval failed: {:?}", output);
+        assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "2");
+    }
+
     use super::*;
 
     const NIX_CONFIG_PATH: &str =

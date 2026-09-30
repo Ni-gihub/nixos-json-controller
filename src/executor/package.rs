@@ -17,6 +17,7 @@ use super::error::ExecutorError;
 pub struct PackageChange {
     pub backups: Vec<FileBackup>,
     pub created_files: Vec<PathBuf>,
+    pub staged_files: Vec<nixos::dedicated::StagedFile>,
 }
 
 impl PackageChange {
@@ -25,6 +26,10 @@ impl PackageChange {
     }
 
     pub fn rollback(&self) -> Result<(), String> {
+        for staged in self.staged_files.iter().rev() {
+            nixos::dedicated::restore_index_state(staged)?;
+        }
+
         for backup in self.backups.iter().rev() {
             backup.restore()?;
         }
@@ -45,6 +50,7 @@ impl From<DedicatedPackageChange> for PackageChange {
         Self {
             backups: change.backups,
             created_files: change.created_files,
+            staged_files: change.staged_files,
         }
     }
 }
@@ -93,6 +99,7 @@ pub fn execute_with_change(plan: ExecutionPlan) -> Result<PackageChange, Executo
                     let change = PackageChange {
                         backups: vec![backup],
                         created_files: Vec::new(),
+                        staged_files: Vec::new(),
                     };
 
                     // Configuration evaluation is intentionally deferred until rebuild.

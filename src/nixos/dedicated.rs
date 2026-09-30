@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use super::config::ConfigState;
 use super::module::find_matching_delimiter;
@@ -36,10 +37,15 @@ impl FileBackup {
 pub struct DedicatedPackageChange {
     pub backups: Vec<FileBackup>,
     pub created_files: Vec<PathBuf>,
+    pub staged_files: Vec<StagedFile>,
 }
 
 impl DedicatedPackageChange {
     pub fn rollback(&self) -> Result<(), String> {
+        for staged in self.staged_files.iter().rev() {
+            restore_index_state(staged)?;
+        }
+
         for backup in &self.backups {
             backup.restore()?;
         }
@@ -99,6 +105,12 @@ pub fn install_package(
         return Err(error);
     }
 
+    for path in change.created_files.clone() {
+        if let Some(staged) = stage_new_file(flake_root, &path)? {
+            change.staged_files.push(staged);
+        }
+    }
+
     Ok(change)
 }
 
@@ -106,10 +118,15 @@ pub fn install_package(
 pub struct DedicatedServiceChange {
     pub backups: Vec<FileBackup>,
     pub created_files: Vec<PathBuf>,
+    pub staged_files: Vec<StagedFile>,
 }
 
 impl DedicatedServiceChange {
     pub fn rollback(&self) -> Result<(), String> {
+        for staged in self.staged_files.iter().rev() {
+            restore_index_state(staged)?;
+        }
+
         for backup in &self.backups {
             backup.restore()?;
         }
@@ -181,6 +198,12 @@ fn write_service(
         return Err(error);
     }
 
+    for path in change.created_files.clone() {
+        if let Some(staged) = stage_new_file(flake_root, &path)? {
+            change.staged_files.push(staged);
+        }
+    }
+
     Ok(change)
 }
 
@@ -218,6 +241,96 @@ pub fn dedicated_package_path(flake_root: &Path) -> PathBuf {
 
 pub fn dedicated_service_path(flake_root: &Path) -> PathBuf {
     flake_root.join(DEDICATED_SERVICE_MODULE)
+}
+
+#[derive(Debug, Clone)]
+pub struct StagedFile {
+    pub path: PathBuf,
+    pub previous_index: Option<String>,
+}
+
+/// Stage only files newly created by NXC so Git-backed flakes can see them during evaluation.
+pub fn stage_new_file(flake_root: &Path, path: &Path) -> Result<Option<StagedFile>, String> {
+    let output = match Command::new("git")
+        .args(["-C", flake_root.to_string_lossy().as_ref(), "rev-parse", "--is-inside-work-tree"])
+        .output()
+    {
+        Ok(output) => output,
+        Err(_) => return Ok(None),
+    };
+
+    if !output.status.success() || String::from_utf8_lossy(&output.stdout).trim() != "true" {
+        return Ok(None);
+    }
+
+    let relative = path.strip_prefix(flake_root).map_err(|e| {
+        format!("failed to determine Git path for {}: {}", path.display(), e)
+    })?;
+
+    let index_state = Command::new("git")
+        .args(["-C", flake_root.to_string_lossy().as_ref(), "ls-files", "--stage", "--"])
+        .arg(relative)
+        .output()
+        .map_err(|e| format!("failed to inspect Git index for {}: {}", path.display(), e))?;
+
+    if !index_state.status.success() {
+        return Err(format!("failed to inspect Git index for {}", path.display()));
+    }
+
+    let previous_index = String::from_utf8_lossy(&index_state.stdout).trim().to_string();
+    let previous_index = (!previous_index.is_empty()).then_some(previous_index);
+
+    let status = Command::new("git")
+        .args(["-C", flake_root.to_string_lossy().as_ref(), "add", "--"])
+        .arg(relative)
+        .status()
+        .map_err(|e| format!("failed to stage {}: {}", path.display(), e))?;
+
+    if !status.success() {
+        return Err(format!("failed to stage newly created NXC file: {}", path.display()));
+    }
+
+    Ok(Some(StagedFile { path: path.to_path_buf(), previous_index }))
+}
+
+pub fn restore_index_state(staged: &StagedFile) -> Result<(), String> {
+    let parent = staged.path.parent().ok_or_else(|| format!("invalid file path: {}", staged.path.display()))?;
+
+    if let Some(index_entry) = &staged.previous_index {
+        let mut child = Command::new("git")
+            .args(["-C", parent.to_string_lossy().as_ref(), "update-index", "--index-info"])
+            .stdin(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("failed to start Git index restore for {}: {}", staged.path.display(), e))?;
+
+        use std::io::Write;
+        child.stdin.as_mut()
+            .ok_or_else(|| "failed to open git stdin".to_string())?
+            .write_all(format!("{index_entry}\n").as_bytes())
+            .map_err(|e| format!("failed to restore Git index for {}: {}", staged.path.display(), e))?;
+
+        let status = child.wait()
+            .map_err(|e| format!("failed to restore Git index for {}: {}", staged.path.display(), e))?;
+
+        if !status.success() {
+            return Err(format!("failed to restore Git index for {}", staged.path.display()));
+        }
+    } else {
+        let file_name = staged.path.file_name()
+            .ok_or_else(|| format!("invalid file path: {}", staged.path.display()))?;
+
+        let status = Command::new("git")
+            .args(["-C", parent.to_string_lossy().as_ref(), "rm", "--cached", "--ignore-unmatch", "--"])
+            .arg(file_name)
+            .status()
+            .map_err(|e| format!("failed to remove {} from Git index: {}", staged.path.display(), e))?;
+
+        if !status.success() {
+            return Err(format!("failed to restore Git index for {}", staged.path.display()));
+        }
+    }
+
+    Ok(())
 }
 
 fn ensure_import(

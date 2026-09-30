@@ -1,5 +1,5 @@
 use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 
 use serde::{Deserialize, Serialize};
@@ -19,38 +19,29 @@ pub struct EvaluatedProvenance {
 
 impl EvaluatedProvenance {
     pub fn local_files(&self, flake_root: &Path) -> Vec<PathBuf> {
-        let source_root = flake_source_root(flake_root).ok();
-
         self.definitions
             .iter()
-            .filter_map(|definition| {
-                resolve_definition_file(flake_root, source_root.as_deref(), &definition.file)
-            })
+            .filter_map(|definition| resolve_definition_file(flake_root, &definition.file))
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect()
     }
 
     pub fn contains_local_package(&self, flake_root: &Path, package: &str) -> bool {
-        let source_root = flake_source_root(flake_root).ok();
-
         self.definitions.iter().any(|definition| {
-            resolve_definition_file(flake_root, source_root.as_deref(), &definition.file)
+            resolve_definition_file(flake_root, &definition.file)
                 .is_some_and(|_| value_contains_package(&definition.value, package))
         })
     }
 
     pub fn contains_local_boolean(&self, flake_root: &Path, expected: bool) -> bool {
-        let source_root = flake_source_root(flake_root).ok();
-
         self.definitions.iter().any(|definition| {
-            resolve_definition_file(flake_root, source_root.as_deref(), &definition.file)
-                .is_some_and(|_| {
-                    definition
-                        .value
-                        .as_bool()
-                        .is_some_and(|value| value == expected)
-                })
+            resolve_definition_file(flake_root, &definition.file).is_some_and(|_| {
+                definition
+                    .value
+                    .as_bool()
+                    .is_some_and(|value| value == expected)
+            })
         })
     }
 }
@@ -64,25 +55,8 @@ pub fn evaluate_option(
         ".#nixosConfigurations.{configuration_name}.options.{option}.definitionsWithLocations"
     );
 
-    let apply = r#"
-        definitions:
-        let
-          sourceRoot = toString (builtins.getFlake (toString ./.)).sourceInfo.outPath;
-          relativize = definition:
-            let
-              file = toString definition.file;
-              prefix = sourceRoot + "/";
-            in
-              definition // {
-                file = if builtins.substring 0 (builtins.stringLength prefix) file == prefix
-                       then builtins.substring (builtins.stringLength prefix) (builtins.stringLength file) file
-                       else file;
-              };
-        in map relativize definitions
-    "#;
-
     let output = Command::new("nix")
-        .args(["eval", "--json", &expression, "--apply", apply])
+        .args(["eval", "--json", &expression])
         .current_dir(flake_root)
         .output()
         .map_err(|error| format!("failed to execute nix: {error}"))?;
@@ -146,11 +120,7 @@ pub fn evaluate_service_provenance(
     )
 }
 
-fn resolve_definition_file(
-    flake_root: &Path,
-    source_root: Option<&Path>,
-    definition_file: &Path,
-) -> Option<PathBuf> {
+fn resolve_definition_file(flake_root: &Path, definition_file: &Path) -> Option<PathBuf> {
     if definition_file.is_relative() {
         let candidate = flake_root.join(definition_file);
         return candidate.is_file().then_some(candidate);
@@ -162,46 +132,41 @@ fn resolve_definition_file(
             .then(|| definition_file.to_path_buf());
     }
 
-    let source_root = source_root?;
-    let relative = definition_file.strip_prefix(source_root).ok()?;
-    let candidate = flake_root.join(relative);
+    if let Some(relative) = store_source_relative_path(definition_file) {
+        let candidate = flake_root.join(relative);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+    }
 
-    candidate.is_file().then_some(candidate)
+    None
 }
 
-fn flake_source_root(flake_root: &Path) -> Result<PathBuf, String> {
-    let output = Command::new("nix")
-        .args([
-            "eval",
-            "--raw",
-            "--expr",
-            "(builtins.getFlake (toString ./.)).sourceInfo.outPath",
-        ])
-        .current_dir(flake_root)
-        .output()
-        .map_err(|error| format!("failed to execute nix: {error}"))?;
+fn store_source_relative_path(path: &Path) -> Option<&Path> {
+    let mut components = path.components();
 
-    if !output.status.success() {
-        return Err(format!(
-            "failed to determine flake source path: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        ));
+    if components.next() != Some(Component::RootDir) {
+        return None;
     }
 
-    let path = PathBuf::from(
-        String::from_utf8(output.stdout)
-            .map_err(|error| format!("invalid flake source path: {error}"))?
-            .trim(),
-    );
-
-    if path.is_dir() {
-        Ok(path)
-    } else {
-        Err(format!(
-            "flake source path does not exist: {}",
-            path.display()
-        ))
+    match components.next() {
+        Some(Component::Normal(component)) if component == "nix" => {}
+        _ => return None,
     }
+
+    match components.next() {
+        Some(Component::Normal(component)) if component == "store" => {}
+        _ => return None,
+    }
+
+    let source_component = components.next()?;
+    let source_name = source_component.as_os_str().to_str()?;
+    if !source_name.ends_with("-source") {
+        return None;
+    }
+
+    let relative = components.as_path();
+    (!relative.as_os_str().is_empty()).then_some(relative)
 }
 
 fn value_contains_package(value: &Value, package: &str) -> bool {
@@ -267,7 +232,7 @@ mod tests {
         std::fs::write(&local, "{}").unwrap();
 
         assert_eq!(
-            resolve_definition_file(&root, None, &local),
+            resolve_definition_file(&root, &local),
             Some(local.clone())
         );
 
@@ -284,7 +249,7 @@ mod tests {
         std::fs::write(&local, "{}").unwrap();
 
         assert_eq!(
-            resolve_definition_file(&root, None, Path::new("nxc/packages.nix")),
+            resolve_definition_file(&root, Path::new("nxc/packages.nix")),
             Some(local)
         );
 
@@ -292,43 +257,42 @@ mod tests {
     }
 
     #[test]
-    fn resolves_store_source_definition() {
-        let root =
-            std::env::temp_dir().join(format!("nxc-provenance-source-{}", std::process::id()));
-        let source = std::env::temp_dir().join(format!(
+    fn resolves_store_source_definition_without_source_root() {
+        let root = std::env::temp_dir().join(format!(
             "nxc-provenance-store-source-{}",
             std::process::id()
         ));
-        let local = root.join("configuration.nix");
+        let local = root.join("nxc/packages.nix");
 
-        std::fs::create_dir_all(&root).unwrap();
-        std::fs::create_dir_all(&source).unwrap();
-        std::fs::write(&local, "{}").unwrap();
-
-        assert_eq!(
-            resolve_definition_file(&root, Some(&source), &source.join("configuration.nix")),
-            Some(local)
-        );
-
-        let _ = std::fs::remove_dir_all(root);
-        let _ = std::fs::remove_dir_all(source);
-    }
-
-    #[test]
-    fn excludes_unrelated_store_definition() {
-        let root =
-            std::env::temp_dir().join(format!("nxc-provenance-unrelated-{}", std::process::id()));
-        let source = root.join("source");
-        let local = root.join("configuration.nix");
-
-        std::fs::create_dir_all(&source).unwrap();
+        std::fs::create_dir_all(local.parent().unwrap()).unwrap();
         std::fs::write(&local, "{}").unwrap();
 
         assert_eq!(
             resolve_definition_file(
                 &root,
-                Some(&source),
-                Path::new("/nix/store/other-source/configuration.nix")
+                Path::new("/nix/store/0123456789abcdef-source/nxc/packages.nix")
+            ),
+            Some(local)
+        );
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn excludes_unrelated_store_definition() {
+        let root = std::env::temp_dir().join(format!(
+            "nxc-provenance-unrelated-{}",
+            std::process::id()
+        ));
+        let local = root.join("configuration.nix");
+
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(&local, "{}").unwrap();
+
+        assert_eq!(
+            resolve_definition_file(
+                &root,
+                Path::new("/nix/store/other-source/nixos/modules/foo.nix")
             ),
             None
         );

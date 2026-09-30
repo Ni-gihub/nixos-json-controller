@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use super::config::ConfigState;
 use super::module::find_matching_delimiter;
@@ -36,10 +37,15 @@ impl FileBackup {
 pub struct DedicatedPackageChange {
     pub backups: Vec<FileBackup>,
     pub created_files: Vec<PathBuf>,
+    pub staged_files: Vec<PathBuf>,
 }
 
 impl DedicatedPackageChange {
     pub fn rollback(&self) -> Result<(), String> {
+        for path in self.staged_files.iter().rev() {
+            unstage_new_file(path)?;
+        }
+
         for backup in &self.backups {
             backup.restore()?;
         }
@@ -99,6 +105,14 @@ pub fn install_package(
         return Err(error);
     }
 
+    for path in change.created_files.clone() {
+        if let Err(error) = stage_new_file(flake_root, &path) {
+            let _ = change.rollback();
+            return Err(error);
+        }
+        change.staged_files.push(path);
+    }
+
     Ok(change)
 }
 
@@ -106,10 +120,15 @@ pub fn install_package(
 pub struct DedicatedServiceChange {
     pub backups: Vec<FileBackup>,
     pub created_files: Vec<PathBuf>,
+    pub staged_files: Vec<PathBuf>,
 }
 
 impl DedicatedServiceChange {
     pub fn rollback(&self) -> Result<(), String> {
+        for path in self.staged_files.iter().rev() {
+            unstage_new_file(path)?;
+        }
+
         for backup in &self.backups {
             backup.restore()?;
         }
@@ -181,6 +200,14 @@ fn write_service(
         return Err(error);
     }
 
+    for path in change.created_files.clone() {
+        if let Err(error) = stage_new_file(flake_root, &path) {
+            let _ = change.rollback();
+            return Err(error);
+        }
+        change.staged_files.push(path);
+    }
+
     Ok(change)
 }
 
@@ -218,6 +245,55 @@ pub fn dedicated_package_path(flake_root: &Path) -> PathBuf {
 
 pub fn dedicated_service_path(flake_root: &Path) -> PathBuf {
     flake_root.join(DEDICATED_SERVICE_MODULE)
+}
+
+/// Stage only files newly created by NXC so Git-backed flakes can see them during evaluation.
+pub fn stage_new_file(flake_root: &Path, path: &Path) -> Result<(), String> {
+    let output = match Command::new("git")
+        .args(["-C", flake_root.to_string_lossy().as_ref(), "rev-parse", "--is-inside-work-tree"])
+        .output()
+    {
+        Ok(output) => output,
+        Err(_) => return Ok(()),
+    };
+
+    if !output.status.success() || String::from_utf8_lossy(&output.stdout).trim() != "true" {
+        return Ok(());
+    }
+
+    let relative = path.strip_prefix(flake_root).map_err(|e| {
+        format!("failed to determine Git path for {}: {}", path.display(), e)
+    })?;
+
+    let status = Command::new("git")
+        .args(["-C", flake_root.to_string_lossy().as_ref(), "add", "--"])
+        .arg(relative)
+        .status()
+        .map_err(|e| format!("failed to stage {}: {}", path.display(), e))?;
+
+    if !status.success() {
+        return Err(format!("failed to stage newly created NXC file: {}", path.display()));
+    }
+
+    Ok(())
+}
+
+pub fn unstage_new_file(path: &Path) -> Result<(), String> {
+    let Some(parent) = path.parent() else {
+        return Ok(());
+    };
+
+    let status = Command::new("git")
+        .args(["-C", parent.to_string_lossy().as_ref(), "restore", "--staged", "--"])
+        .arg(path.file_name().unwrap_or_default())
+        .status()
+        .map_err(|e| format!("failed to unstage {}: {}", path.display(), e))?;
+
+    if !status.success() {
+        return Err(format!("failed to unstage newly created NXC file: {}", path.display()));
+    }
+
+    Ok(())
 }
 
 fn ensure_import(

@@ -145,11 +145,18 @@ fn resolve_definition_file(flake_root: &Path, definition_file: &Path) -> Option<
 fn store_source_relative_path(path: &Path) -> Option<&Path> {
     let mut components = path.components();
 
-    if components.next() != Some(Component::RootDir)
-        || components.next() != Some(Component::Normal("nix".as_ref()))
-        || components.next() != Some(Component::Normal("store".as_ref()))
-    {
+    if components.next() != Some(Component::RootDir) {
         return None;
+    }
+
+    match components.next() {
+        Some(Component::Normal(component)) if component == "nix" => {}
+        _ => return None,
+    }
+
+    match components.next() {
+        Some(Component::Normal(component)) if component == "store" => {}
+        _ => return None,
     }
 
     let source_component = components.next()?;

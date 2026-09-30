@@ -17,7 +17,7 @@ use super::error::ExecutorError;
 pub struct PackageChange {
     pub backups: Vec<FileBackup>,
     pub created_files: Vec<PathBuf>,
-    pub staged_files: Vec<PathBuf>,
+    pub staged_files: Vec<nixos::dedicated::StagedFile>,
 }
 
 impl PackageChange {
@@ -26,8 +26,8 @@ impl PackageChange {
     }
 
     pub fn rollback(&self) -> Result<(), String> {
-        for path in self.staged_files.iter().rev() {
-            nixos::dedicated::unstage_new_file(path)?;
+        for staged in self.staged_files.iter().rev() {
+            nixos::dedicated::restore_index_state(staged)?;
         }
 
         for backup in self.backups.iter().rev() {

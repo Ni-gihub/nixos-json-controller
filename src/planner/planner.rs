@@ -128,11 +128,13 @@ impl Planner {
         }
 
         if system.has_command(package) || system.has_package(package) {
-            return Ok(Self::no_change(
-                "system-only",
-                Vec::new(),
-                "package is present in the active system but has no local evaluated declaration",
-            ));
+            return Ok(PlanDetails {
+                strategy: "system-only".to_string(),
+                affected_files: Vec::new(),
+                change_required: false,
+                rebuild_required: true,
+                reason: "package is present in the active system but has no local evaluated declaration; rebuild is required to remove it from the active system".to_string(),
+            });
         }
 
         Ok(Self::no_change(

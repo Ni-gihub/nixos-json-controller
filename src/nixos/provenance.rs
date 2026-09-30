@@ -64,8 +64,25 @@ pub fn evaluate_option(
         ".#nixosConfigurations.{configuration_name}.options.{option}.definitionsWithLocations"
     );
 
+    let apply = r#"
+        definitions:
+        let
+          sourceRoot = toString (builtins.getFlake (toString ./.)).sourceInfo.outPath;
+          relativize = definition:
+            let
+              file = toString definition.file;
+              prefix = sourceRoot + "/";
+            in
+              definition // {
+                file = if builtins.substring 0 (builtins.stringLength prefix) file == prefix
+                       then builtins.substring (builtins.stringLength prefix) (builtins.stringLength file) file
+                       else file;
+              };
+        in map relativize definitions
+    "#;
+
     let output = Command::new("nix")
-        .args(["eval", "--json", &expression])
+        .args(["eval", "--json", &expression, "--apply", apply])
         .current_dir(flake_root)
         .output()
         .map_err(|error| format!("failed to execute nix: {error}"))?;
@@ -134,6 +151,11 @@ fn resolve_definition_file(
     source_root: Option<&Path>,
     definition_file: &Path,
 ) -> Option<PathBuf> {
+    if definition_file.is_relative() {
+        let candidate = flake_root.join(definition_file);
+        return candidate.is_file().then_some(candidate);
+    }
+
     if definition_file.starts_with(flake_root) {
         return definition_file
             .is_file()
@@ -247,6 +269,23 @@ mod tests {
         assert_eq!(
             resolve_definition_file(&root, None, &local),
             Some(local.clone())
+        );
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn resolves_relative_definition() {
+        let root =
+            std::env::temp_dir().join(format!("nxc-provenance-relative-{}", std::process::id()));
+        let local = root.join("nxc/packages.nix");
+
+        std::fs::create_dir_all(local.parent().unwrap()).unwrap();
+        std::fs::write(&local, "{}").unwrap();
+
+        assert_eq!(
+            resolve_definition_file(&root, None, Path::new("nxc/packages.nix")),
+            Some(local)
         );
 
         let _ = std::fs::remove_dir_all(root);

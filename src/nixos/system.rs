@@ -2,6 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use crate::dictionary::Dictionary;
+
 /// NixOSの現在世代から見えるsystem-wideな実行ファイル。
 ///
 /// NixOSではsystem-wideなパッケージのバイナリが
@@ -65,7 +67,20 @@ impl SystemState {
 
     /// systemd上で指定したsystem serviceが有効になっているか確認する。
     pub fn is_service_enabled(&self, service: &str) -> bool {
-        self.enabled_services.contains(service)
+        if self.enabled_services.contains(service) {
+            return true;
+        }
+
+        let Ok(dictionary) = Dictionary::load() else {
+            return false;
+        };
+
+        dictionary.services().any(|(canonical, aliases)| {
+            canonical == service
+                && aliases
+                    .iter()
+                    .any(|alias| self.enabled_services.contains(alias))
+        })
     }
 }
 
@@ -204,6 +219,30 @@ sshd.service enabled enabled
         assert_eq!(services.len(), 1);
         assert!(services.contains("sshd"));
         assert!(!services.contains("default.target"));
+    }
+
+    #[test]
+    fn service_state_resolves_canonical_name_to_systemd_alias() {
+        let state = SystemState {
+            current_generation: PathBuf::from("/nix/store/example-nixos-system"),
+            binaries: BTreeMap::new(),
+            packages: BTreeSet::new(),
+            enabled_services: BTreeSet::from(["sshd".to_string()]),
+        };
+
+        assert!(state.is_service_enabled("openssh"));
+    }
+
+    #[test]
+    fn service_state_rejects_unrelated_enabled_service() {
+        let state = SystemState {
+            current_generation: PathBuf::from("/nix/store/example-nixos-system"),
+            binaries: BTreeMap::new(),
+            packages: BTreeSet::new(),
+            enabled_services: BTreeSet::from(["nginx".to_string()]),
+        };
+
+        assert!(!state.is_service_enabled("openssh"));
     }
 
     #[test]

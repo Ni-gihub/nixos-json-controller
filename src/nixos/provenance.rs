@@ -103,7 +103,7 @@ pub fn evaluate_service_provenance(
     configuration_name: &str,
     service: &str,
 ) -> Result<EvaluatedProvenance, String> {
-    let services = evaluate_option(
+    let services = evaluate_optional_service_option(
         flake_root,
         configuration_name,
         &format!("services.{service}.enable"),
@@ -113,11 +113,26 @@ pub fn evaluate_service_provenance(
         return Ok(services);
     }
 
-    evaluate_option(
+    evaluate_optional_service_option(
         flake_root,
         configuration_name,
         &format!("systemd.services.{service}.enable"),
     )
+}
+
+fn evaluate_optional_service_option(
+    flake_root: &Path,
+    configuration_name: &str,
+    option: &str,
+) -> Result<EvaluatedProvenance, String> {
+    match evaluate_option(flake_root, configuration_name, option) {
+        Ok(provenance) => Ok(provenance),
+        Err(error) if error.contains("does not provide attribute") => Ok(EvaluatedProvenance {
+            option: option.to_string(),
+            definitions: Vec::new(),
+        }),
+        Err(error) => Err(error),
+    }
 }
 
 fn resolve_definition_file(flake_root: &Path, definition_file: &Path) -> Option<PathBuf> {

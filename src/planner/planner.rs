@@ -117,13 +117,33 @@ impl Planner {
             context.configuration_name(),
             package,
         )?;
-        let paths = provenance.local_files(context.flake_root());
+        let provenance_paths = provenance.local_files(context.flake_root());
+        let config = ConfigState::discover(context.flake_root())?;
 
-        if !paths.is_empty() {
+        // definitionsWithLocations can report multiple module definitions for
+        // the final environment.systemPackages value. Those locations are
+        // provenance, not necessarily files that directly declare this package.
+        // Select actual local package declarations for editing instead.
+        let direct_declarations = config.package_declarations(package);
+        let direct_paths: Vec<std::path::PathBuf> = direct_declarations
+            .into_iter()
+            .filter(|path| provenance_paths.iter().any(|provenance| provenance == *path))
+            .map(std::path::Path::to_path_buf)
+            .collect();
+
+        if !direct_paths.is_empty() {
             return Ok(Self::change(
                 "evaluated-provenance",
-                paths,
-                "remove the package from its evaluated local declaration",
+                direct_paths,
+                "remove the package from its directly declared local configuration",
+            ));
+        }
+
+        if !provenance_paths.is_empty() {
+            return Ok(Self::change(
+                "evaluated-provenance",
+                provenance_paths,
+                "package is only present in evaluated provenance; safe write-boundary validation is required",
             ));
         }
 

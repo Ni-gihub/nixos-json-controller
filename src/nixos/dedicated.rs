@@ -283,9 +283,13 @@ pub fn unstage_new_file(path: &Path) -> Result<(), String> {
         return Ok(());
     };
 
+    let file_name = path
+        .file_name()
+        .ok_or_else(|| format!("invalid file path: {}", path.display()))?;
+
     let status = Command::new("git")
         .args(["-C", parent.to_string_lossy().as_ref(), "restore", "--staged", "--"])
-        .arg(path.file_name().unwrap_or_default())
+        .arg(file_name)
         .status()
         .map_err(|e| format!("failed to unstage {}: {}", path.display(), e))?;
 

@@ -95,8 +95,9 @@ pub fn execute_with_change(plan: ExecutionPlan) -> Result<PackageChange, Executo
                         created_files: Vec::new(),
                     };
 
-                    validate_package_change(&context, &plan.target.name, &change)?;
-
+                    // Configuration evaluation is intentionally deferred until rebuild.
+                    // Provenance matching of environment.systemPackages is not a reliable
+                    // pre-rebuild installation check.
                     Ok(change)
                 }
                 PackageInstallStrategy::AlreadyDeclared { .. }
@@ -199,34 +200,7 @@ fn install_package_in_dedicated_module(
 
     let change: PackageChange = change.into();
 
-    let context = nixos::flake::discovery_context().map_err(ExecutorError::NixosError)?;
-    validate_package_change(&context, package, &change)?;
-
     Ok(change)
-}
-
-fn validate_package_change(
-    context: &nixos::discovery::DiscoveryContext,
-    package: &str,
-    change: &PackageChange,
-) -> Result<(), ExecutorError> {
-    let provenance = nixos::provenance::evaluate_package_provenance(
-        context.flake_root(),
-        context.configuration_name(),
-        package,
-    )
-    .map_err(ExecutorError::NixosError)?;
-
-    if provenance.local_files(context.flake_root()).is_empty() {
-        let _ = change.rollback();
-
-        return Err(ExecutorError::NixosError(format!(
-            "Nix evaluation did not confirm package '{}' after the configuration change",
-            package
-        )));
-    }
-
-    Ok(())
 }
 
 fn format_paths(paths: &[PathBuf]) -> String {

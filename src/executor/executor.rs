@@ -40,28 +40,100 @@ impl Executor {
             .or_else(|| service_change.as_ref().map(|change| change.is_changed()))
             .unwrap_or(false);
 
-        if should_rebuild(&plan, changed, rebuild)
-            && let Err(error) = nixos::rebuild::switch()
-        {
-            let rollback_result = if let Some(change) = package_change {
-                change.rollback()
-            } else if let Some(change) = service_change {
-                change.rollback()
-            } else {
-                Ok(())
-            };
-
-            if let Err(rollback_error) = rollback_result {
-                return Err(ExecutorError::NixosError(format!(
-                    "nixos-rebuild failed: {}; rollback also failed: {}",
-                    error, rollback_error
-                )));
+        if should_rebuild(&plan, changed, rebuild) {
+            if let Err(error) = nixos::rebuild::switch() {
+                return rollback_after_rebuild_failure(
+                    error,
+                    package_change.as_ref(),
+                    service_change.as_ref(),
+                );
             }
 
-            return Err(ExecutorError::NixosError(error));
+            if let Action::InstallPackage | Action::RemovePackage = plan.action {
+                if let Err(error) = verify_package_state(&plan.action, &plan.target.name) {
+                    return rollback_after_verification_failure(
+                        error,
+                        package_change.as_ref(),
+                        service_change.as_ref(),
+                    );
+                }
+            }
         }
 
         Ok(())
+    }
+}
+
+fn rollback_after_rebuild_failure(
+    error: String,
+    package_change: Option<&super::package::PackageChange>,
+    service_change: Option<&super::service::ServiceChange>,
+) -> Result<(), ExecutorError> {
+    let rollback_result = rollback_change(package_change, service_change);
+    if let Err(rollback_error) = rollback_result {
+        return Err(ExecutorError::NixosError(format!(
+            "nixos-rebuild failed: {}; rollback also failed: {}",
+            error, rollback_error
+        )));
+    }
+
+    Err(ExecutorError::NixosError(error))
+}
+
+fn rollback_after_verification_failure(
+    error: String,
+    package_change: Option<&super::package::PackageChange>,
+    service_change: Option<&super::service::ServiceChange>,
+) -> Result<(), ExecutorError> {
+    let rollback_result = rollback_change(package_change, service_change);
+    if let Err(rollback_error) = rollback_result {
+        return Err(ExecutorError::NixosError(format!(
+            "{}; rollback also failed: {}",
+            error, rollback_error
+        )));
+    }
+
+    // The active system was already switched, so rebuild once more from the
+    // restored configuration to return the machine to the previous state.
+    if let Err(rebuild_error) = nixos::rebuild::switch() {
+        return Err(ExecutorError::NixosError(format!(
+            "{}; rollback succeeded but restoring the previous system failed: {}",
+            error, rebuild_error
+        )));
+    }
+
+    Err(ExecutorError::NixosError(error))
+}
+
+fn rollback_change(
+    package_change: Option<&super::package::PackageChange>,
+    service_change: Option<&super::service::ServiceChange>,
+) -> Result<(), String> {
+    if let Some(change) = package_change {
+        change.rollback()
+    } else if let Some(change) = service_change {
+        change.rollback()
+    } else {
+        Ok(())
+    }
+}
+
+fn verify_package_state(action: &Action, package: &str) -> Result<(), String> {
+    let system = nixos::system::SystemState::discover()?;
+    let present = system.has_package(package) || system.has_command(package);
+
+    match action {
+        Action::InstallPackage if present => Ok(()),
+        Action::RemovePackage if !present => Ok(()),
+        Action::InstallPackage => Err(format!(
+            "nixos-rebuild completed but package '{}' was not found in the active system",
+            package
+        )),
+        Action::RemovePackage => Err(format!(
+            "nixos-rebuild completed but package '{}' is still present in the active system",
+            package
+        )),
+        _ => Ok(()),
     }
 }
 

@@ -12,7 +12,7 @@ use super::error::ExecutorError;
 pub struct ServiceChange {
     pub backups: Vec<nixos::dedicated::FileBackup>,
     pub created_files: Vec<std::path::PathBuf>,
-    pub staged_files: Vec<std::path::PathBuf>,
+    pub staged_files: Vec<nixos::dedicated::StagedFile>,
 }
 
 impl ServiceChange {
@@ -21,8 +21,8 @@ impl ServiceChange {
     }
 
     pub fn rollback(&self) -> Result<(), String> {
-        for path in self.staged_files.iter().rev() {
-            nixos::dedicated::unstage_new_file(path)?;
+        for staged in self.staged_files.iter().rev() {
+            nixos::dedicated::restore_index_state(staged)?;
         }
 
         for backup in self.backups.iter().rev() {

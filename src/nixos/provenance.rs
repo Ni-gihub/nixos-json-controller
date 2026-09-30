@@ -120,6 +120,10 @@ pub fn evaluate_service_provenance(
     )
 }
 
+fn is_missing_option_error(error: &str) -> bool {
+    error.contains("does not provide attribute")
+}
+
 fn evaluate_optional_service_option(
     flake_root: &Path,
     configuration_name: &str,
@@ -127,7 +131,7 @@ fn evaluate_optional_service_option(
 ) -> Result<EvaluatedProvenance, String> {
     match evaluate_option(flake_root, configuration_name, option) {
         Ok(provenance) => Ok(provenance),
-        Err(error) if error.contains("does not provide attribute") => Ok(EvaluatedProvenance {
+        Err(error) if is_missing_option_error(&error) => Ok(EvaluatedProvenance {
             option: option.to_string(),
             definitions: Vec::new(),
         }),
@@ -236,6 +240,13 @@ mod tests {
         let git_lfs = serde_json::json!("/nix/store/example-git-lfs-3.6.0");
         assert!(value_contains_package(&git_lfs, "git-lfs"));
         assert!(!value_contains_package(&git_lfs, "git"));
+    }
+
+    #[test]
+    fn treats_missing_service_option_as_empty_provenance() {
+        let error = "flake does not provide attribute 'nixosConfigurations.laptop.options.services.openssh.enable.definitionsWithLocations'";
+        assert!(is_missing_option_error(error));
+        assert!(!is_missing_option_error("error: evaluation failed"));
     }
 
     #[test]

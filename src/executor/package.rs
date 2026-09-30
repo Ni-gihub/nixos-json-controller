@@ -122,19 +122,16 @@ pub fn execute_with_change(plan: ExecutionPlan) -> Result<PackageChange, Executo
         }
 
         Action::RemovePackage => {
-            let provenance = nixos::provenance::evaluate_package_provenance(
-                context.flake_root(),
-                context.configuration_name(),
-                &plan.target.name,
-            )
-            .map_err(ExecutorError::NixosError)?;
+            let paths = plan
+                .details
+                .as_ref()
+                .map(|details| details.affected_files.clone())
+                .unwrap_or_default();
 
-            let provenance_paths = provenance.local_files(context.flake_root());
-
-            if !provenance_paths.is_empty() {
+            if !paths.is_empty() {
                 let mut change = PackageChange::default();
 
-                for path in provenance_paths {
+                for path in paths {
                     if !config.is_safe_write_target(&path) {
                         return Err(ExecutorError::NixosError(format!(
                             "package '{}' is declared in a configuration file outside the safe write boundary: {}",

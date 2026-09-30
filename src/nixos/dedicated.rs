@@ -293,7 +293,7 @@ pub fn stage_new_file(flake_root: &Path, path: &Path) -> Result<Option<StagedFil
     Ok(Some(StagedFile { path: path.to_path_buf(), previous_index }))
 }
 
-fn restore_index_state(staged: &StagedFile) -> Result<(), String> {
+pub fn restore_index_state(staged: &StagedFile) -> Result<(), String> {
     let parent = staged.path.parent().ok_or_else(|| format!("invalid file path: {}", staged.path.display()))?;
 
     if let Some(index_entry) = &staged.previous_index {

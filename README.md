@@ -1,352 +1,207 @@
 # NixOS-JSON-Controller
 
-NixOSの設定変更を安全かつ決定的に実行するCLIコントローラー。
+NixOSの設定変更をCLIから安全に実行するためのコントローラーです。
 
-パッケージやサービスの操作を、
-
-```text
-CLI / JSON
-    ↓
-Parser
-    ↓
-Validator
-    ↓
-Resolver
-    ↓
-Dictionary
-    ↓
-ExecutionPlan
-    ↓
-Executor
-    ↓
-NixOS configuration
-    ↓
-nixos-rebuild switch
-```
-
-という流れで処理します。
-
-また、NixOSの設定リポジトリを自動的に探索・検査する **Discovery機能** を備えています。
-
-```text
-nxc discover
-    ↓
-Candidate Search
-    ↓
-Filesystem Inspection
-    ↓
-Nix Evaluation
-    ↓
-Configuration Selection
-    ↓
-Discovery State
-```
-
-DiscoveryによってNixOS設定の場所と使用する `nixosConfiguration` を特定し、その結果を保存します。
-
-通常の `nxc` 操作では保存済みのDiscovery結果を利用するため、毎回重い探索やNix評価を実行する必要はありません。
-
----
+パッケージの追加・削除、サービスの有効化・無効化などを、NixOSの設定を変更して `nixos-rebuild switch` まで実行します。
 
 ## Features
 
-* NixOSパッケージの追加・削除
-* NixOSサービスの有効化・無効化
-* 日本語などの別名からパッケージ・サービスを解決
-* 辞書に存在しない名前を拒否
-* JSONによる構造化された入力
-* Rustによる入力検証・名前解決・実行制御
-* NixOSの既存設定を利用した設定変更
-* 既存構成を編集できない場合のNXC専用package/service module fallback
-* 現在のsystem-wideなコマンド/アプリ一覧表示
-* 現在のsystem / Discovery状態の表示
-* パッケージ・サービスの状態とNix評価による定義元の説明
-* `nixos-rebuild switch` まで一連の処理を実行
-* NixOS設定用Flakeの自動Discovery
-* `nixosConfigurations` のNix評価
-* ホスト名・システム情報などを利用したConfiguration選択
-* Discovery結果の保存
-* 通常操作時の重いDiscovery処理を回避
-
----
-
-## Why?
-
-NixOSでは設定ファイルを変更してから `nixos-rebuild` を実行することで、システム設定を宣言的に管理できます。
-
-一方で、単純なパッケージ追加やサービス変更であっても、
-
-1. 設定ファイルを探す
-2. 設定を変更する
-3. `nixos-rebuild` を実行する
-
-という操作が必要になります。
-
-NixOS-JSON-Controllerでは、この操作をCLIから安全に実行できるようにします。
-
-特に、自然言語をそのままOS操作へ渡すのではなく、
-
-```text
-自然言語
-   ↓
-LLM
-   ↓
-JSON
-   ↓
-Rust Controller
-   ↓
-NixOS
-```
-
-という責任分離を想定しています。
-
-LLMはJSONを生成するだけで、実際のOS変更はRust Controllerが担当します。
+- NixOSパッケージの追加・削除
+- NixOSサービスの有効化・無効化
+- 日本語などの別名に対応
+- NixOS設定用Flakeの自動Discovery
+- 現在のsystem / Discovery状態の確認
+- パッケージ・サービスの状態や定義元の確認
+- 既存設定を安全に編集できない場合の専用module fallback
+- 設定変更後のNix評価・rebuildによる検証
+- rebuild失敗時の変更ロールバック
+- `--dry-run` による実行内容の確認
 
 ---
 
 # Installation
 
-## Requirements
+## NixOS / Nix flakeからインストール
 
-* NixOS
-* Nix
-* Nix flakes
-* Rust / Cargo
-* Git
-* `nixos-rebuild`
-
----
-
-## From source
-
-リポジトリを取得します。
+NixOSで利用する場合はこちらを推奨します。
 
 ```bash
-git clone https://github.com/Ni-gihub/nixos-json-controller.git
-cd nixos-json-controller
+nix profile install github:Ni-gihub/nixos-json-controller
 ```
 
-### Cargoでインストール
-
-```bash
-cargo install --path .
-```
-
-Cargoからインストールした場合の実行ファイル名は、
-
-```text
-~/.cargo/bin/nixos-json-controller
-```
-
-です。
-
-このプロジェクトのCLIとしては `nxc` を使用します。Nix flakeのpackageではインストール時に `nxc` へ名前を変更しています。
-
-Cargoから直接使う場合は、
-
-```bash
-nixos-json-controller --help
-```
-
-Nix flake経由で使う場合は、
+インストール後、
 
 ```bash
 nxc --help
 ```
 
-を使用できます。
+で確認できます。
+
+現在のFlake packageは `x86_64-linux` を対象としています。
+
+## ソースからビルド
+
+Rust / Cargoを使用する場合は、リポジトリを取得してビルドできます。
 
 ```bash
-echo $PATH
-```
-
-必要であれば一時的に、
-
-```bash
-export PATH="$HOME/.cargo/bin:$PATH"
-```
-
-を実行できます。
-
----
-
-## Build only
-
-インストールせずにビルドする場合:
-
-```bash
+git clone https://github.com/Ni-gihub/nixos-json-controller.git
+cd nixos-json-controller
 cargo build --release
 ```
 
-実行ファイル:
+生成された実行ファイルは、
 
 ```text
 target/release/nixos-json-controller
 ```
 
-直接実行することもできます。
+です。
+
+`nxc` として使用する場合は、PATHの通った場所へ配置してください。
 
 ```bash
-./target/release/nixos-json-controller --help
+install -Dm755 target/release/nixos-json-controller ~/.local/bin/nxc
 ```
 
 ---
 
-# Discovery
+# Quick Start
 
-NixOS-JSON-Controllerには、NixOS設定用Flakeを探索するDiscovery機能があります。
-
-```bash
-nxc discover
-```
-
-Discoveryでは単純に `flake.nix` が存在するディレクトリを探すだけではなく、候補となったFlakeを検査し、Nix評価によって `nixosConfigurations` を確認します。
-
-基本的な流れは、
-
-```text
-Search
-  ↓
-候補Flakeを探索
-  ↓
-Filesystem Inspection
-  ↓
-Flakeの構造を確認
-  ↓
-Nix Evaluation
-  ↓
-nixosConfigurationsを評価
-  ↓
-候補を選択
-  ↓
-Discovery Resultを保存
-```
-
-です。
-
-例えば、
-
-```text
-NixOS Flake Discovery
-
-Searching for candidates...
-Found 2 candidates.
-
-Inspecting candidates...
-
-Candidate ranking:
-[1] /home/user/Projects/nix-config
-    score: 108
-    NixOS configurations: 1
-      - laptop (nixos-laptop, x86_64-linux)
-
-[2] /home/user/Projects/nixos-json-controller
-    score: 15
-    NixOS configurations: 0
-
-Discovery successful.
-
-Flake: /home/user/Projects/nix-config
-Configuration: laptop
-Hostname: nixos-laptop
-System: x86_64-linux
-Selection: hostname match
-
-Discovery result saved.
-```
-
-のように、候補を検査したうえで使用するFlakeとConfigurationを決定します。
-
-## Discovery result
-
-Discoveryで決定された情報はユーザーの設定ディレクトリに保存されます。
-
-```text
-~/.config/nxc/discovery.json
-```
-
-通常の `nxc` 操作では、この保存済みDiscovery結果を利用します。
-
-そのため、
+まずNixOS設定をDiscoveryします。
 
 ```bash
 nxc discover
 ```
 
-で一度設定を検出した後は、
+Discoveryに成功したら、通常の操作を実行できます。
 
 ```bash
 nxc i firefox
 nxc r firefox
 nxc e openssh
 nxc d openssh
+```
+
+現在の状態を確認する場合:
+
+```bash
+nxc status
+```
+
+インストール済みのsystem-wideなコマンドやアプリを一覧表示する場合:
+
+```bash
 nxc list
 ```
 
-などの通常操作で毎回Flake探索や候補探索を行いません。パッケージ操作では、既存設定の定義元を確認するため必要に応じてNix評価を行います。
-
 ---
 
-## Re-discovery
+# Discovery
 
-NixOS設定の場所や構成を変更した場合は、Discoveryを再実行します。
+NXCは、NixOS設定用のFlakeを自動的に探索します。
 
 ```bash
 nxc discover
 ```
 
-保存済みのDiscovery結果が現在の環境と整合しない場合、通常操作はそのまま実行せず、
+Discoveryでは単純に `flake.nix` の存在だけを見るのではなく、候補となったFlakeを検査し、Nix評価によって `nixosConfigurations` を確認します。
 
 ```text
-NixOS flake discovery is not available.
-Run `nxc discover` first.
+候補探索
+  ↓
+Filesystem Inspection
+  ↓
+Nix Evaluation
+  ↓
+nixosConfigurations確認
+  ↓
+Configuration選択
+  ↓
+Discovery結果を保存
 ```
 
-などのエラーを返します。
+選択されたFlakeとConfigurationは保存され、通常の操作では保存済みのDiscovery結果が使用されます。
 
-これにより、古いDiscovery情報を使用したままNixOS設定を変更することを避けます。
+保存先:
 
----
+```text
+~/.config/nxc/discovery.json
+```
 
-# Usage
+そのため、通常のパッケージ・サービス操作のたびにFlake全体を探索する必要はありません。
 
-## Discover NixOS configuration
+## Discoveryをやり直す
 
-最初にNixOS設定をDiscoveryします。
+NixOS設定の場所や構成を変更した場合は、再度実行してください。
 
 ```bash
 nxc discover
 ```
 
-Discoveryが成功したら、通常の操作を実行できます。
+保存済みのDiscovery結果が現在の環境と一致しない場合、NXCは古い情報を使ったまま設定を変更せず、Discoveryの再実行を要求します。
 
 ---
 
-## Install package
+# Package
+
+## インストール
 
 ```bash
 nxc i firefox
 ```
 
-パッケージ操作では操作を省略することもできます。
+操作を省略して、
 
 ```bash
 nxc firefox
 ```
 
-これは、
+と書くこともできます。
+
+## 削除
 
 ```bash
-nxc i firefox
+nxc r firefox
 ```
 
-と同じ意味です。
+## Dry Run
+
+実際に設定を変更せず、実行内容を確認できます。
+
+```bash
+nxc i firefox --dry-run
+```
 
 ---
 
-## Japanese aliases
+# Service
 
-辞書に登録されている別名を使用できます。
+## 有効化
+
+```bash
+nxc e openssh
+```
+
+別名も使用できます。
+
+```bash
+nxc e ssh
+nxc e sshd
+```
+
+## 無効化
+
+```bash
+nxc d openssh
+```
+
+---
+
+# Japanese aliases
+
+登録されているパッケージ・サービスには別名を使用できます。
+
+例えばFirefoxの場合:
 
 ```bash
 nxc i ファイアフォックス
@@ -354,35 +209,22 @@ nxc i ファイヤーフォックス
 nxc i 火狐
 ```
 
-例えば、
+これらはすべて `firefox` として扱われます。
 
-```text
-ファイヤーフォックス
-        ↓
-    Dictionary
-        ↓
-      firefox
+サービスも同様です。
+
+```bash
+nxc e ssh
+nxc e sshd
 ```
 
-として処理されます。
+は `openssh` として解決されます。
+
+辞書に登録されていない名前は、勝手に別のパッケージやサービスとして解釈されません。
 
 ---
 
-## List installed system commands/apps
-
-```bash
-nxc list
-```
-
-現在の `/run/current-system/sw/bin` に公開されているsystem-wideなコマンド/アプリ名を一覧表示します。
-
-## Remove package
-
-```bash
-nxc r firefox
-```
-
----
+# System
 
 ## Status
 
@@ -392,616 +234,101 @@ nxc r firefox
 nxc status
 ```
 
-Discovery結果が利用できる場合は、選択中のFlakeとConfigurationも表示します。
+Discovery済みの場合は、使用中のFlakeとConfigurationも確認できます。
+
+## Installed applications
+
+現在のsystem-wideなコマンドやアプリを一覧表示します。
+
+```bash
+nxc list
+```
 
 ---
 
-## Explain package
+# Explain
 
-パッケージが現在のsystemに存在するか、NixOS設定で定義されているか、定義元がどこかを確認できます。
+パッケージやサービスが現在どのような状態になっているかを確認できます。
+
+## Package
 
 ```bash
 nxc explain package firefox
 ```
 
-このコマンドは診断目的なので、パッケージが既にインストール済みでもNix evaluationを行い、可能な範囲で定義元を表示します。
+現在のsystemに存在するか、NixOS設定で定義されているか、可能な範囲で定義元も確認できます。
 
----
-
-## Explain service
-
-サービスについても同様に確認できます。
+## Service
 
 ```bash
 nxc explain service openssh
 ```
 
-Nix評価による定義元と、現在systemdで有効になっている状態を分けて表示します。
+NixOS設定上の定義と、現在systemdで有効になっている状態を分けて確認できます。
 
 ---
 
-## Enable service
+# Safety
 
-```bash
-nxc e openssh
-```
+NXCは、既存のNixOS設定を見つけたからといって無条件に書き換えることはありません。
 
-別名にも対応しています。
+既存設定を安全に編集できると判断できない場合は、設定構造を推測して変更する代わりに、NXC専用のmoduleへフォールバックします。
 
-```bash
-nxc e ssh
-nxc e sshd
-```
-
-内部では、
+また、設定変更後はNix評価と `nixos-rebuild switch` を実行します。
 
 ```text
-ssh
+入力
  ↓
-openssh
+検証
+ ↓
+名前解決
+ ↓
+実行計画
+ ↓
+NixOS設定変更
+ ↓
+Nix評価
+ ↓
+nixos-rebuild switch
+ ↓
+system確認
 ```
 
-のようにサービス辞書からCanonical Nameへ解決されます。
+rebuildや検証に失敗した場合は、可能な範囲で変更前の状態へロールバックします。
 
----
-
-## Disable service
-
-```bash
-nxc d openssh
-```
-
----
-
-## Help
-
-```bash
-nxc --help
-```
-
-または、
-
-```bash
-nxc -h
-```
+NixOSの設定を変更するため、通常の操作ではsudo権限が必要です。
 
 ---
 
 # Commands
 
-| Command           | Action                |
-| ----------------- | --------------------- |
-| `nxc <package>`   | パッケージをインストール          |
-| `nxc i <package>` | パッケージをインストール          |
-| `nxc r <package>` | パッケージを削除              |
-| `nxc e <service>` | サービスを有効化              |
-| `nxc d <service>` | サービスを無効化              |
-| `nxc discover`    | NixOS FlakeをDiscovery |
-| `nxc list`        | 現在のsystem-wideなコマンド/アプリを一覧表示 |
-| `nxc status`      | 現在のsystem / Discovery状態を表示 |
-| `nxc explain package <name>` | パッケージ状態と定義元を表示 |
-| `nxc explain service <name>` | サービス状態と定義元を表示 |
-| `nxc --help`      | ヘルプを表示                |
+| Command | 説明 |
+| --- | --- |
+| `nxc <package>` | パッケージをインストール |
+| `nxc i <package>` | パッケージをインストール |
+| `nxc r <package>` | パッケージを削除 |
+| `nxc e <service>` | サービスを有効化 |
+| `nxc d <service>` | サービスを無効化 |
+| `nxc discover` | NixOS Flakeを探索 |
+| `nxc list` | system-wideなコマンド / アプリを一覧表示 |
+| `nxc status` | system / Discovery状態を表示 |
+| `nxc explain package <name>` | パッケージの状態・定義元を表示 |
+| `nxc explain service <name>` | サービスの状態・定義元を表示 |
+| `nxc --help` | ヘルプを表示 |
 
 ---
 
-# Processing Flow
+# Help
 
-## 1. Command
-
-CLIから入力を受け取ります。
+すべてのコマンドは、
 
 ```bash
-nxc i firefox
+nxc --help
 ```
 
-↓
+で確認できます。
 
-```text
-Action::InstallPackage
-Target("firefox")
-```
-
----
-
-## 2. Validator
-
-入力形式を検証します。
-
-* Actionが有効か
-* Targetが存在するか
-* Targetが空でないか
-* Targetが空白だけではないか
-* Targetに不正な空白がないか
-* Targetが長すぎないか
-
----
-
-## 3. Resolver
-
-入力されたTargetをDictionaryから解決します。
-
-```text
-"ファイヤーフォックス"
-        ↓
-     Dictionary
-        ↓
-     "firefox"
-```
-
-パッケージ操作ならPackage Dictionary、サービス操作ならService Dictionaryを使用します。
-
----
-
-## 4. ExecutionPlan
-
-解決された情報から、実行する操作を固定します。
-
-```text
-Action
-Target
-DryRun
-```
-
-この段階ではまだNixOSを変更しません。
-
----
-
-## 5. Executor
-
-ExecutionPlanに従ってNixOSの設定を変更します。
-
-例えばパッケージ追加の場合:
-
-```nix
-environment.systemPackages = with pkgs; [
-  firefox
-];
-```
-
----
-
-## Safe write boundary
-
-NXCは、既存のNixファイルを見つけたからといって無条件に編集することはありません。
-
-既存ファイルへの書き込みは、次のような条件を満たす場合に限定します。
-
-* 対象のoptionが明確である
-* 定義が一意である
-* importによる複雑な構成をNXCが推測する必要がない
-* Home Managerの設定ではない
-* `mkIf` / `mkMerge` / `mkForce` / `mkDefault` / `mkBefore` / `mkAfter` などの複雑なmodule構造に依存していない
-* ファイル自体の役割を安全に判断できる
-
-例えば、用途別に細かく分割された `modules/browser/firefox.nix` のようなファイルは、構文が単純でもNXCが勝手に編集しません。
-
-NixOSのmodule systemでは、同じoptionを複数のmoduleから定義して評価でき、`imports` によってmodule graphを構成できます。そのため、ファイル単体の構文だけでは「ここへ書いてよい」と判断できない場合があります。
-
-安全に編集できない場合は、パッケージ追加ではNXC専用moduleへフォールバックします。
-
-## Package configuration fallback
-
-パッケージが現在のsystemに存在せず、既存NixOS設定をNXCが安全に編集できない場合は、既存構成を推測して書き換えません。代わりに、Flake内の `nxc/packages.nix` を生成し、既存の一意な `imports` リストへ接続します。
-
-```text
-既存構成を安全に編集できる
-        ↓
-既存Nixファイルへ追加
-
-安全に編集できない
-        ↓
-nxc/packages.nix を生成
-        ↓
-既存 imports へ接続
-        ↓
-Nix evaluation
-        ↓
-nixos-rebuild
-```
-
-生成された `nxc/packages.nix` は通常のNixOS moduleなので、以後のNXC操作でも編集対象として再利用できます。既存の `imports` リストを一意に特定できない場合は、設定構造を勝手に変更せずエラーで停止します。
-
-## Service configuration fallback
-
-サービスの有効化についても同じ安全境界を使用します。
-
-既存設定を安全に編集できる場合は既存ファイルを変更します。安全に編集できる既存定義がなく、接続可能な `imports` リストが一意に見つかる場合は、
-
-```text
-nxc/services.nix
-```
-
-をNixOS moduleとして生成し、そこへサービス設定を書き込みます。
-
-一方、既存のサービス定義が複雑で安全に変更できない場合は、同じoptionへ別の定義を追加して競合させることを避けるため、既存定義を残したままエラーで停止します。
-
-## 6. nixos-rebuild
-
-設定変更後、NixOSを再ビルドします。
-
-```bash
-sudo nixos-rebuild switch --flake <flake>#<configuration>
-```
-
-Discoveryによって決定されたFlakeとConfigurationが使用されます。
-
----
-
-# Discovery Architecture
-
-Discoveryは通常のコマンド実行とは独立した機能として実装されています。
-
-```text
-src/nixos/discovery/
-
-├── candidate.rs
-├── context.rs
-├── inspection.rs
-├── nix.rs
-├── result.rs
-├── search.rs
-├── selector.rs
-└── state.rs
-```
-
-### Candidate
-
-探索で発見されたFlake候補を表します。
-
-候補には探索元や検査結果などの情報が付与されます。
-
-### Search
-
-Discovery対象となるFlake候補を探索します。
-
-### Inspection
-
-候補となったFlakeのファイルシステムやNix評価結果を検査します。
-
-### Nix
-
-Nixコマンドを利用してFlakeの情報や `nixosConfigurations` を評価します。
-
-### Selector
-
-複数の候補やConfigurationから使用する対象を選択します。
-
-現在はホスト名やシステム情報などを利用した選択を行います。
-
-### Result
-
-Discoveryの最終結果を表します。
-
-```text
-Flake root
-Flake file
-Selected configuration
-Selection method
-```
-
-などを保持します。
-
-### State
-
-Discovery結果を保存・読み込みします。
-
-保存先:
-
-```text
-~/.config/nxc/discovery.json
-```
-
-### Context
-
-通常の `nxc` 操作からDiscovery結果を利用するためのContextです。
-
-通常操作では重いNix Discoveryを実行せず、保存済みのDiscovery結果を利用します。
-
----
-
-# Dictionary
-
-パッケージとサービスには、それぞれ専用の辞書があります。
-
-```text
-src/dictionary/
-
-├── dictionary.rs
-├── package.rs
-├── packages.json
-├── service.rs
-└── services.json
-```
-
-## Package dictionary
-
-例えば、
-
-```json
-{
-  "firefox": [
-    "firefox",
-    "ファイアフォックス",
-    "ファイヤーフォックス",
-    "火狐"
-  ]
-}
-```
-
-の場合、
-
-```text
-firefox
-ファイアフォックス
-ファイヤーフォックス
-火狐
-```
-
-はすべて、
-
-```text
-firefox
-```
-
-として扱われます。
-
----
-
-## Service dictionary
-
-例えば、
-
-```json
-{
-  "openssh": [
-    "openssh",
-    "ssh",
-    "sshd",
-    "sshサーバー"
-  ]
-}
-```
-
-の場合、
-
-```bash
-nxc e ssh
-```
-
-は内部的に、
-
-```text
-ssh
- ↓
-openssh
-```
-
-へ解決されます。
-
----
-
-# Safety Model
-
-このプロジェクトでは、**LLMに直接OS操作をさせないこと**を重要な設計方針としています。
-
-```text
-┌─────────────┐
-│     LLM     │
-│  JSON生成   │
-└──────┬──────┘
-       │ JSON
-       ▼
-┌─────────────┐
-│    Rust     │
-│ Controller  │
-│             │
-│  Validate   │
-│  Resolve    │
-│  Plan       │
-│  Execute    │
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│    NixOS    │
-│Configuration│
-└─────────────┘
-```
-
-LLMは実行権限を持たず、Rust Controllerが実際の変更処理を担当します。
-
-これにより、自然言語の曖昧な解釈をそのままOS操作へ渡さず、構造化された入力を検証してから実行する構成を目指しています。
-
----
-
-# Project Structure
-
-```text
-src/
-
-├── cli.rs
-│
-├── command/
-│   ├── action.rs
-│   ├── command.rs
-│   ├── parser.rs
-│   └── target.rs
-│
-├── dictionary/
-│   ├── dictionary.rs
-│   ├── package.rs
-│   ├── packages.json
-│   ├── service.rs
-│   └── services.json
-│
-├── validator/
-│   ├── error.rs
-│   └── validator.rs
-│
-├── resolver/
-│   ├── error.rs
-│   ├── package.rs
-│   ├── resolver.rs
-│   └── service.rs
-│
-├── planner/
-│   ├── execution_plan.rs
-│   └── planner.rs
-│
-├── executor/
-│   ├── error.rs
-│   ├── executor.rs
-│   ├── package.rs
-│   └── service.rs
-│
-└── nixos/
-    ├── discovery/
-    │   ├── candidate.rs
-    │   ├── context.rs
-    │   ├── inspection.rs
-    │   ├── nix.rs
-    │   ├── result.rs
-    │   ├── search.rs
-    │   ├── selector.rs
-    │   └── state.rs
-    │
-    ├── application.rs
-    ├── config.rs
-    ├── dedicated.rs
-    ├── flake.rs
-    ├── generator.rs
-    ├── import.rs
-    ├── module.rs
-    ├── provenance.rs
-    ├── rebuild.rs
-    ├── system.rs
-    ├── write_strategy.rs
-    └── writer.rs
-```
-
----
-
-# Testing
-
-テストはCargoで実行できます。
-
-```bash
-cargo test
-```
-
-テストをシリアル実行する場合:
-
-```bash
-cargo test -- --test-threads=1
-```
-
-特定のモジュールだけテストする場合:
-
-```bash
-cargo test --lib dictionary
-```
-
-```bash
-cargo test --lib resolver
-```
-
-```bash
-cargo test --lib planner
-```
-
-```bash
-cargo test --lib nixos
-```
-
-現在、Command / Validator / Dictionary / Resolver / Planner / Executor / NixOS / Discovery関連のユニットテストを実装しています。
-
-また、パイプライン全体を確認するIntegration Testも実装しています。
-
----
-
-# Development
-
-開発用ビルド:
-
-```bash
-cargo build
-```
-
-リリースビルド:
-
-```bash
-cargo build --release
-```
-
-テスト:
-
-```bash
-cargo test
-```
-
-テストをシリアル実行:
-
-```bash
-cargo test -- --test-threads=1
-```
-
-フォーマット:
-
-```bash
-cargo fmt
-```
-
----
-
-# Current Status
-
-現在のコア機能:
-
-* [x] CLI
-* [x] JSON / Command parsing
-* [x] Input validation
-* [x] Package dictionary
-* [x] Service dictionary
-* [x] Alias resolution
-* [x] Execution Plan
-* [x] Package installation
-* [x] Package removal
-* [x] Service enable / disable
-* [x] NixOS configuration modification
-* [x] `nixos-rebuild switch`
-* [x] Unit tests
-* [x] NixOS Flake Discovery
-* [x] Flake candidate search
-* [x] Filesystem inspection
-* [x] Nix evaluation
-* [x] `nixosConfigurations` detection
-* [x] Configuration selection
-* [x] Discovery state persistence
-* [x] Saved Discovery result validation
-* [x] Installed system command/app listing
-* [x] Application state detection
-* [x] System status diagnostics
-* [x] Package / Service explain diagnostics
-* [x] NXC dedicated package module fallback
-* [x] NXC dedicated service module fallback
-* [x] Conservative safe-write boundary
-* [x] Nix-evaluated configuration provenance
-* [x] Nix evaluation validation and package-change rollback
-* [x] Service-change rollback when nixos-rebuild fails
-
-今後の予定:
-
-* [ ] Dictionary validation
-* [ ] Duplicate alias prevention
-* [ ] Unknown target handlingの強化
-* [ ] Package / Service dictionaryの整理
-* [ ] JSON入力経路の強化
-* [ ] Dry-runの拡張
-* [ ] Confirmation機能
-* [ ] TAGによるパッケージ分類
-* [ ] 音声入力 / Whisper連携
-* [ ] LLMによるJSON生成
+特定の操作について詳しく確認したい場合も、まず `--help` を利用してください。
 
 ---
 

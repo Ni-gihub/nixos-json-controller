@@ -154,16 +154,32 @@ fn run_search(query: &str) -> Result<(), String> {
     let packages = config.declared_packages_in(&local_files);
 
     let query = query.to_ascii_lowercase();
-    let matches = search_matches(&packages.into_iter().collect::<Vec<_>>(), &query);
+    let packages: Vec<String> = packages.into_iter().collect();
+    let matches = search_matches(&packages, &query);
 
     println!("Search results");
     println!();
 
+    let system = SystemState::discover()?;
+
     for package in &matches {
-        println!("  {}", package);
+        println!("Package: {}", package);
+        println!("  Configured: yes");
+        println!(
+            "  Active in system: {}",
+            yes_no(system.has_command(package) || system.has_package(package))
+        );
+
+        let declarations = config.package_declarations(package);
+        print_locations("  Declared in", &declarations.iter().map(|path| (*path).to_path_buf()).collect::<Vec<_>>());
+
+        println!("  System environment: /run/current-system/sw");
+        if let Some(path) = system.command_path(package) {
+            println!("  Executable: {}", path.display());
+        }
+        println!();
     }
 
-    println!();
     println!("Total: {}", matches.len());
 
     Ok(())

@@ -51,6 +51,14 @@ impl ConfigState {
             .collect()
     }
 
+    pub fn declared_packages_in(&self, paths: &[PathBuf]) -> BTreeSet<String> {
+        self.files
+            .iter()
+            .filter(|file| paths.iter().any(|path| path == &file.path))
+            .flat_map(|file| file.declared_packages.iter().cloned())
+            .collect()
+    }
+
     pub fn service_declarations(&self, service: &str) -> Vec<&Path> {
         self.files
             .iter()

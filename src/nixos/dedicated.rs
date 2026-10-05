@@ -443,14 +443,23 @@ fn find_import_target(config: &ConfigState) -> Result<PathBuf, String> {
         .collect::<Vec<_>>();
 
     let best_score = ranked.iter().map(|(score, _)| *score).max().unwrap_or(0);
-    if best_score < 60 {
-        return Err("cannot connect NXC dedicated module: no conventional NixOS module graph root was found".to_string());
-    }
-    let best = ranked
-        .into_iter()
-        .filter(|(score, _)| *score == best_score)
-        .map(|(_, path)| path.clone())
-        .collect::<Vec<_>>();
+    let best = if best_score >= 60 {
+        ranked
+            .into_iter()
+            .filter(|(score, _)| *score == best_score)
+            .map(|(_, path)| path.clone())
+            .collect::<Vec<_>>()
+    } else if roots.len() == 1 {
+        // A non-conventional layout is still valid when the discovered import
+        // graph has a single unambiguous root. Do not require a particular
+        // filename or directory structure to connect the dedicated module.
+        roots
+    } else {
+        return Err(format!(
+            "cannot connect NXC dedicated module: multiple non-conventional NixOS module graph roots found: {}",
+            format_paths(&roots),
+        ));
+    };
 
     match best.as_slice() {
         [target] => Ok(target.clone()),
@@ -785,6 +794,21 @@ mod tests {
         assert_eq!(
             find_import_target(&config).unwrap(),
             PathBuf::from("/tmp/nix-config/configuration.nix")
+        );
+    }
+
+    #[test]
+    fn accepts_single_non_conventional_graph_root() {
+        let config = ConfigState {
+            files: vec![
+                config_file("/tmp/nix-config/system.nix", &[]),
+                config_file("/tmp/nix-config/modules/core.nix", &["/tmp/nix-config/system.nix"]),
+            ],
+        };
+
+        assert_eq!(
+            find_import_target(&config).unwrap(),
+            PathBuf::from("/tmp/nix-config/system.nix")
         );
     }
 

@@ -145,31 +145,17 @@ fn inspect_file(path: PathBuf, content: &str) -> ConfigFile {
     }
 }
 
-fn classify_write_safety(path: &Path, content: &str, imports: &[PathBuf]) -> WriteSafety {
-    // Existing files are edited only when their role is simple enough to be
-    // established without guessing the user's module organization.
+fn classify_write_safety(_path: &Path, content: &str, _imports: &[PathBuf]) -> WriteSafety {
+    // Imports and module-system combinators are normal NixOS module composition.
+    // They do not by themselves make a file unsafe to edit.
     //
-    // NixOS deliberately allows the same option to be defined by many modules,
-    // and Home Manager introduces a separate module namespace. NXC therefore
-    // treats imports, Home Manager references, and module-system wrappers as
-    // boundaries rather than trying to infer the user's intended ownership.
-    if !imports.is_empty() {
-        return WriteSafety::Unsafe;
-    }
-
+    // The safety boundary here is intentionally narrow: reject files that mix
+    // multiple declarations of the same target option, or files that clearly
+    // belong to another module namespace such as Home Manager. The caller can
+    // then use declaration/provenance information to decide where an actual
+    // write should happen instead of relying on filenames or import structure.
     let lower = content.to_ascii_lowercase();
-    let unsafe_markers = [
-        "home-manager",
-        "home.packages",
-        "home.activation",
-        "mkif ",
-        "mkmerge ",
-        "mkforce ",
-        "mkdefault ",
-        "mkbefore ",
-        "mkafter ",
-        "mkoverride ",
-    ];
+    let unsafe_markers = ["home-manager", "home.packages", "home.activation"];
 
     if unsafe_markers.iter().any(|marker| lower.contains(marker)) {
         return WriteSafety::Unsafe;
@@ -182,34 +168,7 @@ fn classify_write_safety(path: &Path, content: &str, imports: &[PathBuf]) -> Wri
         return WriteSafety::Unsafe;
     }
 
-    if package_assignments == 0 && service_assignments == 0 {
-        return WriteSafety::Safe;
-    }
-
-    // A single declaration is editable only in a conventional aggregate file.
-    // A file such as modules/browser/firefox.nix may be syntactically simple,
-    // but its intended scope cannot be inferred safely by NXC.
-    if !is_conventional_aggregate_file(path) {
-        return WriteSafety::Unsafe;
-    }
-
     WriteSafety::Safe
-}
-
-fn is_conventional_aggregate_file(path: &Path) -> bool {
-    matches!(
-        path.file_stem().and_then(|name| name.to_str()),
-        Some(
-            "configuration"
-                | "packages"
-                | "package"
-                | "services"
-                | "service"
-                | "system"
-                | "system-packages"
-                | "system-services"
-        )
-    )
 }
 
 fn count_assignment(content: &str, attribute: &str) -> usize {
@@ -535,24 +494,26 @@ home.packages = [ pkgs.firefox ];
     }
 
     #[test]
-    fn rejects_complex_module_wrappers() {
+    fn accepts_module_wrappers() {
         let file = inspect_file(
-            PathBuf::from("packages.nix"),
+            PathBuf::from("modules/packages.nix"),
             r#"
-environment.systemPackages = lib.mkMerge [
-  [ pkgs.firefox ]
-  (lib.mkIf config.foo [ pkgs.git ])
-];
+{
+  environment.systemPackages = lib.mkMerge [
+    [ pkgs.firefox ]
+    (lib.mkIf config.foo [ pkgs.git ])
+  ];
+}
 "#,
         );
 
-        assert_eq!(file.write_safety, WriteSafety::Unsafe);
+        assert_eq!(file.write_safety, WriteSafety::Safe);
     }
 
     #[test]
-    fn rejects_importing_aggregator() {
+    fn accepts_importing_aggregator() {
         let file = inspect_file(
-            PathBuf::from("configuration.nix"),
+            PathBuf::from("hosts/laptop/default.nix"),
             r#"
 {
   imports = [ ./hardware.nix ];
@@ -561,16 +522,31 @@ environment.systemPackages = lib.mkMerge [
 "#,
         );
 
-        assert_eq!(file.write_safety, WriteSafety::Unsafe);
+        assert_eq!(file.write_safety, WriteSafety::Safe);
     }
 
     #[test]
-    fn rejects_leaf_module_with_ambiguous_role() {
+    fn accepts_leaf_module_with_unambiguous_target() {
         let file = inspect_file(
             PathBuf::from("modules/browser/firefox.nix"),
             r#"
 {
   environment.systemPackages = [ pkgs.firefox ];
+}
+"#,
+        );
+
+        assert_eq!(file.write_safety, WriteSafety::Safe);
+    }
+
+    #[test]
+    fn rejects_multiple_package_declarations() {
+        let file = inspect_file(
+            PathBuf::from("modules/packages.nix"),
+            r#"
+{
+  environment.systemPackages = [ pkgs.firefox ];
+  environment.systemPackages = lib.mkAfter [ pkgs.git ];
 }
 "#,
         );

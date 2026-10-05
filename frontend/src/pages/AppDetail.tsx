@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type FormEvent } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { Link, useParams } from 'react-router'
@@ -111,7 +111,7 @@ function AppDetail() {
   }
 
   const handlePasswordSubmit = async (
-    event: React.FormEvent<HTMLFormElement>,
+    event: FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault()
 

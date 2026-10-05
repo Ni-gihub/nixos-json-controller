@@ -77,6 +77,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nixos-json-controller"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "atk"
 version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

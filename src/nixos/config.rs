@@ -485,7 +485,6 @@ environment.systemPackages = lib.mkAfter [
     }
 
     #[test]
-    #[test]
     fn resolves_directory_and_extensionless_imports() {
         let root = std::env::temp_dir().join(format!("nxc-imports-{}", std::process::id()));
         let modules = root.join("modules");

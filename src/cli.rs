@@ -5,10 +5,12 @@ use nixos_json_controller::{
     command::{Action, Command, Target},
     executor::Executor,
     nixos::{
+        config::ConfigState,
         discovery::{
             DiscoveryStatus, SearchOptions, discover_candidates, inspect_candidates,
             save_discovery, select_candidate,
         },
+        provenance::evaluate_option,
         status::{explain_package, explain_service},
         system::SystemState,
     },
@@ -109,17 +111,25 @@ fn print_help() {
 }
 
 fn run_list() -> Result<(), String> {
-    let system = SystemState::discover()?;
+    let context = nixos_json_controller::nixos::discovery::DiscoveryContext::load()?;
+    let provenance = evaluate_option(
+        context.flake_root(),
+        context.configuration_name(),
+        "environment.systemPackages",
+    )?;
+    let local_files = provenance.local_files(context.flake_root());
+    let config = ConfigState::discover(context.flake_root())?;
+    let packages = config.declared_packages_in(&local_files);
 
-    println!("Installed system commands/apps");
+    println!("Configured system packages");
     println!();
 
-    for name in system.binaries.keys() {
-        println!("  {}", name);
+    for package in &packages {
+        println!("  {}", package);
     }
 
     println!();
-    println!("Total: {}", system.binaries.len());
+    println!("Total: {}", packages.len());
 
     Ok(())
 }

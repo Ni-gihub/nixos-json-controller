@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
+import { invoke } from '@tauri-apps/api/core'
 import { Link, useParams } from 'react-router'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -9,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 
 const apps = {
   firefox: {
@@ -28,7 +30,8 @@ const apps = {
 
   gimp: {
     name: 'GIMP',
-    description: 'Powerful image editor',
+    description:
+      'Powerful open-source image editor for photo manipulation and graphic design.',
     category: 'Graphics',
     details:
       'A powerful open-source image editor for photo manipulation and graphic design.',
@@ -39,6 +42,9 @@ function AppDetail() {
   const { id } = useParams()
   const [installing, setInstalling] = useState(false)
   const [installed, setInstalled] = useState(false)
+  const [passwordRequired, setPasswordRequired] = useState(false)
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
 
   const app = id ? apps[id as keyof typeof apps] : undefined
 
@@ -59,17 +65,62 @@ function AppDetail() {
     )
   }
 
-  const handleInstall = () => {
-    if (installing || installed) {
+  const install = async (authPassword: string | null) => {
+    if (!id) {
       return
     }
 
     setInstalling(true)
+    setError(null)
 
-    setTimeout(() => {
-      setInstalling(false)
+    try {
+      await invoke('install_app', {
+        package: id,
+        password: authPassword,
+      })
+
       setInstalled(true)
-    }, 1500)
+      setPassword('')
+      setPasswordRequired(false)
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setInstalling(false)
+    }
+  }
+
+  const handleInstall = async () => {
+    if (installing || installed) {
+      return
+    }
+
+    setError(null)
+
+    try {
+      const available = await invoke<boolean>('sudo_available')
+
+      if (available) {
+        await install(null)
+        return
+      }
+
+      setPasswordRequired(true)
+    } catch (err) {
+      setError(String(err))
+    }
+  }
+
+  const handlePasswordSubmit = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault()
+
+    if (!password) {
+      return
+    }
+
+    setPasswordRequired(false)
+    await install(password)
   }
 
   return (
@@ -113,6 +164,12 @@ function AppDetail() {
               {app.details}
             </p>
 
+            {error && (
+              <p className="mb-4 text-sm text-destructive">
+                {error}
+              </p>
+            )}
+
             <Button
               size="lg"
               className="w-full sm:w-auto"
@@ -128,6 +185,48 @@ function AppDetail() {
           </CardContent>
         </Card>
       </main>
+
+      {passwordRequired && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6">
+          <form
+            onSubmit={handlePasswordSubmit}
+            className="w-full max-w-sm rounded-xl border bg-background p-6 shadow-xl"
+          >
+            <h2 className="text-lg font-semibold">Authentication required</h2>
+
+            <p className="mt-2 text-sm text-muted-foreground">
+              Enter your password to install {app.name}.
+            </p>
+
+            <Input
+              autoFocus
+              className="mt-4"
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Password"
+              autoComplete="current-password"
+            />
+
+            <div className="mt-6 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setPassword('')
+                  setPasswordRequired(false)
+                }}
+              >
+                Cancel
+              </Button>
+
+              <Button type="submit" disabled={!password}>
+                Continue
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   )
 }

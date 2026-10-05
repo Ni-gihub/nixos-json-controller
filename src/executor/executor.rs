@@ -98,10 +98,6 @@ fn rollback_after_rebuild_failure(
         )));
     }
 
-    if password.is_some() {
-        let _ = nixos::rebuild::switch_with_password(password);
-    }
-
     Err(ExecutorError::NixosError(error))
 }
 

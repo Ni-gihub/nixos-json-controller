@@ -47,7 +47,7 @@ pub fn run() -> Result<(), String> {
     if args.dry_run
         && matches!(
             args.command.first().map(String::as_str),
-            Some("discover" | "list" | "status" | "explain")
+            Some("discover" | "list" | "search" | "status" | "explain")
         )
     {
         return Err("--dry-run is only valid for configuration actions".to_string());

@@ -8,6 +8,13 @@ pub struct Executor;
 
 impl Executor {
     pub fn execute(plan: ExecutionPlan) -> Result<(), ExecutorError> {
+        Self::execute_with_password(plan, None)
+    }
+
+    pub fn execute_with_password(
+        plan: ExecutionPlan,
+        password: Option<&str>,
+    ) -> Result<(), ExecutorError> {
         if plan.dry_run {
             println!("========== Dry Run ==========");
             println!("Action : {:?}", plan.action);
@@ -16,10 +23,21 @@ impl Executor {
             return Ok(());
         }
 
-        Self::execute_with_rebuild(plan, true)
+        Self::execute_with_rebuild_password(plan, true, password)
     }
 
-    pub fn execute_with_rebuild(plan: ExecutionPlan, rebuild: bool) -> Result<(), ExecutorError> {
+    pub fn execute_with_rebuild(
+        plan: ExecutionPlan,
+        rebuild: bool,
+    ) -> Result<(), ExecutorError> {
+        Self::execute_with_rebuild_password(plan, rebuild, None)
+    }
+
+    pub fn execute_with_rebuild_password(
+        plan: ExecutionPlan,
+        rebuild: bool,
+        password: Option<&str>,
+    ) -> Result<(), ExecutorError> {
         let package_change = match plan.action {
             Action::InstallPackage | Action::RemovePackage => {
                 Some(super::package::execute_with_change(plan.clone())?)
@@ -41,11 +59,12 @@ impl Executor {
             .unwrap_or(false);
 
         if should_rebuild(&plan, changed, rebuild) {
-            if let Err(error) = nixos::rebuild::switch() {
+            if let Err(error) = nixos::rebuild::switch_with_password(password) {
                 return rollback_after_rebuild_failure(
                     error,
                     package_change.as_ref(),
                     service_change.as_ref(),
+                    password,
                 );
             }
 
@@ -55,6 +74,7 @@ impl Executor {
                         error,
                         package_change.as_ref(),
                         service_change.as_ref(),
+                        password,
                     );
                 }
             }
@@ -68,6 +88,7 @@ fn rollback_after_rebuild_failure(
     error: String,
     package_change: Option<&super::package::PackageChange>,
     service_change: Option<&super::service::ServiceChange>,
+    password: Option<&str>,
 ) -> Result<(), ExecutorError> {
     let rollback_result = rollback_change(package_change, service_change);
     if let Err(rollback_error) = rollback_result {
@@ -77,6 +98,10 @@ fn rollback_after_rebuild_failure(
         )));
     }
 
+    if password.is_some() {
+        let _ = nixos::rebuild::switch_with_password(password);
+    }
+
     Err(ExecutorError::NixosError(error))
 }
 
@@ -84,6 +109,7 @@ fn rollback_after_verification_failure(
     error: String,
     package_change: Option<&super::package::PackageChange>,
     service_change: Option<&super::service::ServiceChange>,
+    password: Option<&str>,
 ) -> Result<(), ExecutorError> {
     let rollback_result = rollback_change(package_change, service_change);
     if let Err(rollback_error) = rollback_result {
@@ -95,7 +121,7 @@ fn rollback_after_verification_failure(
 
     // The active system was already switched, so rebuild once more from the
     // restored configuration to return the machine to the previous state.
-    if let Err(rebuild_error) = nixos::rebuild::switch() {
+    if let Err(rebuild_error) = nixos::rebuild::switch_with_password(password) {
         return Err(ExecutorError::NixosError(format!(
             "{}; rollback succeeded but restoring the previous system failed: {}",
             error, rebuild_error

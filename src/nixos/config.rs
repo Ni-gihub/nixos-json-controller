@@ -494,24 +494,26 @@ home.packages = [ pkgs.firefox ];
     }
 
     #[test]
-    fn rejects_complex_module_wrappers() {
+    fn accepts_module_wrappers() {
         let file = inspect_file(
-            PathBuf::from("packages.nix"),
+            PathBuf::from("modules/packages.nix"),
             r#"
-environment.systemPackages = lib.mkMerge [
-  [ pkgs.firefox ]
-  (lib.mkIf config.foo [ pkgs.git ])
-];
+{
+  environment.systemPackages = lib.mkMerge [
+    [ pkgs.firefox ]
+    (lib.mkIf config.foo [ pkgs.git ])
+  ];
+}
 "#,
         );
 
-        assert_eq!(file.write_safety, WriteSafety::Unsafe);
+        assert_eq!(file.write_safety, WriteSafety::Safe);
     }
 
     #[test]
-    fn rejects_importing_aggregator() {
+    fn accepts_importing_aggregator() {
         let file = inspect_file(
-            PathBuf::from("configuration.nix"),
+            PathBuf::from("hosts/laptop/default.nix"),
             r#"
 {
   imports = [ ./hardware.nix ];
@@ -520,16 +522,31 @@ environment.systemPackages = lib.mkMerge [
 "#,
         );
 
-        assert_eq!(file.write_safety, WriteSafety::Unsafe);
+        assert_eq!(file.write_safety, WriteSafety::Safe);
     }
 
     #[test]
-    fn rejects_leaf_module_with_ambiguous_role() {
+    fn accepts_leaf_module_with_unambiguous_target() {
         let file = inspect_file(
             PathBuf::from("modules/browser/firefox.nix"),
             r#"
 {
   environment.systemPackages = [ pkgs.firefox ];
+}
+"#,
+        );
+
+        assert_eq!(file.write_safety, WriteSafety::Safe);
+    }
+
+    #[test]
+    fn rejects_multiple_package_declarations() {
+        let file = inspect_file(
+            PathBuf::from("modules/packages.nix"),
+            r#"
+{
+  environment.systemPackages = [ pkgs.firefox ];
+  environment.systemPackages = lib.mkAfter [ pkgs.git ];
 }
 "#,
         );

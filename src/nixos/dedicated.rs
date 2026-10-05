@@ -801,8 +801,11 @@ mod tests {
     fn accepts_single_non_conventional_graph_root() {
         let config = ConfigState {
             files: vec![
-                config_file("/tmp/nix-config/system.nix", &[]),
-                config_file("/tmp/nix-config/modules/core.nix", &["/tmp/nix-config/system.nix"]),
+                config_file(
+                    "/tmp/nix-config/system.nix",
+                    &["/tmp/nix-config/modules/core.nix"],
+                ),
+                config_file("/tmp/nix-config/modules/core.nix", &[]),
             ],
         };
 

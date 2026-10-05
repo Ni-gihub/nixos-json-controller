@@ -45,14 +45,19 @@ pub fn switch_with_password_with_context(
     context: &DiscoveryContext,
     password: Option<&str>,
 ) -> Result<(), String> {
-    let mut command = build_command_with_context(context)?;
+    let flake = context.flake_reference();
+
+    let mut command = Command::new("sudo");
 
     if password.is_some() {
         command.args(["-S", "-p", ""]);
     }
 
+    command.args(["nixos-rebuild", "switch", "--flake", &flake]);
+
     if let Some(password) = password {
         command.stdin(Stdio::piped());
+
         let mut child = command.spawn().map_err(|e| e.to_string())?;
 
         if let Some(mut stdin) = child.stdin.take() {

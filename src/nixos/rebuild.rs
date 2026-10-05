@@ -47,6 +47,10 @@ pub fn switch_with_password_with_context(
 ) -> Result<(), String> {
     let mut command = build_command_with_context(context)?;
 
+    if password.is_some() {
+        command.args(["-S", "-p", ""]);
+    }
+
     if let Some(password) = password {
         command.stdin(Stdio::piped());
         let mut child = command.spawn().map_err(|e| e.to_string())?;

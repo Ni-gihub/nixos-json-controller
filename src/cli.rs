@@ -24,7 +24,7 @@ use nixos_json_controller::{
     name = "nxc",
     version,
     about = "Safe NixOS configuration controller",
-    after_help = "Commands:\n  nxc <package>       install package\n  nxc i <package>     install package\n  nxc r <package>     remove package\n  nxc e <service>     enable service\n  nxc d <service>     disable service\n  nxc list            list installed system commands/apps\n  nxc status          show current system status\n  nxc explain package <name>  explain package state and provenance\n  nxc explain service <name>  explain service state and provenance\n  nxc discover        discover NixOS flake\n\nOptions:\n  --dry-run           preview the execution plan without changes"
+    after_help = "Commands:\n  nxc <package>       install package\n  nxc i <package>     install package\n  nxc r <package>     remove package\n  nxc e <service>     enable service\n  nxc d <service>     disable service\n  nxc list            list configured system packages\n  nxc search <query>  search configured system packages\n  nxc status          show current system status\n  nxc explain package <name>  explain package state and provenance\n  nxc explain service <name>  explain service state and provenance\n  nxc discover        discover NixOS flake\n\nOptions:\n  --dry-run           preview the execution plan without changes"
 )]
 struct CliArgs {
     /// Preview the execution plan without changing configuration or rebuilding.
@@ -47,7 +47,7 @@ pub fn run() -> Result<(), String> {
     if args.dry_run
         && matches!(
             args.command.first().map(String::as_str),
-            Some("discover" | "list" | "status" | "explain")
+            Some("discover" | "list" | "search" | "status" | "explain")
         )
     {
         return Err("--dry-run is only valid for configuration actions".to_string());
@@ -56,9 +56,10 @@ pub fn run() -> Result<(), String> {
     match args.command.as_slice() {
         [command] if command == "discover" => return run_discover(),
         [command] if command == "list" => return run_list(),
+        [command, query] if command == "search" => return run_search(query),
         [command] if command == "status" => return run_status(),
         [command, kind, target] if command == "explain" => return run_explain(kind, target),
-        [command, ..] if matches!(command.as_str(), "discover" | "list" | "status" | "explain") => {
+        [command, ..] if matches!(command.as_str(), "discover" | "list" | "search" | "status" | "explain") => {
             return Err("invalid command arguments. use nxc --help for usage".to_string());
         }
         _ => {}
@@ -130,6 +131,56 @@ fn run_list() -> Result<(), String> {
 
     println!();
     println!("Total: {}", packages.len());
+
+    Ok(())
+}
+
+
+fn run_search(query: &str) -> Result<(), String> {
+    let query = query.trim();
+
+    if query.is_empty() {
+        return Err("usage: nxc search <query>".to_string());
+    }
+
+    let context = nixos_json_controller::nixos::discovery::DiscoveryContext::load()?;
+    let provenance = evaluate_option(
+        context.flake_root(),
+        context.configuration_name(),
+        "environment.systemPackages",
+    )?;
+    let local_files = provenance.local_files(context.flake_root());
+    let config = ConfigState::discover(context.flake_root())?;
+    let packages = config.declared_packages_in(&local_files);
+
+    let query = query.to_ascii_lowercase();
+    let packages: Vec<String> = packages.into_iter().collect();
+    let matches = search_matches(&packages, &query);
+
+    println!("Search results");
+    println!();
+
+    let system = SystemState::discover()?;
+
+    for package in &matches {
+        println!("Package: {}", package);
+        println!("  Configured: yes");
+        println!(
+            "  Active in system: {}",
+            yes_no(system.has_command(package) || system.has_package(package))
+        );
+
+        let declarations = config.package_declarations(package);
+        print_locations("  Declared in", &declarations.iter().map(|path| (*path).to_path_buf()).collect::<Vec<_>>());
+
+        println!("  System environment: /run/current-system/sw");
+        if let Some(path) = system.command_path(package) {
+            println!("  Executable: {}", path.display());
+        }
+        println!();
+    }
+
+    println!("Total: {}", matches.len());
 
     Ok(())
 }
@@ -231,6 +282,17 @@ fn run_explain(kind: &str, target: &str) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+
+fn search_matches(packages: &[String], query: &str) -> Vec<String> {
+    let query = query.trim().to_ascii_lowercase();
+
+    packages
+        .iter()
+        .filter(|package| package.to_ascii_lowercase().contains(&query))
+        .cloned()
+        .collect()
 }
 
 fn print_plan(plan: &nixos_json_controller::planner::ExecutionPlan) {
@@ -426,8 +488,35 @@ fn selection_method_name(
 
 #[cfg(test)]
 mod tests {
-    use super::CliArgs;
+    use super::{search_matches, CliArgs};
     use clap::Parser;
+
+    #[test]
+    fn search_matches_package_name_case_insensitively() {
+        let packages = ["firefox".to_string(), "vscode".to_string()];
+
+        assert_eq!(
+            search_matches(&packages, "FIRE"),
+            vec!["firefox".to_string()]
+        );
+    }
+
+    #[test]
+    fn search_matches_substrings() {
+        let packages = ["firefox".to_string(), "firefox-bin".to_string(), "vscode".to_string()];
+
+        assert_eq!(
+            search_matches(&packages, "firefox"),
+            vec!["firefox".to_string(), "firefox-bin".to_string()]
+        );
+    }
+
+    #[test]
+    fn search_does_not_match_unrelated_packages() {
+        let packages = ["firefox".to_string(), "vscode".to_string()];
+
+        assert!(search_matches(&packages, "browser").is_empty());
+    }
 
     #[test]
     fn dry_run_is_accepted_before_command() {

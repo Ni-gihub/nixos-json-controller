@@ -69,11 +69,21 @@ name = "app"
 version = "0.1.0"
 dependencies = [
  "log",
+ "nixos-json-controller",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-log",
+]
+
+[[package]]
+name = "nixos-json-controller"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

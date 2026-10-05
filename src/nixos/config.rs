@@ -315,8 +315,10 @@ fn parse_relative_imports(base: &Path, content: &str) -> Vec<PathBuf> {
         let source = line;
         for token in source.split_whitespace() {
             let token = token.trim_matches(|c: char| matches!(c, '[' | ']' | ';' | ','));
-            if (token.starts_with("./") || token.starts_with("../")) && token.ends_with(".nix") {
-                imports.push(normalize_relative_path(base, token));
+            if token.starts_with("./") || token.starts_with("../") {
+                if let Some(path) = resolve_import_path(base, token) {
+                    imports.push(path);
+                }
             }
         }
 
@@ -328,6 +330,30 @@ fn parse_relative_imports(base: &Path, content: &str) -> Vec<PathBuf> {
     imports.sort();
     imports.dedup();
     imports
+}
+
+fn resolve_import_path(base: &Path, relative: &str) -> Option<PathBuf> {
+    let path = normalize_relative_path(base, relative);
+
+    if path.is_file() {
+        return Some(path);
+    }
+
+    if path.extension().is_none() {
+        let nix_path = path.with_extension("nix");
+        if nix_path.is_file() {
+            return Some(nix_path);
+        }
+    }
+
+    if path.is_dir() {
+        let default_path = path.join("default.nix");
+        if default_path.is_file() {
+            return Some(default_path);
+        }
+    }
+
+    Some(path)
 }
 
 fn normalize_relative_path(base: &Path, relative: &str) -> PathBuf {
@@ -456,6 +482,30 @@ environment.systemPackages = lib.mkAfter [
 
         assert!(file.declared_packages.contains("git"));
         assert!(file.declared_packages.contains("firefox"));
+    }
+
+    #[test]
+    fn resolves_directory_and_extensionless_imports() {
+        let root = std::env::temp_dir().join(format!("nxc-imports-{}", std::process::id()));
+        let modules = root.join("modules");
+        std::fs::create_dir_all(modules.join("desktop")).unwrap();
+        std::fs::write(modules.join("desktop/default.nix"), "{}").unwrap();
+        std::fs::write(modules.join("network.nix"), "{}").unwrap();
+
+        let file = inspect_file(
+            root.join("configuration.nix"),
+            r#"{ imports = [ ./modules/desktop ./modules/network ]; }"#,
+        );
+
+        assert_eq!(
+            file.imports,
+            vec![
+                modules.join("desktop/default.nix"),
+                modules.join("network.nix")
+            ]
+        );
+
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]

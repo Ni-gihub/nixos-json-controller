@@ -140,10 +140,9 @@ impl Planner {
         }
 
         if !provenance_paths.is_empty() {
-            return Ok(Self::change(
-                "evaluated-provenance",
-                provenance_paths,
-                "package is only present in evaluated provenance; safe write-boundary validation is required",
+            return Err(format!(
+                "package '{}' is present in evaluated environment.systemPackages provenance, but NXC could not identify a direct local declaration to edit safely",
+                package
             ));
         }
 

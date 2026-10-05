@@ -434,6 +434,44 @@ mod tests {
     use super::*;
 
     #[test]
+    fn declared_packages_in_filters_to_selected_files() {
+        let first = PathBuf::from("/flake/packages.nix");
+        let second = PathBuf::from("/flake/other.nix");
+
+        let state = ConfigState {
+            files: vec![
+                ConfigFile {
+                    path: first.clone(),
+                    has_system_packages: true,
+                    has_systemd_services: false,
+                    has_service_options: false,
+                    declared_packages: BTreeSet::from(["firefox".to_string(), "git".to_string()]),
+                    declared_services: BTreeSet::new(),
+                    imports: Vec::new(),
+                    write_safety: WriteSafety::Safe,
+                },
+                ConfigFile {
+                    path: second,
+                    has_system_packages: true,
+                    has_systemd_services: false,
+                    has_service_options: false,
+                    declared_packages: BTreeSet::from(["vim".to_string()]),
+                    declared_services: BTreeSet::new(),
+                    imports: Vec::new(),
+                    write_safety: WriteSafety::Safe,
+                },
+            ],
+        };
+
+        let packages = state.declared_packages_in(&[first]);
+
+        assert_eq!(
+            packages,
+            BTreeSet::from(["firefox".to_string(), "git".to_string()])
+        );
+    }
+
+    #[test]
     fn inspects_package_and_service_declarations() {
         let file = inspect_file(
             PathBuf::from("modules/core.nix"),

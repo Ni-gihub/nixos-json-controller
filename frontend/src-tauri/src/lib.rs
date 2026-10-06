@@ -22,13 +22,25 @@ fn install_app(package: String, password: Option<String>) -> Result<InstallResul
 }
 
 #[tauri::command]
-fn get_app_states(packages: Vec<String>) -> Result<Vec<nixos_json_controller::nixos::status::PackageState>, String> {
-  nixos_json_controller::nixos::status::package_states(&packages)
+async fn get_app_states(
+  packages: Vec<String>,
+) -> Result<Vec<nixos_json_controller::nixos::status::PackageState>, String> {
+  tauri::async_runtime::spawn_blocking(move || {
+    nixos_json_controller::nixos::status::package_states(&packages)
+  })
+  .await
+  .map_err(|error| format!("app state lookup task failed: {error}"))?
 }
 
 #[tauri::command]
-fn get_app_state(package: String) -> Result<nixos_json_controller::nixos::status::PackageState, String> {
-  nixos_json_controller::nixos::status::package_state(&package)
+async fn get_app_state(
+  package: String,
+) -> Result<nixos_json_controller::nixos::status::PackageState, String> {
+  tauri::async_runtime::spawn_blocking(move || {
+    nixos_json_controller::nixos::status::package_state(&package)
+  })
+  .await
+  .map_err(|error| format!("app state lookup task failed: {error}"))?
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

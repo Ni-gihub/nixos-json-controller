@@ -249,6 +249,22 @@ mod tests {
     }
 
     #[test]
+    fn evaluated_provenance_matches_packages_from_any_definition() {
+        let provenance = EvaluatedProvenance {
+            option: "environment.systemPackages".to_string(),
+            definitions: vec![OptionDefinition {
+                file: PathBuf::from("/nix/store/nixpkgs-source/nixos/modules/foo.nix"),
+                value: serde_json::json!([
+                    "/nix/store/example-vlc-3.0"
+                ]),
+            }],
+        };
+
+        assert!(provenance.contains_package("vlc"));
+        assert!(!provenance.contains_package("firefox"));
+    }
+
+    #[test]
     fn treats_missing_service_option_as_empty_provenance() {
         let error = "flake does not provide attribute 'nixosConfigurations.laptop.options.services.openssh.enable.definitionsWithLocations'";
         assert!(is_missing_option_error(error));

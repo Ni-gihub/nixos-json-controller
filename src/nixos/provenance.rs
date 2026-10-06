@@ -34,6 +34,12 @@ impl EvaluatedProvenance {
         })
     }
 
+    pub fn contains_package(&self, package: &str) -> bool {
+        self.definitions
+            .iter()
+            .any(|definition| value_contains_package(&definition.value, package))
+    }
+
     pub fn contains_local_boolean(&self, flake_root: &Path, expected: bool) -> bool {
         self.definitions.iter().any(|definition| {
             resolve_definition_file(flake_root, &definition.file).is_some_and(|_| {
@@ -240,6 +246,22 @@ mod tests {
         let git_lfs = serde_json::json!("/nix/store/example-git-lfs-3.6.0");
         assert!(value_contains_package(&git_lfs, "git-lfs"));
         assert!(!value_contains_package(&git_lfs, "git"));
+    }
+
+    #[test]
+    fn evaluated_provenance_matches_packages_from_any_definition() {
+        let provenance = EvaluatedProvenance {
+            option: "environment.systemPackages".to_string(),
+            definitions: vec![OptionDefinition {
+                file: PathBuf::from("/nix/store/nixpkgs-source/nixos/modules/foo.nix"),
+                value: serde_json::json!([
+                    "/nix/store/example-vlc-3.0"
+                ]),
+            }],
+        };
+
+        assert!(provenance.contains_package("vlc"));
+        assert!(!provenance.contains_package("firefox"));
     }
 
     #[test]

@@ -19,14 +19,14 @@ pub struct PackageExplanation {
     pub unsafe_declaration_locations: Vec<PathBuf>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct PackageState {
     pub name: String,
     pub configured: bool,
     pub active: bool,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServiceExplanation {
     pub name: String,
     pub system_enabled: bool,

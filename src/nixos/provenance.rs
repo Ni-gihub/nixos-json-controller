@@ -34,6 +34,12 @@ impl EvaluatedProvenance {
         })
     }
 
+    pub fn contains_package(&self, package: &str) -> bool {
+        self.definitions
+            .iter()
+            .any(|definition| value_contains_package(&definition.value, package))
+    }
+
     pub fn contains_local_boolean(&self, flake_root: &Path, expected: bool) -> bool {
         self.definitions.iter().any(|definition| {
             resolve_definition_file(flake_root, &definition.file).is_some_and(|_| {

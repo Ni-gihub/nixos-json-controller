@@ -13,9 +13,10 @@ type AppCardProps = {
   name: string
   description: string
   category: string
+  installed: boolean
 }
 
-function AppCard({ id, name, description, category }: AppCardProps) {
+function AppCard({ id, name, description, category, installed }: AppCardProps) {
   return (
     <Link to={`/apps/${id}`} className="block">
       <Card className="h-full transition-colors hover:bg-muted/50">
@@ -24,7 +25,10 @@ function AppCard({ id, name, description, category }: AppCardProps) {
             {name[0]}
           </div>
 
-          <CardTitle>{name}</CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle>{name}</CardTitle>
+            {installed && <Badge>Installed</Badge>}
+          </div>
           <CardDescription>{description}</CardDescription>
         </CardHeader>
 

@@ -21,12 +21,24 @@ fn install_app(package: String, password: Option<String>) -> Result<InstallResul
   })
 }
 
+#[tauri::command]
+fn get_app_states(packages: Vec<String>) -> Result<Vec<nixos_json_controller::nixos::status::PackageState>, String> {
+  nixos_json_controller::nixos::status::package_states(&packages)
+}
+
+#[tauri::command]
+fn get_app_state(package: String) -> Result<nixos_json_controller::nixos::status::PackageState, String> {
+  nixos_json_controller::nixos::status::package_state(&package)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
     .invoke_handler(tauri::generate_handler![
       sudo_available,
-      install_app
+      install_app,
+      get_app_states,
+      get_app_state
     ])
     .setup(|app| {
       if cfg!(debug_assertions) {

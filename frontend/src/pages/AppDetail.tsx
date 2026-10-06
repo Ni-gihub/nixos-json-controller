@@ -16,13 +16,17 @@ function AppDetail() {
   const [passwordRequired, setPasswordRequired] = useState(false)
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [refreshError, setRefreshError] = useState<string | null>(null)
+  const [installSucceeded, setInstallSucceeded] = useState(false)
 
   const app = apps.find((item) => item.id === id)
-  const installed = id ? states[id]?.active ?? false : false
+  const appState = id ? states[id] : undefined
+  const installed = installSucceeded || appState?.active === true
+  const statusKnown = appState !== undefined
 
   useEffect(() => {
     if (!id) return
-    void refreshPackage(id).catch((err) => setError(String(err)))
+    void refreshPackage(id).catch((err) => setRefreshError(String(err)))
   }, [id, refreshPackage])
 
   if (!app) {
@@ -44,9 +48,15 @@ function AppDetail() {
     setError(null)
     try {
       await invoke('install_app', { package: id, password: authPassword })
-      await refreshPackage(id)
+      setInstallSucceeded(true)
       setPassword('')
       setPasswordRequired(false)
+      try {
+        await refreshPackage(id)
+        setRefreshError(null)
+      } catch (err) {
+        setRefreshError(String(err))
+      }
     } catch (err) {
       setError(String(err))
     } finally {
@@ -55,7 +65,7 @@ function AppDetail() {
   }
 
   const handleInstall = async () => {
-    if (installing || installed) return
+    if (installing || installed || !statusKnown) return
     setError(null)
     try {
       const available = await invoke<boolean>('sudo_available')
@@ -105,7 +115,27 @@ function AppDetail() {
           <CardContent>
             <p className="mb-8 text-muted-foreground">{app.details}</p>
             {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
-            <Button size="lg" className="w-full sm:w-auto" disabled={installing || installed} onClick={handleInstall}>
+            {refreshError && (
+              <div className="mb-4 flex items-center gap-3 text-sm text-destructive">
+                <span>Installation state could not be refreshed.</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (!id) return
+                    void refreshPackage(id)
+                      .then(() => setRefreshError(null))
+                      .catch((err) => setRefreshError(String(err)))
+                  }}
+                >
+                  Retry
+                </Button>
+              </div>
+            )}
+            {!statusKnown && !refreshError && (
+              <p className="mb-4 text-sm text-muted-foreground">Checking installation status...</p>
+            )}
+            <Button size="lg" className="w-full sm:w-auto" disabled={installing || installed || !statusKnown} onClick={handleInstall}>
               {installed ? '● Installed' : installing ? 'Installing...' : 'Install'}
             </Button>
           </CardContent>

@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use serde::Serialize;
+
 use super::{
     config::ConfigState,
     discovery::DiscoveryContext,
@@ -18,6 +20,13 @@ pub struct PackageExplanation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageState {
+    pub name: String,
+    pub configured: bool,
+    pub active: bool,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct ServiceExplanation {
     pub name: String,
     pub system_enabled: bool,
@@ -26,6 +35,35 @@ pub struct ServiceExplanation {
     pub declaration_locations: Vec<PathBuf>,
     pub safe_declaration_locations: Vec<PathBuf>,
     pub unsafe_declaration_locations: Vec<PathBuf>,
+}
+
+pub fn package_states(packages: &[String]) -> Result<Vec<PackageState>, String> {
+    let context = DiscoveryContext::load()?;
+    let provenance = super::provenance::evaluate_option(
+        context.flake_root(),
+        context.configuration_name(),
+        "environment.systemPackages",
+    )?;
+    let local_files = provenance.local_files(context.flake_root());
+    let config = ConfigState::discover(context.flake_root())?;
+    let declared = config.declared_packages_in(&local_files);
+    let system = SystemState::discover()?;
+
+    Ok(packages
+        .iter()
+        .map(|package| PackageState {
+            name: package.clone(),
+            configured: declared.contains(package),
+            active: system.has_command(package) || system.has_package(package),
+        })
+        .collect())
+}
+
+pub fn package_state(package: &str) -> Result<PackageState, String> {
+    package_states(&[package.to_string()])?
+        .into_iter()
+        .next()
+        .ok_or_else(|| "package state was not returned".to_string())
 }
 
 pub fn explain_package(

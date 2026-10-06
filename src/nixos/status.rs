@@ -44,16 +44,13 @@ pub fn package_states(packages: &[String]) -> Result<Vec<PackageState>, String> 
         context.configuration_name(),
         "environment.systemPackages",
     )?;
-    let local_files = provenance.local_files(context.flake_root());
-    let config = ConfigState::discover(context.flake_root())?;
-    let declared = config.declared_packages_in(&local_files);
     let system = SystemState::discover()?;
 
     Ok(packages
         .iter()
         .map(|package| PackageState {
             name: package.clone(),
-            configured: declared.contains(package),
+            configured: provenance.contains_package(package),
             active: system.has_command(package) || system.has_package(package),
         })
         .collect())

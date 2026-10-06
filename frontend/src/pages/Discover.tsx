@@ -3,6 +3,7 @@ import { Search } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import AppCard from '@/components/AppCard'
+import { Button } from '@/components/ui/button'
 import { apps } from '@/data/apps'
 import { useAppState } from '@/lib/app-state'
 
@@ -10,7 +11,7 @@ const categories = ['Browser', 'Development', 'Media', 'Graphics']
 
 function Discover() {
   const [query, setQuery] = useState('')
-  const { states, loading } = useAppState()
+  const { states, loading, error, refreshAll } = useAppState()
 
   const visibleApps = useMemo(() => {
     const normalized = query.trim().toLowerCase()
@@ -63,6 +64,11 @@ function Discover() {
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-lg font-semibold">Featured Apps</h3>
             {loading && <span className="text-sm text-muted-foreground">Checking system state...</span>}
+            {error && (
+              <Button variant="outline" size="sm" onClick={() => void refreshAll()}>
+                Retry status check
+              </Button>
+            )}
           </div>
 
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">

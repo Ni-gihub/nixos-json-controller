@@ -169,23 +169,6 @@ fn load_icon(entry: &str) -> Option<String> {
     None
 }
 
-fn appstream_root() -> Option<PathBuf> {
-    if let Ok(root) = env::var("NXC_APPSTREAM_DATA") {
-        let path = PathBuf::from(root);
-        if path.is_dir() {
-            return Some(path);
-        }
-    }
-
-    for root in [Path::new("/run/current-system/sw"), Path::new("/usr")] {
-        if root.join("share/swcatalog").is_dir() {
-            return Some(root.to_path_buf());
-        }
-    }
-
-    None
-}
-
 fn read_icon(path: &Path) -> Option<String> {
     let bytes = fs::read(path).ok()?;
     let mime = match path.extension().and_then(|extension| extension.to_str()) {

@@ -218,7 +218,7 @@ fn decode_xml_entities(value: &str) -> String {
         .replace("&amp;", "&")
         .replace("&lt;", "<")
         .replace("&gt;", ">")
-        .replace("&quot;", """)
+        .replace("&quot;", "\"")
         .replace("&apos;", "'")
 }
 
@@ -378,24 +378,19 @@ mod tests {
         "#;
 
         let index = parse_index(xml);
-        assert_eq!(
-            index.get("firefox"),
-            Some(&"org.mozilla.firefox-64.png".to_string())
-        );
-        assert_eq!(
-            index.get("org.mozilla.Firefox"),
-            Some(&"org.mozilla.firefox-64.png".to_string())
-        );
-        assert_eq!(
-            index.get("org.mozilla.firefox"),
-            Some(&"org.mozilla.firefox-64.png".to_string())
-        );
+        let expected = vec![
+            "org.mozilla.firefox-64.png".to_string(),
+            "org.mozilla.firefox-128.png".to_string(),
+        ];
+        assert_eq!(index.get("firefox"), Some(&expected));
+        assert_eq!(index.get("org.mozilla.Firefox"), Some(&expected));
+        assert_eq!(index.get("org.mozilla.firefox"), Some(&expected));
     }
 
     #[test]
     fn parses_absolute_remote_icons() {
         let xml = r#"
-            <component>
+            <component type="desktop-application">
               <pkgname>example</pkgname>
               <icon type="remote">https://example.com/icon.png</icon>
             </component>
@@ -449,6 +444,27 @@ mod tests {
     }
 
     #[test]
+    fn falls_back_to_remote_when_cached_icon_is_missing() {
+        let temp = std::env::temp_dir().join(format!(
+            "nxc-appstream-fallback-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&temp);
+        fs::create_dir_all(temp.join("64x64")).unwrap();
+
+        let cached = format!("cached|{}|missing.png", temp.display());
+        let remote = "remote|https://example.com/icon.png";
+        assert_eq!(
+            load_icon(&cached).is_none(),
+            true,
+            "missing cached icon must fall back to the next source"
+        );
+        assert_eq!(load_icon(remote), Some("https://example.com/icon.png".to_string()));
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
     fn decodes_remote_icon_xml_entities() {
         let xml = r#"
             <component type="desktop-application">
@@ -469,7 +485,7 @@ mod tests {
     #[test]
     fn ignores_relative_remote_icons() {
         let xml = r#"
-            <component>
+            <component type="desktop-application">
               <pkgname>example</pkgname>
               <icon type="remote">icons/example.png</icon>
             </component>

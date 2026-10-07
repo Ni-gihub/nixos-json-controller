@@ -4,25 +4,14 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import AppCard from '@/components/AppCard'
 import { Button } from '@/components/ui/button'
-import { apps } from '@/data/apps'
+import { categories, searchApps } from '@/catalog'
 import { useAppState } from '@/lib/app-state'
-
-const categories = ['Browser', 'Development', 'Media', 'Graphics']
 
 function Discover() {
   const [query, setQuery] = useState('')
   const { states, loading, error, refreshAll } = useAppState()
 
-  const visibleApps = useMemo(() => {
-    const normalized = query.trim().toLowerCase()
-    if (!normalized) return apps
-
-    return apps.filter((app) =>
-      [app.name, app.description, app.category].some((value) =>
-        value.toLowerCase().includes(normalized),
-      ),
-    )
-  }, [query])
+  const visibleApps = useMemo(() => searchApps(query), [query])
 
   return (
     <div className="min-h-screen bg-background text-foreground">

@@ -27,7 +27,7 @@ jobs:
       - name: Check formatting
         shell: bash
         run: |
-          rustfmt --edition 2024 --check             frontend/src-tauri/src/lib.rs             src/nixos/catalog.rs             src/nixos/mod.rs             src/resolver/resolver.rs
+          rustfmt --edition 2024 --check             frontend/src-tauri/src/lib.rs             src/nixos/catalog.rs             src/resolver/resolver.rs
 
   check:
     name: Check

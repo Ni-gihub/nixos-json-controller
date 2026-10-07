@@ -19,7 +19,10 @@ pub fn icon_for_package(candidates: &[&str]) -> Option<String> {
 
         if let Ok(icons) = cache.lock() {
             if let Some(cached) = icons.get(icon_name) {
-                return cached.clone();
+                if cached.is_some() {
+                    return cached.clone();
+                }
+                continue;
             }
         }
 
@@ -40,15 +43,29 @@ fn load_index() -> HashMap<String, String> {
         return HashMap::new();
     };
 
-    let Ok(output) = Command::new("gzip")
+    let output = match Command::new("gzip")
         .args(["-dc"])
         .arg(xml_path)
         .output()
     else {
-        return HashMap::new();
+        .args(["-dc"])
+        .arg(&xml_path)
+        .output()
+    {
+        Ok(output) => output,
+        Err(error) => {
+            log::warn!("failed to start gzip for AppStream data {}: {error}", xml_path.display());
+            return HashMap::new();
+        }
     };
 
     if !output.status.success() {
+        log::warn!(
+            "failed to decompress AppStream data {}: status={}, stderr={}",
+            xml_path.display(),
+            output.status,
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
         return HashMap::new();
     }
 

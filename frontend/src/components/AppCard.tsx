@@ -20,7 +20,11 @@ function AppCard({ id, name, description, category, tags, installed, icon, searc
         <CardHeader className="p-6 sm:p-7">
           <div className="flex items-start gap-4">
             <div className="flex size-20 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-indigo-100 text-3xl font-bold text-blue-600 transition-transform duration-200 group-hover:scale-[1.03]">
-              {name[0]}
+              {icon ? (
+                <img src={icon} alt="" className="size-14 object-contain" loading="lazy" />
+              ) : (
+                name[0]
+              )}
             </div>
 
             <div className="min-w-0 flex-1">

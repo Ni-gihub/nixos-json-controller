@@ -110,7 +110,7 @@ fn element_attribute(input: &str, element: &str, attribute: &str) -> Option<Stri
     let start = input.find(&open)?;
     let tag_end = input[start..].find('>')? + start;
     let tag = &input[start..tag_end];
-    let marker = format!("{attribute}="");
+    let marker = format!("{attribute}=\"");
     let value_start = tag.find(&marker)? + marker.len();
     let value_end = tag[value_start..].find('"')? + value_start;
     Some(tag[value_start..value_end].to_string())

@@ -1,24 +1,51 @@
-import { FormEvent, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import { Search, Store } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import AppCard from '@/components/AppCard'
 import { searchApps, type App } from '@/catalog'
 import { useAppState } from '@/lib/app-state'
+import { useSearchParams } from 'react-router'
 
 function Discover() {
-  const [query, setQuery] = useState('')
-  const [submittedQuery, setSubmittedQuery] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialQuery = searchParams.get('query')?.trim() ?? ''
+  const [query, setQuery] = useState(initialQuery)
+  const [submittedQuery, setSubmittedQuery] = useState(initialQuery)
   const [results, setResults] = useState<App[]>([])
   const [searching, setSearching] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const { states, loading, error, refreshPackages } = useAppState()
+
+  useEffect(() => {
+    if (!initialQuery || initialQuery === submittedQuery) return
+    setQuery(initialQuery)
+    setSubmittedQuery(initialQuery)
+  }, [initialQuery, submittedQuery])
+
+  useEffect(() => {
+    if (!initialQuery || initialQuery !== submittedQuery || results.length > 0 || searching) return
+
+    setSearching(true)
+    setSearchError(null)
+    void searchApps(initialQuery)
+      .then((nextResults) => {
+        setResults(nextResults)
+        void refreshPackages(nextResults.map((app) => app.id))
+      })
+      .catch((err) => {
+        setResults([])
+        setSearchError(String(err))
+      })
+      .finally(() => setSearching(false))
+  }, [initialQuery, refreshPackages, results.length, searching, submittedQuery])
 
   const handleSearch = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const normalized = query.trim()
     if (!normalized) return
     setSubmittedQuery(normalized)
+    setSearchParams({ query: normalized })
     setSearching(true)
     setSearchError(null)
     try {
@@ -75,9 +102,9 @@ function Discover() {
 
           <main className="w-full px-6 py-8 sm:px-8 lg:px-12 lg:py-12">
             <section>
-              <p className="text-sm font-semibold tracking-wide text-primary">NixOS App Store</p>
-              <h1 className="mt-3 text-4xl font-bold tracking-tight lg:text-5xl">アプリを探す</h1>
-              <p className="mt-3 max-w-3xl text-base text-muted-foreground lg:text-lg">
+              <p className="text-base font-semibold tracking-wide text-primary">NixOS App Store</p>
+              <h1 className="mt-3 text-5xl font-bold tracking-tight lg:text-6xl">アプリを探す</h1>
+              <p className="mt-3 max-w-3xl text-lg text-muted-foreground lg:text-xl">
                 Nixpkgsにあるアプリ、言語、ライブラリ、開発ツールを検索できます。
               </p>
 
@@ -86,7 +113,7 @@ function Discover() {
                   <div className="relative min-w-0 flex-1">
                     <Search className="absolute left-5 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
                     <Input
-                      className="h-14 rounded-xl border-border bg-card pl-14 pr-5 text-base shadow-sm lg:h-16 lg:text-lg"
+                      className="h-14 rounded-xl border-border bg-card pl-14 pr-5 text-lg shadow-sm lg:h-16 lg:text-xl"
                       placeholder="アプリ、言語、ライブラリ、ツールを検索..."
                       value={query}
                       onChange={(event) => setQuery(event.target.value)}
@@ -102,7 +129,7 @@ function Discover() {
                     検索
                   </Button>
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">Enterキーで検索</p>
+                <p className="mt-2 text-sm text-muted-foreground">Enterキーで検索</p>
               </form>
             </section>
 
@@ -123,8 +150,8 @@ function Discover() {
                 <>
                   <div className="mb-6 flex items-end justify-between gap-4">
                     <div>
-                      <h2 className="text-2xl font-semibold">「{submittedQuery}」の検索結果</h2>
-                      {!searching && <p className="mt-1 text-sm text-muted-foreground">{results.length}件</p>}
+                      <h2 className="text-3xl font-semibold">「{submittedQuery}」の検索結果</h2>
+                      {!searching && <p className="mt-1 text-base text-muted-foreground">{results.length}件</p>}
                     </div>
                     {(searching || loading) && <span className="text-sm text-muted-foreground">検索中...</span>}
                   </div>
@@ -150,6 +177,7 @@ function Discover() {
                           category={app.category}
                           tags={app.tags}
                           installed={states[app.id]?.active ?? false}
+                          searchQuery={submittedQuery}
                         />
                       ))}
                     </div>

@@ -166,17 +166,21 @@ fn icon_sources(input: &str) -> Vec<String> {
         let tag_end = start + tag_end_rel;
         let tag = &input[start..=tag_end];
 
-        if (tag.starts_with("<icon ") || tag.starts_with("<icon>"))
-            && matches!(
-                element_attribute(tag, "icon", "type").as_deref(),
-                Some("cached") | None
-            )
-        {
+        if tag.starts_with("<icon ") || tag.starts_with("<icon>") {
+            let icon_type = element_attribute(tag, "icon", "type");
             let content_start = tag_end + 1;
             if let Some(close_rel) = input[content_start..].find("</icon>") {
                 let value = input[content_start..content_start + close_rel].trim();
                 if !value.is_empty() {
-                    icons.push(value.to_string());
+                    match icon_type.as_deref() {
+                        Some("cached") | None => icons.push(value.to_string()),
+                        Some("remote")
+                            if value.starts_with("https://") || value.starts_with("http://") =>
+                        {
+                            icons.push(format!("remote|{value}"));
+                        }
+                        _ => {}
+                    }
                 }
                 offset = content_start + close_rel + "</icon>".len();
                 continue;

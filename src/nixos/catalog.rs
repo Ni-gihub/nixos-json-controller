@@ -131,7 +131,12 @@ fn parse_results(output: &[u8], query: &str) -> Result<Vec<CatalogPackage>, Stri
     results.sort_by(|(score_a, package_a), (score_b, package_b)| {
         score_b
             .cmp(score_a)
-            .then_with(|| package_a.name.to_lowercase().cmp(&package_b.name.to_lowercase()))
+            .then_with(|| {
+                package_a
+                    .name
+                    .to_lowercase()
+                    .cmp(&package_b.name.to_lowercase())
+            })
             .then_with(|| package_a.id.cmp(&package_b.id))
     });
 
@@ -250,7 +255,10 @@ fn tags_for(name: &str, description: &str, category: &str) -> Vec<String> {
     let mut tags = vec![category.to_string()];
 
     let candidates = [
-        ("オープンソース", &["open source", "free software", "free and open source"][..]),
+        (
+            "オープンソース",
+            &["open source", "free software", "free and open source"][..],
+        ),
         ("Web", &["web", "http", "browser"][..]),
         ("Rust", &["rust"][..]),
         ("Python", &["python"][..]),
@@ -262,7 +270,8 @@ fn tags_for(name: &str, description: &str, category: &str) -> Vec<String> {
     ];
 
     for (tag, keywords) in candidates {
-        if keywords.iter().any(|keyword| text.contains(keyword)) && !tags.iter().any(|item| item == tag)
+        if keywords.iter().any(|keyword| text.contains(keyword))
+            && !tags.iter().any(|item| item == tag)
         {
             tags.push(tag.to_string());
         }
@@ -298,7 +307,7 @@ fn is_safe_attribute_path(value: &str) -> bool {
     !value.is_empty()
         && value
             .split('.')
-            .all(|segment| is_safe_attribute_segment(segment))
+            .all(is_safe_attribute_segment)
 }
 
 fn is_safe_attribute_segment(segment: &str) -> bool {
@@ -313,7 +322,10 @@ fn is_safe_attribute_segment(segment: &str) -> bool {
                 || matches!(character, '_' | '-')
                 || character == '\''
         })
-        && !matches!(segment, "assert" | "else" | "if" | "in" | "inherit" | "let" | "or" | "rec" | "then" | "with")
+        && !matches!(
+            segment,
+            "assert" | "else" | "if" | "in" | "inherit" | "let" | "or" | "rec" | "then" | "with"
+        )
 }
 
 #[cfg(test)]
@@ -358,7 +370,9 @@ mod tests {
             category_for("rust-analyzer", "Language server for Rust"),
             "開発"
         );
-        assert!(tags_for("rust-analyzer", "Language server for Rust", "開発")
-            .contains(&"Rust".to_string()));
+        assert!(
+            tags_for("rust-analyzer", "Language server for Rust", "開発")
+                .contains(&"Rust".to_string())
+        );
     }
 }

@@ -138,7 +138,7 @@ function AppDetail() {
           <section className="min-w-0 space-y-8">
             <Card className="border-border/70 shadow-sm">
               <CardContent className="p-8 lg:p-10">
-                <div className="flex items-start gap-7">
+                <div className="flex flex-col items-start gap-7 sm:flex-row">
                   <div className="flex size-28 shrink-0 items-center justify-center rounded-3xl bg-primary/10 text-5xl font-bold text-primary">
                     {app.name[0]}
                   </div>

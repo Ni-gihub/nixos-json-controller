@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "tauri": "NXC_APPSTREAM_DATA=$(cd .. && nix eval --raw .#appstream-data) tauri",
+    "tauri": "NXC_APPSTREAM_DATA=$(cd .. && nix build .#appstream-data --no-link --print-out-paths) tauri",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"

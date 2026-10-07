@@ -20,10 +20,10 @@ type AppCardProps = {
 function AppCard({ id, name, description, category, tags, installed, searchQuery }: AppCardProps) {
   return (
     <Link to={searchQuery ? `/apps/${id}?query=${encodeURIComponent(searchQuery)}` : `/apps/${id}`} className="block h-full">
-      <Card className="h-full rounded-2xl border-blue-100/70 bg-gradient-to-br from-white via-blue-50/20 to-blue-100/70 shadow-md shadow-blue-100/60 transition-all duration-200 hover:-translate-y-1 hover:border-primary/20 hover:shadow-lg hover:shadow-blue-200/30">
+      <Card className="h-full rounded-2xl border-blue-200/80 bg-gradient-to-br from-white via-blue-50/30 to-blue-100/60 transition-all duration-200 hover:-translate-y-1 hover:border-primary/40">
         <CardHeader className="p-7">
           <div className="flex items-start gap-4">
-            <div className="flex size-20 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-white via-blue-100/80 to-primary/15 text-3xl font-bold text-primary shadow-inner shadow-white/80">
+            <div className="flex size-20 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-white via-blue-100/80 to-primary/15 text-3xl font-bold text-primary border border-white/90">
               {name[0]}
             </div>
 

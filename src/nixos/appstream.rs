@@ -164,7 +164,7 @@ fn cached_icon_names(input: &str) -> Vec<String> {
         if (tag.starts_with("<icon ") || tag.starts_with("<icon>"))
             && element_attribute(tag, "icon", "type")
                 .as_deref()
-                .is_none_or(|value| value == "cached")
+                .map_or(true, |value| value == "cached")
         {
             let content_start = tag_end + 1;
             if let Some(close_rel) = input[content_start..].find("</icon>") {
@@ -317,20 +317,29 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parses_cached_icon_for_package() {
+    fn parses_multiple_cached_icons_and_aliases() {
         let xml = r#"
             <component type="desktop-application">
-              <id>org.mozilla.firefox</id>
+              <id>org.mozilla.Firefox</id>
               <pkgname>firefox</pkgname>
-              <icon type="cached">org.mozilla.firefox.png</icon>
+              <launchable type="desktop-id">firefox.desktop</launchable>
+              <icon type="cached">org.mozilla.firefox-64.png</icon>
+              <icon type="cached">org.mozilla.firefox-128.png</icon>
             </component>
         "#;
 
         let index = parse_index(xml);
-        assert_eq!(index.get("firefox"), Some(&"org.mozilla.firefox.png".to_string()));
+        assert_eq!(
+            index.get("firefox"),
+            Some(&"org.mozilla.firefox-64.png".to_string())
+        );
+        assert_eq!(
+            index.get("org.mozilla.Firefox"),
+            Some(&"org.mozilla.firefox-64.png".to_string())
+        );
         assert_eq!(
             index.get("org.mozilla.firefox"),
-            Some(&"org.mozilla.firefox.png".to_string())
+            Some(&"org.mozilla.firefox-64.png".to_string())
         );
     }
 
@@ -344,5 +353,21 @@ mod tests {
         "#;
 
         assert!(parse_index(xml).is_empty());
+    }
+
+    #[test]
+    fn resolves_desktop_suffix_and_unusual_size() {
+        let temp = std::env::temp_dir().join(format!(
+            "nxc-appstream-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&temp);
+        fs::create_dir_all(temp.join("72x72")).unwrap();
+        fs::write(temp.join("72x72").join("example.png"), b"png").unwrap();
+
+        let icon = load_icon(&format!("{}|example.desktop", temp.display()));
+        assert!(icon.is_some());
+
+        let _ = fs::remove_dir_all(&temp);
     }
 }

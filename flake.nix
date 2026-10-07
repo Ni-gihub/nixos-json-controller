@@ -18,10 +18,10 @@
       appstreamData = nixos-appstream-data.packages.${system}.appstream-data-all;
     in
     {
-      packages.${system}.appstream-data = appstreamData;
+      packages.${system} = {
+        appstream-data = appstreamData;
 
-      packages.${system}.default =
-        pkgs.rustPlatform.buildRustPackage {
+        default = pkgs.rustPlatform.buildRustPackage {
           pname = "nixos-json-controller";
           version = "0.1.0";
 

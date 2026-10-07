@@ -5,44 +5,48 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Mutex, OnceLock};
 
-static INDEX: OnceLock<HashMap<String, String>> = OnceLock::new();
+static INDEX: OnceLock<HashMap<String, Vec<String>>> = OnceLock::new();
 static ICON_CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
 
+/// Resolve the first usable AppStream icon for the supplied package aliases.
 pub fn icon_for_package(candidates: &[&str]) -> Option<String> {
     let index = INDEX.get_or_init(load_index);
     let cache = ICON_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
 
     for candidate in candidates {
-        let icon_entry = index
+        let icon_entries = index
             .get(*candidate)
             .or_else(|| index.get(&candidate.to_lowercase()));
 
-        let Some(icon_entry) = icon_entry else {
+        let Some(icon_entries) = icon_entries else {
             continue;
         };
 
-        if let Ok(icons) = cache.lock() {
-            if let Some(cached) = icons.get(icon_entry) {
-                if cached.is_some() {
-                    return cached.clone();
+        for icon_entry in icon_entries {
+            if let Ok(icons) = cache.lock() {
+                if let Some(cached) = icons.get(icon_entry) {
+                    if cached.is_some() {
+                        return cached.clone();
+                    }
+                    continue;
                 }
-                continue;
             }
-        }
 
-        let icon = load_icon(icon_entry);
-        if let Ok(mut icons) = cache.lock() {
-            icons.insert(icon_entry.clone(), icon.clone());
-        }
-        if icon.is_some() {
-            return icon;
+            let icon = load_icon(icon_entry);
+            if let Ok(mut icons) = cache.lock() {
+                icons.insert(icon_entry.clone(), icon.clone());
+            }
+            if icon.is_some() {
+                return icon;
+            }
         }
     }
 
     None
 }
 
-fn load_index() -> HashMap<String, String> {
+/// Load AppStream component aliases and retain every icon candidate for fallback resolution.
+fn load_index() -> HashMap<String, Vec<String>> {
     let mut index = HashMap::new();
 
     for (xml_path, icon_root) in find_xml() {
@@ -65,13 +69,18 @@ fn load_index() -> HashMap<String, String> {
             continue;
         }
 
-        for (package, icon) in parse_index(&String::from_utf8_lossy(&output.stdout)) {
-            let source = if let Some(url) = icon.strip_prefix("remote|") {
-                format!("remote|{url}")
-            } else {
-                format!("cached|{}|{}", icon_root.display(), icon)
-            };
-            index.entry(package).or_insert(source);
+        for (package, icons) in parse_index(&String::from_utf8_lossy(&output.stdout)) {
+            let entries = index.entry(package).or_default();
+            for icon in icons {
+                let source = if let Some(url) = icon.strip_prefix("remote|") {
+                    format!("remote|{url}")
+                } else {
+                    format!("cached|{}|{}", icon_root.display(), icon)
+                };
+                if !entries.contains(&source) {
+                    entries.push(source);
+                }
+            }
         }
     }
 
@@ -104,7 +113,8 @@ fn find_xml() -> Vec<(PathBuf, PathBuf)> {
         .collect()
 }
 
-fn parse_index(xml: &str) -> HashMap<String, String> {
+/// Parse AppStream components into package aliases and ordered icon candidates.
+fn parse_index(xml: &str) -> HashMap<String, Vec<String>> {
     let mut index = HashMap::new();
     let mut offset = 0;
 
@@ -142,9 +152,14 @@ fn parse_index(xml: &str) -> HashMap<String, String> {
         }
 
         for package in packages {
-            for icon in &icons {
-                index.entry(package.clone()).or_insert_with(|| icon.clone());
-                index.entry(package.to_lowercase()).or_insert_with(|| icon.clone());
+            let aliases = [package.clone(), package.to_lowercase()];
+            for alias in aliases {
+                let entries = index.entry(alias).or_default();
+                for icon in &icons {
+                    if !entries.contains(icon) {
+                        entries.push(icon.clone());
+                    }
+                }
             }
         }
 
@@ -154,8 +169,10 @@ fn parse_index(xml: &str) -> HashMap<String, String> {
     index
 }
 
+/// Extract cached and absolute remote icon references from one AppStream component.
 fn icon_sources(input: &str) -> Vec<String> {
-    let mut icons = Vec::new();
+    let mut cached_icons = Vec::new();
+    let mut remote_icons = Vec::new();
     let mut offset = 0;
 
     while let Some(relative_start) = input[offset..].find("<icon") {
@@ -172,12 +189,13 @@ fn icon_sources(input: &str) -> Vec<String> {
             if let Some(close_rel) = input[content_start..].find("</icon>") {
                 let value = input[content_start..content_start + close_rel].trim();
                 if !value.is_empty() {
+                    let value = decode_xml_entities(value);
                     match icon_type.as_deref() {
-                        Some("cached") | None => icons.push(value.to_string()),
+                        Some("cached") | None => cached_icons.push(value),
                         Some("remote")
                             if value.starts_with("https://") || value.starts_with("http://") =>
                         {
-                            icons.push(format!("remote|{value}"));
+                            remote_icons.push(format!("remote|{value}"));
                         }
                         _ => {}
                     }
@@ -190,13 +208,26 @@ fn icon_sources(input: &str) -> Vec<String> {
         offset = tag_end + 1;
     }
 
-    icons
+    cached_icons.extend(remote_icons);
+    cached_icons
 }
 
+/// Decode the XML entities that can occur in AppStream text nodes.
+fn decode_xml_entities(value: &str) -> String {
+    value
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", """)
+        .replace("&apos;", "'")
+}
+
+/// Return the first non-empty text value for an XML element name.
 fn element_text(input: &str, element: &str) -> Option<String> {
     element_texts(input, element).into_iter().next()
 }
 
+/// Return all non-empty text values for an XML element name.
 fn element_texts(input: &str, element: &str) -> Vec<String> {
     let open = format!("<{element}");
     let close = format!("</{element}>");
@@ -223,6 +254,7 @@ fn element_texts(input: &str, element: &str) -> Vec<String> {
     values
 }
 
+/// Read a quoted attribute from the first matching XML start tag.
 fn element_attribute(input: &str, element: &str, attribute: &str) -> Option<String> {
     let open = format!("<{element}");
     let start = input.find(&open)?;
@@ -234,6 +266,7 @@ fn element_attribute(input: &str, element: &str, attribute: &str) -> Option<Stri
     Some(tag[value_start..value_end].to_string())
 }
 
+/// Load a cached icon from AppStream data or return an absolute remote URL.
 fn load_icon(entry: &str) -> Option<String> {
     if let Some(url) = entry.strip_prefix("remote|") {
         return Some(url.to_string());
@@ -286,6 +319,7 @@ fn load_icon(entry: &str) -> Option<String> {
     None
 }
 
+/// Read a supported local image and encode it as a data URL.
 fn read_icon(path: &Path) -> Option<String> {
     let bytes = fs::read(path).ok()?;
     let mime = match path.extension().and_then(|extension| extension.to_str()) {
@@ -370,7 +404,65 @@ mod tests {
         let index = parse_index(xml);
         assert_eq!(
             index.get("example"),
-            Some(&"remote|https://example.com/icon.png".to_string())
+            Some(&vec!["remote|https://example.com/icon.png".to_string()])
+        );
+    }
+
+    #[test]
+    fn prefers_cached_icon_when_remote_comes_first() {
+        let xml = r#"
+            <component type="desktop-application">
+              <pkgname>example</pkgname>
+              <icon type="remote">https://example.com/remote.png</icon>
+              <icon type="cached">example.png</icon>
+            </component>
+        "#;
+
+        let index = parse_index(xml);
+        assert_eq!(
+            index.get("example"),
+            Some(&vec![
+                "example.png".to_string(),
+                "remote|https://example.com/remote.png".to_string()
+            ])
+        );
+    }
+
+    #[test]
+    fn prefers_cached_icon_when_remote_comes_after_cached() {
+        let xml = r#"
+            <component type="desktop-application">
+              <pkgname>example</pkgname>
+              <icon type="cached">example.png</icon>
+              <icon type="remote">https://example.com/remote.png</icon>
+            </component>
+        "#;
+
+        let index = parse_index(xml);
+        assert_eq!(
+            index.get("example"),
+            Some(&vec![
+                "example.png".to_string(),
+                "remote|https://example.com/remote.png".to_string()
+            ])
+        );
+    }
+
+    #[test]
+    fn decodes_remote_icon_xml_entities() {
+        let xml = r#"
+            <component type="desktop-application">
+              <pkgname>example</pkgname>
+              <icon type="remote">https://example.com/icon.png?a=1&amp;b=2</icon>
+            </component>
+        "#;
+
+        let index = parse_index(xml);
+        assert_eq!(
+            index.get("example"),
+            Some(&vec![
+                "remote|https://example.com/icon.png?a=1&b=2".to_string()
+            ])
         );
     }
 

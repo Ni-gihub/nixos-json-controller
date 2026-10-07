@@ -15,8 +15,11 @@
       pkgs = import nixpkgs {
         inherit system;
       };
+      appstreamData = nixos-appstream-data.packages.${system}.appstream-data-all;
     in
     {
+      packages.${system}.appstream-data = appstreamData;
+
       packages.${system}.default =
         pkgs.rustPlatform.buildRustPackage {
           pname = "nixos-json-controller";
@@ -35,7 +38,7 @@
           postInstall = ''
             mv $out/bin/nixos-json-controller $out/bin/nxc
             wrapProgram $out/bin/nxc \
-              --set NXC_APPSTREAM_DATA ${nixos-appstream-data.packages.${system}.appstream-data-all}
+              --set NXC_APPSTREAM_DATA ${appstreamData}
           '';
         };
     };

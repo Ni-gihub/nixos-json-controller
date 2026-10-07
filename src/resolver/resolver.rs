@@ -15,13 +15,13 @@ impl Resolver {
         let dictionary = Dictionary::load()?;
 
         let name = match action {
-            Action::InstallPackage | Action::RemovePackage => dictionary
-                .resolve_package(&target.raw)
-                .or_else(|| {
+            Action::InstallPackage | Action::RemovePackage => {
+                dictionary.resolve_package(&target.raw).or_else(|| {
                     (dictionary.resolve_service(&target.raw).is_none()
                         && is_safe_package_reference(&target.raw))
                         .then_some(target.raw.as_str())
-                }),
+                })
+            }
 
             Action::EnableService | Action::DisableService => {
                 dictionary.resolve_service(&target.raw)
@@ -50,8 +50,7 @@ fn is_safe_package_segment(segment: &str) -> bool {
 
     (first.is_ascii_alphabetic() || first == '_')
         && characters.all(|character| {
-            character.is_ascii_alphanumeric()
-                || matches!(character, '_' | '-' | '\'')
+            character.is_ascii_alphanumeric() || matches!(character, '_' | '-' | '\'')
         })
         && !matches!(
             segment,

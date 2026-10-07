@@ -19,7 +19,7 @@ const AppStateContext = createContext<AppStateContextValue | null>(null)
 
 export function AppStateProvider({ children }: { children: ReactNode }) {
   const [states, setStates] = useState<Record<string, AppState>>({})
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const refreshPackages = useCallback(async (packageNames: string[]) => {

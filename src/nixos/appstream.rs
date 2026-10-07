@@ -13,12 +13,12 @@ pub fn icon_for_package(candidates: &[&str]) -> Option<String> {
     let cache = ICON_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
 
     for candidate in candidates {
-        let Some(icon_name) = index.get(*candidate) else {
+        let Some(icon_entry) = index.get(*candidate) else {
             continue;
         };
 
         if let Ok(icons) = cache.lock() {
-            if let Some(cached) = icons.get(icon_name) {
+            if let Some(cached) = icons.get(icon_entry) {
                 if cached.is_some() {
                     return cached.clone();
                 }
@@ -26,9 +26,9 @@ pub fn icon_for_package(candidates: &[&str]) -> Option<String> {
             }
         }
 
-        let icon = load_icon(icon_name);
+        let icon = load_icon(icon_entry);
         if let Ok(mut icons) = cache.lock() {
-            icons.insert(icon_name.clone(), icon.clone());
+            icons.insert(icon_entry.clone(), icon.clone());
         }
         if icon.is_some() {
             return icon;
@@ -39,40 +39,37 @@ pub fn icon_for_package(candidates: &[&str]) -> Option<String> {
 }
 
 fn load_index() -> HashMap<String, String> {
-    let Some(xml_path) = find_xml() else {
-        return HashMap::new();
-    };
+    let mut index = HashMap::new();
 
-    let output = match Command::new("gzip")
-        .args(["-dc"])
-        .arg(xml_path)
-        .output()
-    else {
-        .args(["-dc"])
-        .arg(&xml_path)
-        .output()
-    {
-        Ok(output) => output,
-        Err(error) => {
-            log::warn!("failed to start gzip for AppStream data {}: {error}", xml_path.display());
-            return HashMap::new();
+    for (xml_path, icon_root) in find_xml() {
+        let Ok(output) = Command::new("gzip")
+            .args(["-dc"])
+            .arg(&xml_path)
+            .output()
+        else {
+            log::warn!("failed to start gzip for AppStream data {}", xml_path.display());
+            continue;
+        };
+
+        if !output.status.success() {
+            log::warn!(
+                "failed to decompress AppStream data {}: status={}, stderr={}",
+                xml_path.display(),
+                output.status,
+                String::from_utf8_lossy(&output.stderr).trim()
+            );
+            continue;
         }
-    };
 
-    if !output.status.success() {
-        log::warn!(
-            "failed to decompress AppStream data {}: status={}, stderr={}",
-            xml_path.display(),
-            output.status,
-            String::from_utf8_lossy(&output.stderr).trim()
-        );
-        return HashMap::new();
+        for (package, icon) in parse_index(&String::from_utf8_lossy(&output.stdout)) {
+            index.entry(package).or_insert_with(|| format!("{}|{}", icon_root.display(), icon));
+        }
     }
 
-    parse_index(&String::from_utf8_lossy(&output.stdout))
+    index
 }
 
-fn find_xml() -> Option<PathBuf> {
+fn find_xml() -> Vec<(PathBuf, PathBuf)> {
     let mut roots = Vec::new();
 
     if let Ok(root) = env::var("NXC_APPSTREAM_DATA") {
@@ -84,13 +81,18 @@ fn find_xml() -> Option<PathBuf> {
         PathBuf::from("/usr"),
     ]);
 
-    roots.into_iter().find_map(|root| {
-        let candidates = [
-            root.join("share/swcatalog/xml/nixos-unstable.xml.gz"),
-            root.join("share/app-info/xmls/nixos_x86_64_linux.yml.gz"),
-        ];
-        candidates.into_iter().find(|path| path.is_file())
-    })
+    roots
+        .into_iter()
+        .flat_map(|root| {
+            ["nixos-unstable", "nixos-unstable-unfree"]
+                .into_iter()
+                .filter_map(move |section| {
+                    let xml = root.join("share/swcatalog/xml").join(format!("{section}.xml.gz"));
+                    let icons = root.join("share/swcatalog/icons").join(section);
+                    (xml.is_file() && icons.is_dir()).then_some((xml, icons))
+                })
+        })
+        .collect()
 }
 
 fn parse_index(xml: &str) -> HashMap<String, String> {
@@ -153,15 +155,12 @@ fn element_attribute(input: &str, element: &str, attribute: &str) -> Option<Stri
     Some(tag[value_start..value_end].to_string())
 }
 
-fn load_icon(icon_name: &str) -> Option<String> {
-    let root = appstream_root()?;
+fn load_icon(entry: &str) -> Option<String> {
+    let (root, icon_name) = entry.split_once('|')?;
+    let root = Path::new(root);
 
     for size in ["128x128", "64x64", "48x48"] {
-        let path = root
-            .join("share/swcatalog/icons/nixos-unstable")
-            .join(size)
-            .join(icon_name);
-
+        let path = root.join(size).join(icon_name);
         if let Some(data_url) = read_icon(&path) {
             return Some(data_url);
         }

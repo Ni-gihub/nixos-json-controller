@@ -111,7 +111,8 @@ fn find_xml() -> Vec<(PathBuf, PathBuf)> {
         .collect()
 }
 
-/// Merge an icon candidate while keeping cached icons ahead of remote fallbacks.fn merge_icon_candidate(entries: &mut Vec<String>, candidate: String) {
+/// Merge an icon candidate while keeping cached icons ahead of remote fallbacks.
+fn merge_icon_candidate(entries: &mut Vec<String>, candidate: String) {
     if entries.contains(&candidate) {
         return;
     }
@@ -171,9 +172,7 @@ fn parse_index(xml: &str) -> HashMap<String, Vec<String>> {
             for alias in aliases {
                 let entries = index.entry(alias).or_default();
                 for icon in &icons {
-                    if !entries.contains(icon) {
-                        entries.push(icon.clone());
-                    }
+                    merge_icon_candidate(entries, icon.clone());
                 }
             }
         }

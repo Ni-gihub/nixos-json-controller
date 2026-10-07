@@ -40,7 +40,7 @@ async fn get_catalog_app(
         nixos_json_controller::nixos::catalog::find(&id)
     })
     .await
-    .map_err(|error| format!("catalog lookup task failed: {error}"))?
+        .map_err(|error| format!("catalog lookup task failed: {error}"))?
 }
 
 #[tauri::command]

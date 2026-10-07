@@ -1,4 +1,4 @@
-export type AppCategory = 'Browser' | 'Development' | 'Media' | 'Graphics'
+export type AppCategory = 'ブラウザ' | '開発' | 'メディア' | 'グラフィックス'
 
 export type AppTag = string
 
@@ -10,36 +10,35 @@ export type App = {
   tags: AppTag[]
   details: string
   featured?: boolean
+  icon?: string
 }
 
 export const apps: App[] = [
   {
     id: 'firefox',
     name: 'Firefox',
-    description: 'Fast, private web browser',
-    category: 'Browser',
-    tags: ['Open Source', 'Privacy', 'Web Browser'],
-    details: 'A fast and privacy-focused web browser from Mozilla.',
+    description: '高速でプライバシーを重視したWebブラウザ',
+    category: 'ブラウザ',
+    tags: ['オープンソース', 'プライバシー', 'Webブラウザ'],
+    details: 'Mozillaが開発する、高速でプライバシーを重視したWebブラウザです。',
     featured: true,
   },
   {
     id: 'vlc',
     name: 'VLC',
-    description: 'Play almost any media format',
-    category: 'Media',
-    tags: ['Open Source', 'Video', 'Audio'],
-    details:
-      'A versatile media player that supports a wide range of audio and video formats.',
+    description: 'ほぼすべてのメディア形式を再生できるプレイヤー',
+    category: 'メディア',
+    tags: ['オープンソース', '動画', '音声'],
+    details: '幅広い音声・動画形式に対応した、多機能なオープンソースメディアプレイヤーです。',
     featured: true,
   },
   {
     id: 'gimp',
     name: 'GIMP',
-    description: 'Powerful open-source image editor',
-    category: 'Graphics',
-    tags: ['Open Source', 'Image Editing', 'Photography'],
-    details:
-      'A powerful open-source image editor for photo manipulation and graphic design.',
+    description: '高機能なオープンソース画像編集ソフト',
+    category: 'グラフィックス',
+    tags: ['オープンソース', '画像編集', '写真'],
+    details: '写真加工やグラフィックデザインに使える、高機能なオープンソース画像編集ソフトです。',
     featured: true,
   },
 ]

@@ -19,7 +19,7 @@ impl Resolver {
                 dictionary.resolve_package(&target.raw).or_else(|| {
                     (dictionary.resolve_service(&target.raw).is_none()
                         && is_safe_package_reference(&target.raw))
-                        .then_some(target.raw.as_str())
+                    .then_some(target.raw.as_str())
                 })
             }
 

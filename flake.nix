@@ -24,8 +24,6 @@
 
           src = ./.;
 
-          nativeBuildInputs = [ pkgs.makeWrapper ];
-
           cargoLock = {
             lockFile = ./Cargo.lock;
           };

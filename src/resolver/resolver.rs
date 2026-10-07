@@ -17,7 +17,11 @@ impl Resolver {
         let name = match action {
             Action::InstallPackage | Action::RemovePackage => dictionary
                 .resolve_package(&target.raw)
-                .or_else(|| is_safe_package_reference(&target.raw).then_some(target.raw.as_str())),
+                .or_else(|| {
+                    (dictionary.resolve_service(&target.raw).is_none()
+                        && is_safe_package_reference(&target.raw))
+                        .then_some(target.raw.as_str())
+                }),
 
             Action::EnableService | Action::DisableService => {
                 dictionary.resolve_service(&target.raw)
@@ -35,7 +39,7 @@ fn is_safe_package_reference(value: &str) -> bool {
     !value.is_empty()
         && value
             .split('.')
-            .all(|segment| is_safe_package_segment(segment))
+.all(is_safe_package_segment)
 }
 
 fn is_safe_package_segment(segment: &str) -> bool {

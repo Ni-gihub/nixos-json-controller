@@ -31,7 +31,6 @@ impl Resolver {
     }
 }
 
-
 fn is_safe_package_reference(value: &str) -> bool {
     !value.is_empty()
         && value

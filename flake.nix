@@ -18,28 +18,30 @@
       appstreamData = nixos-appstream-data.packages.${system}.appstream-data-all;
     in
     {
-      packages.${system}.appstream-data = appstreamData;
+      packages.${system} = {
+        appstream-data = appstreamData;
 
-      packages.${system}.default =
-        pkgs.rustPlatform.buildRustPackage {
-          pname = "nixos-json-controller";
-          version = "0.1.0";
+        default =
+          pkgs.rustPlatform.buildRustPackage {
+            pname = "nixos-json-controller";
+            version = "0.1.0";
 
-          src = ./.;
+            src = ./.;
 
-          cargoLock = {
-            lockFile = ./Cargo.lock;
+            cargoLock = {
+              lockFile = ./Cargo.lock;
+            };
+
+            doCheck = false;
+
+            nativeBuildInputs = [ pkgs.makeWrapper ];
+
+            postInstall = ''
+              mv $out/bin/nixos-json-controller $out/bin/nxc
+              wrapProgram $out/bin/nxc \
+                --set NXC_APPSTREAM_DATA ${appstreamData}
+            '';
           };
-
-          doCheck = false;
-
-          nativeBuildInputs = [ pkgs.makeWrapper ];
-
-          postInstall = ''
-            mv $out/bin/nixos-json-controller $out/bin/nxc
-            wrapProgram $out/bin/nxc \
-              --set NXC_APPSTREAM_DATA ${appstreamData}
-          '';
-        };
+      };
     };
 }

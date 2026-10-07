@@ -87,8 +87,8 @@ fn find_xml() -> Vec<(PathBuf, PathBuf)> {
             ["nixos-unstable", "nixos-unstable-unfree"]
                 .into_iter()
                 .filter_map(move |section| {
-                    let xml = root.join("share/app-info/xmls").join(format!("{section}.xml.gz"));
-                    let icons = root.join("share/app-info/icons").join(section);
+                    let xml = root.join("share/swcatalog/xml").join(format!("{section}.xml.gz"));
+                    let icons = root.join("share/swcatalog/icons").join(section);
                     (xml.is_file() && icons.is_dir()).then_some((xml, icons))
                 })
         })

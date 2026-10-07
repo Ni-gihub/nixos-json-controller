@@ -3,6 +3,8 @@ use serde_json::Value;
 use std::collections::BTreeMap;
 use std::process::Command;
 
+use super::appstream;
+
 const MAX_RESULTS: usize = 40;
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -14,6 +16,7 @@ pub struct CatalogPackage {
     pub category: String,
     pub tags: Vec<String>,
     pub homepage: Option<String>,
+    pub icon: Option<String>,
 }
 
 pub fn search(query: &str) -> Result<Vec<CatalogPackage>, String> {
@@ -112,6 +115,8 @@ fn parse_results(output: &[u8], query: &str) -> Result<Vec<CatalogPackage>, Stri
             let score = relevance_score(query, &id, &name, &description);
             let category = category_for(&name, &description);
             let tags = tags_for(&name, &description, &category);
+            let id_leaf = id.rsplit('.').next().unwrap_or(&id);
+            let icon = appstream::icon_for_package(&[&id, id_leaf, &name]);
 
             Some((
                 score,
@@ -123,6 +128,7 @@ fn parse_results(output: &[u8], query: &str) -> Result<Vec<CatalogPackage>, Stri
                     category,
                     tags,
                     homepage,
+                    icon,
                 },
             ))
         })

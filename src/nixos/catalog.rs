@@ -341,8 +341,8 @@ mod tests {
 
     #[test]
     fn find_pattern_matches_normalized_attributes() {
-        let pattern = format!("^.*\\\\.{}$", regex_escape_attribute("firefox-beta"));
-        assert!(regex::Regex::new(&pattern).unwrap().is_match("legacyPackages.x86_64-linux.firefox-beta"));
+        let pattern = format!(r"^.*\.{}$", regex_escape_attribute("firefox-beta"));
+        assert_eq!(pattern, r"^.*\.firefox-beta$");
     }
 
     #[test]

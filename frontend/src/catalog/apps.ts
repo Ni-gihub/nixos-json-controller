@@ -1,8 +1,10 @@
+export type AppCategory = 'Browser' | 'Development' | 'Media' | 'Graphics'
+
 export type App = {
   id: string
   name: string
   description: string
-  category: string
+  category: AppCategory
   details: string
 }
 

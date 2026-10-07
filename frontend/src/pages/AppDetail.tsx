@@ -126,7 +126,11 @@ function AppDetail() {
                 <div className="pointer-events-none absolute -right-20 -top-24 size-64 rounded-full bg-blue-400/15 blur-3xl" />
                 <div className="relative flex flex-col items-start gap-7 sm:flex-row">
                   <div className="flex size-28 shrink-0 items-center justify-center rounded-3xl border border-blue-100 bg-white/80 text-6xl font-bold text-blue-600">
-                    {app.name[0]}
+                    {app.icon ? (
+                      <img src={app.icon} alt="" className="size-20 object-contain" />
+                    ) : (
+                      app.name[0]
+                    )}
                   </div>
                   <div className="min-w-0 pt-1">
                     <div className="flex flex-wrap gap-2">

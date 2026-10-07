@@ -69,7 +69,7 @@ function AppDetail() {
         <div className="text-center">
           <h1 className="text-2xl font-bold">パッケージが見つかりません</h1>
           {error && <p className="mt-2 max-w-md text-sm text-muted-foreground">{error}</p>}
-          <Link to="/discover" className="mt-4 inline-block text-primary hover:underline">
+          <Link to={returnQuery ? `/discover?query=${encodeURIComponent(returnQuery)}` : '/discover'} className="mt-4 inline-block text-primary hover:underline">
             パッケージを探す
           </Link>
         </div>

@@ -41,5 +41,6 @@
               --set NXC_APPSTREAM_DATA ${appstreamData}
           '';
         };
+      };
     };
 }

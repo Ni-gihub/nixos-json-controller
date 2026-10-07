@@ -29,7 +29,7 @@ jobs:
         run: |
           files=$(git diff --name-only HEAD^ HEAD -- '*.rs')
           if [ -n "$files" ]; then
-            rustfmt --check $files
+            rustfmt --edition 2024 --check $files
           fi
 
   check:

@@ -1,3 +1,2 @@
-export { apps, type App, type AppCategory, type AppTag } from './apps'
-export { appsInCategory, categories } from './categories'
-export { appsWithTag, findApp, getFeaturedApps, getTags, searchApps } from './search'
+export type { App, AppCategory, AppTag } from './apps'
+export { findApp, searchApps } from './search'

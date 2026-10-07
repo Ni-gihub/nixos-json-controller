@@ -33,9 +33,9 @@ function AppDetail() {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold">App not found</h1>
+          <h1 className="text-2xl font-bold">アプリが見つかりません</h1>
           <Link to="/discover" className="mt-4 inline-block text-primary hover:underline">
-            Back to Discover
+            アプリを探す
           </Link>
         </div>
       </div>
@@ -92,7 +92,7 @@ function AppDetail() {
         <div className="mx-auto max-w-7xl px-6 py-4">
           <Link to="/discover" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="size-4" />
-            Back to Discover
+            アプリを探す
           </Link>
         </div>
       </header>
@@ -105,7 +105,12 @@ function AppDetail() {
                 {app.name[0]}
               </div>
               <div>
-                <Badge variant="secondary">{app.category}</Badge>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary">{app.category}</Badge>
+                  {app.tags.map((tag) => (
+                    <Badge key={tag} variant="outline">{tag}</Badge>
+                  ))}
+                </div>
                 <CardTitle className="mt-3 text-3xl">{app.name}</CardTitle>
                 <p className="mt-2 text-muted-foreground">{app.description}</p>
               </div>
@@ -117,7 +122,7 @@ function AppDetail() {
             {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
             {refreshError && (
               <div className="mb-4 flex items-center gap-3 text-sm text-destructive">
-                <span>Installation state could not be refreshed.</span>
+                <span>インストール状態を更新できませんでした。</span>
                 <Button
                   variant="outline"
                   size="sm"
@@ -128,15 +133,15 @@ function AppDetail() {
                       .catch((err) => setRefreshError(String(err)))
                   }}
                 >
-                  Retry
+                  再試行
                 </Button>
               </div>
             )}
             {!statusKnown && !refreshError && (
-              <p className="mb-4 text-sm text-muted-foreground">Checking installation status...</p>
+              <p className="mb-4 text-sm text-muted-foreground">インストール状態を確認中...</p>
             )}
             <Button size="lg" className="w-full sm:w-auto" disabled={installing || installed || !statusKnown} onClick={handleInstall}>
-              {installed ? '● Installed' : installing ? 'Installing...' : 'Install'}
+              {installed ? '● インストール済み' : installing ? 'インストール中...' : 'インストール'}
             </Button>
           </CardContent>
         </Card>
@@ -145,22 +150,24 @@ function AppDetail() {
       {passwordRequired && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6">
           <form onSubmit={handlePasswordSubmit} className="w-full max-w-sm rounded-xl border bg-background p-6 shadow-xl">
-            <h2 className="text-lg font-semibold">Authentication required</h2>
-            <p className="mt-2 text-sm text-muted-foreground">Enter your password to install {app.name}.</p>
+            <h2 className="text-lg font-semibold">認証が必要です</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {app.name}をインストールするため、パスワードを入力してください。
+            </p>
             <Input
               autoFocus
               className="mt-4"
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="Password"
+              placeholder="パスワード"
               autoComplete="current-password"
             />
             <div className="mt-6 flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => { setPassword(''); setPasswordRequired(false) }}>
-                Cancel
+                キャンセル
               </Button>
-              <Button type="submit" disabled={!password}>Continue</Button>
+              <Button type="submit" disabled={!password}>続行</Button>
             </div>
           </form>
         </div>

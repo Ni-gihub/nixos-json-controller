@@ -56,7 +56,7 @@ pub fn find(id: &str) -> Result<Option<CatalogPackage>, String> {
             "nixpkgs",
             "--json",
             "--no-pretty",
-            &format!("^{}$", regex_escape_attribute(id)),
+            &format!("^.*\\.{}$", regex_escape_attribute(id)),
         ])
         .output()
         .map_err(|error| format!("failed to start nix search: {error}"))?;
@@ -337,6 +337,12 @@ mod tests {
             normalize_attribute("legacyPackages.x86_64-linux.python3Packages.requests"),
             Some("python3Packages.requests".to_string())
         );
+    }
+
+    #[test]
+    fn find_pattern_matches_normalized_attributes() {
+        let pattern = format!(r"^.*\.{}$", regex_escape_attribute("firefox-beta"));
+        assert_eq!(pattern, r"^.*\.firefox\-beta$");
     }
 
     #[test]

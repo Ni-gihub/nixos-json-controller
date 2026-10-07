@@ -20,11 +20,13 @@ fn load_index() -> HashMap<String, String> {
         return HashMap::new();
     };
 
-    let output = Command::new("gzip")
+    let Ok(output) = Command::new("gzip")
         .args(["-dc"])
         .arg(xml_path)
         .output()
-        .ok()?;
+    else {
+        return HashMap::new();
+    };
 
     if !output.status.success() {
         return HashMap::new();

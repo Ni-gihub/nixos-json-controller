@@ -211,11 +211,11 @@ function AppDetail() {
 
           <aside className="lg:sticky lg:top-24 lg:self-start">
             <Card className="border-border/60 bg-gradient-to-br from-white via-white to-blue-50/50 shadow-md shadow-blue-100/40">
-              <CardContent className="p-7">
+              <CardContent className="p-8">
                 <p className="text-sm font-medium text-muted-foreground">インストール</p>
                 <h2 className="mt-2 text-xl font-semibold">{app.name}</h2>
 
-                <div className="mt-6 rounded-xl bg-muted/50 p-4">
+                <div className="mt-6 rounded-2xl border border-white/70 bg-gradient-to-br from-blue-50/80 to-white p-5 shadow-inner shadow-white/80">
                   <div className="flex items-center justify-between gap-4 text-sm">
                     <span className="text-muted-foreground">バージョン</span>
                     <span className="font-medium">{app.version || '—'}</span>

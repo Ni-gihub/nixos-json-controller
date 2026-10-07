@@ -310,6 +310,7 @@ fn is_safe_attribute_segment(segment: &str) -> bool {
     (first.is_ascii_alphabetic() || first == '_')
         && characters.all(|character| {
             character.is_ascii_alphanumeric()
+                || matches!(character, '_' | '-')
                 || character == '\''
         })
         && !matches!(segment, "assert" | "else" | "if" | "in" | "inherit" | "let" | "or" | "rec" | "then" | "with")

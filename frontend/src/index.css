@@ -129,8 +129,9 @@
   }
   body {
     background-image:
-      radial-gradient(circle at 15% -10%, oklch(0.94 0.07 255 / 0.65), transparent 32rem),
-      radial-gradient(circle at 90% 5%, oklch(0.97 0.04 210 / 0.8), transparent 28rem);
+      radial-gradient(circle at 12% -8%, oklch(0.93 0.10 255 / 0.78), transparent 34rem),
+      radial-gradient(circle at 88% 2%, oklch(0.96 0.07 210 / 0.88), transparent 30rem),
+      linear-gradient(135deg, oklch(0.995 0.004 250), oklch(0.98 0.015 250));
     background-attachment: fixed;
   }
 }

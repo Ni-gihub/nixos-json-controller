@@ -304,10 +304,7 @@ fn regex_escape_attribute(value: &str) -> String {
 }
 
 fn is_safe_attribute_path(value: &str) -> bool {
-    !value.is_empty()
-        && value
-            .split('.')
-            .all(is_safe_attribute_segment)
+    !value.is_empty() && value.split('.').all(is_safe_attribute_segment)
 }
 
 fn is_safe_attribute_segment(segment: &str) -> bool {
@@ -318,9 +315,7 @@ fn is_safe_attribute_segment(segment: &str) -> bool {
 
     (first.is_ascii_alphabetic() || first == '_')
         && characters.all(|character| {
-            character.is_ascii_alphanumeric()
-                || matches!(character, '_' | '-')
-                || character == '\''
+            character.is_ascii_alphanumeric() || matches!(character, '_' | '-') || character == '\''
         })
         && !matches!(
             segment,

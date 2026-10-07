@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import AppCard from '@/components/AppCard'
 import { Button } from '@/components/ui/button'

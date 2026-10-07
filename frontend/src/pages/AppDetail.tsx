@@ -6,12 +6,14 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { findApp } from '@/catalog'
+import { findApp, type App } from '@/catalog'
 import { useAppState } from '@/lib/app-state'
 
 function AppDetail() {
   const { id } = useParams()
   const { states, refreshPackage } = useAppState()
+  const [app, setApp] = useState<App | undefined>()
+  const [loadingApp, setLoadingApp] = useState(true)
   const [installing, setInstalling] = useState(false)
   const [passwordRequired, setPasswordRequired] = useState(false)
   const [password, setPassword] = useState('')
@@ -19,23 +21,54 @@ function AppDetail() {
   const [refreshError, setRefreshError] = useState<string | null>(null)
   const [installSucceeded, setInstallSucceeded] = useState(false)
 
-  const app = id ? findApp(id) : undefined
   const appState = id ? states[id] : undefined
   const installed = installSucceeded || appState?.active === true
   const statusKnown = appState !== undefined
 
   useEffect(() => {
     if (!id) return
+
+    let cancelled = false
+    setLoadingApp(true)
+    setError(null)
+
+    void findApp(id)
+      .then((result) => {
+        if (!cancelled) setApp(result)
+      })
+      .catch((err) => {
+        if (!cancelled) setError(String(err))
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingApp(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [id])
+
+  useEffect(() => {
+    if (!id) return
     void refreshPackage(id).catch((err) => setRefreshError(String(err)))
   }, [id, refreshPackage])
 
-  if (!app) {
+  if (loadingApp) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-muted-foreground">
+        パッケージ情報を取得中...
+      </div>
+    )
+  }
+
+  if (!app || !id) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold">アプリが見つかりません</h1>
+          <h1 className="text-2xl font-bold">パッケージが見つかりません</h1>
+          {error && <p className="mt-2 max-w-md text-sm text-muted-foreground">{error}</p>}
           <Link to="/discover" className="mt-4 inline-block text-primary hover:underline">
-            アプリを探す
+            パッケージを探す
           </Link>
         </div>
       </div>
@@ -43,7 +76,6 @@ function AppDetail() {
   }
 
   const install = async (authPassword: string | null) => {
-    if (!id) return
     setInstalling(true)
     setError(null)
     try {
@@ -92,7 +124,7 @@ function AppDetail() {
         <div className="mx-auto max-w-7xl px-6 py-4">
           <Link to="/discover" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="size-4" />
-            アプリを探す
+            パッケージを探す
           </Link>
         </div>
       </header>
@@ -104,7 +136,7 @@ function AppDetail() {
               <div className="flex size-24 shrink-0 items-center justify-center rounded-2xl bg-muted text-4xl font-bold">
                 {app.name[0]}
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="secondary">{app.category}</Badge>
                   {app.tags.map((tag) => (
@@ -112,13 +144,18 @@ function AppDetail() {
                   ))}
                 </div>
                 <CardTitle className="mt-3 text-3xl">{app.name}</CardTitle>
+                {app.version && (
+                  <p className="mt-1 text-sm text-muted-foreground">v{app.version}</p>
+                )}
                 <p className="mt-2 text-muted-foreground">{app.description}</p>
               </div>
             </div>
           </CardHeader>
 
           <CardContent>
-            <p className="mb-8 text-muted-foreground">{app.details}</p>
+            {app.homepage && (
+              <p className="mb-4 break-all text-sm text-muted-foreground">{app.homepage}</p>
+            )}
             {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
             {refreshError && (
               <div className="mb-4 flex items-center gap-3 text-sm text-destructive">
@@ -127,7 +164,6 @@ function AppDetail() {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    if (!id) return
                     void refreshPackage(id)
                       .then(() => setRefreshError(null))
                       .catch((err) => setRefreshError(String(err)))

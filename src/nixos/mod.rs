@@ -1,4 +1,5 @@
 pub mod application;
+pub mod catalog;
 pub mod config;
 pub mod dedicated;
 pub mod discovery;

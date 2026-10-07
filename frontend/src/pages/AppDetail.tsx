@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { ArrowLeft, ExternalLink, Package, Tag } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
-import { Link, useParams } from 'react-router'
+import { Link, useParams, useSearchParams } from 'react-router'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -11,6 +11,8 @@ import { useAppState } from '@/lib/app-state'
 
 function AppDetail() {
   const { id } = useParams()
+  const [searchParams] = useSearchParams()
+  const returnQuery = searchParams.get('query')?.trim() ?? ''
   const { states, refreshPackage } = useAppState()
   const [app, setApp] = useState<App | undefined>()
   const [loadingApp, setLoadingApp] = useState(true)
@@ -123,7 +125,7 @@ function AppDetail() {
       <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
         <div className="flex h-16 items-center px-8">
           <Link
-            to="/discover"
+            to={returnQuery ? `/discover?query=${encodeURIComponent(returnQuery)}` : "/discover"}
             className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft className="size-4" />
@@ -150,11 +152,11 @@ function AppDetail() {
                         <Badge key={tag} variant="outline">{tag}</Badge>
                       ))}
                     </div>
-                    <h1 className="mt-4 text-4xl font-bold tracking-tight lg:text-5xl">{app.name}</h1>
+                    <h1 className="mt-4 text-5xl font-bold tracking-tight lg:text-6xl">{app.name}</h1>
                     {app.version && (
                       <p className="mt-2 text-sm text-muted-foreground">バージョン {app.version}</p>
                     )}
-                    <p className="mt-5 max-w-3xl text-base leading-7 text-muted-foreground lg:text-lg">
+                    <p className="mt-5 max-w-3xl text-lg leading-8 text-muted-foreground lg:text-xl">
                       {app.description}
                     </p>
                   </div>

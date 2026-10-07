@@ -138,7 +138,7 @@ function AppDetail() {
       <main className="mx-auto w-full max-w-none px-8 py-10 lg:px-12 lg:py-14">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_420px]">
           <section className="min-w-0 space-y-8">
-            <Card className="border-border/60 bg-gradient-to-br from-white via-white to-blue-50/50 shadow-md shadow-blue-100/40">
+            <Card className="border-blue-100/70 bg-gradient-to-br from-white via-blue-50/20 to-blue-100/70 shadow-lg shadow-blue-100/60">
               <CardContent className="p-8 lg:p-10">
                 <div className="flex flex-col items-start gap-7 sm:flex-row">
                   <div className="flex size-28 shrink-0 items-center justify-center rounded-3xl bg-gradient-to-br from-primary/15 via-blue-100/70 to-white text-6xl font-bold text-primary shadow-inner shadow-white">

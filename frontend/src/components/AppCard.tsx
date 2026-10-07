@@ -20,16 +20,16 @@ type AppCardProps = {
 function AppCard({ id, name, description, category, tags, installed, searchQuery }: AppCardProps) {
   return (
     <Link to={searchQuery ? `/apps/${id}?query=${encodeURIComponent(searchQuery)}` : `/apps/${id}`} className="block h-full">
-      <Card className="h-full rounded-xl border-border/60 bg-gradient-to-br from-white via-white to-blue-50/70 shadow-sm shadow-blue-100/50 transition-all duration-200 hover:-translate-y-1 hover:border-primary/20 hover:shadow-lg hover:shadow-blue-200/30">
-        <CardHeader className="p-6">
+      <Card className="h-full rounded-2xl border-blue-100/70 bg-gradient-to-br from-white via-blue-50/20 to-blue-100/70 shadow-md shadow-blue-100/60 transition-all duration-200 hover:-translate-y-1 hover:border-primary/20 hover:shadow-lg hover:shadow-blue-200/30">
+        <CardHeader className="p-7">
           <div className="flex items-start gap-4">
-            <div className="flex size-16 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/15 via-blue-100/70 to-white text-2xl font-bold text-primary shadow-inner shadow-white/80">
+            <div className="flex size-20 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-white via-blue-100/80 to-primary/15 text-3xl font-bold text-primary shadow-inner shadow-white/80">
               {name[0]}
             </div>
 
             <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between gap-3">
-                <CardTitle className="line-clamp-2 text-lg leading-7">{name}</CardTitle>
+                <CardTitle className="line-clamp-2 text-xl leading-8">{name}</CardTitle>
                 {installed && (
                   <Badge className="shrink-0 rounded-full px-2.5 py-0.5 text-[11px]">
                     インストール済み
@@ -43,7 +43,7 @@ function AppCard({ id, name, description, category, tags, installed, searchQuery
             </div>
           </div>
 
-          <div className="mt-5 flex items-center gap-2 overflow-hidden">
+          <div className="mt-6 flex items-center gap-2 overflow-hidden">
             <Badge variant="outline" className="shrink-0 rounded-full px-2.5 py-1 text-sm">
               {category}
             </Badge>

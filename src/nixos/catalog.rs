@@ -291,7 +291,7 @@ fn regex_escape_attribute(value: &str) -> String {
         .split('.')
         .map(escape_regex)
         .collect::<Vec<_>>()
-        .join(r#"."#)
+        .join(r#"\."#)
 }
 
 fn is_safe_attribute_path(value: &str) -> bool {

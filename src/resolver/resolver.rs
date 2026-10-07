@@ -36,10 +36,7 @@ impl Resolver {
 }
 
 fn is_safe_package_reference(value: &str) -> bool {
-    !value.is_empty()
-        && value
-            .split('.')
-.all(is_safe_package_segment)
+    !value.is_empty() && value.split('.').all(is_safe_package_segment)
 }
 
 fn is_safe_package_segment(segment: &str) -> bool {

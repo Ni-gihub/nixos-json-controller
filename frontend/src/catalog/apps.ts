@@ -9,4 +9,5 @@ export type App = {
   category: AppCategory
   tags: AppTag[]
   homepage?: string
+  icon?: string
 }

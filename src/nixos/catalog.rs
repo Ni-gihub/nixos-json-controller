@@ -56,7 +56,7 @@ pub fn find(id: &str) -> Result<Option<CatalogPackage>, String> {
             "nixpkgs",
             "--json",
             "--no-pretty",
-            &format!("^{regex_escape_attribute(id)}$"),
+            &format!("^{}$", regex_escape_attribute(id)),
         ])
         .output()
         .map_err(|error| format!("failed to start nix search: {error}"))?;
@@ -310,7 +310,7 @@ fn is_safe_attribute_segment(segment: &str) -> bool {
     (first.is_ascii_alphabetic() || first == '_')
         && characters.all(|character| {
             character.is_ascii_alphanumeric()
-                || matches!(character, '_' | '-' | ''')
+                || matches!(character, '_' | '-' | '\\'')
         })
         && !matches!(segment, "assert" | "else" | "if" | "in" | "inherit" | "let" | "or" | "rec" | "then" | "with")
 }

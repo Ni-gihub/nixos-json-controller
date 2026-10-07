@@ -1,3 +1,4 @@
+pub mod appstream;
 pub mod application;
 pub mod catalog;
 pub mod config;

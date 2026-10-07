@@ -16,14 +16,11 @@ function Discover() {
 
   const handleSearch = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-
     const normalized = query.trim()
     if (!normalized) return
-
     setSubmittedQuery(normalized)
     setSearching(true)
     setSearchError(null)
-
     try {
       const nextResults = await searchApps(normalized)
       setResults(nextResults)
@@ -52,13 +49,11 @@ function Discover() {
                 <p className="text-xs text-muted-foreground">NixOS向けアプリストア</p>
               </div>
             </div>
-
             <nav aria-label="App Store" className="mt-10 space-y-1">
               <div aria-current="page" className="rounded-lg bg-muted px-3 py-2.5 text-sm font-medium">
                 アプリを探す
               </div>
             </nav>
-
             <div className="mt-auto rounded-xl bg-muted/60 p-4">
               <p className="text-xs font-medium">Nixpkgs</p>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
@@ -78,8 +73,8 @@ function Discover() {
             </div>
           </header>
 
-          <main className="mx-auto w-full max-w-[1600px] px-6 py-8 sm:px-8 lg:px-12 lg:py-12">
-            <section className="max-w-5xl">
+          <main className="w-full px-6 py-8 sm:px-8 lg:px-12 lg:py-12">
+            <section>
               <p className="text-sm font-semibold tracking-wide text-primary">NixOS App Store</p>
               <h1 className="mt-3 text-4xl font-bold tracking-tight lg:text-5xl">アプリを探す</h1>
               <p className="mt-3 max-w-3xl text-base text-muted-foreground lg:text-lg">
@@ -87,7 +82,7 @@ function Discover() {
               </p>
 
               <form onSubmit={handleSearch} className="mt-8">
-                <div className="flex max-w-4xl gap-3">
+                <div className="flex w-full gap-3">
                   <div className="relative min-w-0 flex-1">
                     <Search className="absolute left-5 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
                     <Input
@@ -113,7 +108,7 @@ function Discover() {
 
             <section className="mt-12 lg:mt-14">
               {!hasResults ? (
-                <div className="flex min-h-[360px] max-w-5xl items-center justify-center rounded-2xl border border-dashed border-border bg-card/50 px-8 py-16 text-center">
+                <div className="flex min-h-[360px] w-full items-center justify-center rounded-2xl border border-dashed border-border bg-card/50 px-8 py-16 text-center">
                   <div>
                     <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                       <Search className="size-6" />
@@ -129,26 +124,20 @@ function Discover() {
                   <div className="mb-6 flex items-end justify-between gap-4">
                     <div>
                       <h2 className="text-2xl font-semibold">「{submittedQuery}」の検索結果</h2>
-                      {!searching && (
-                        <p className="mt-1 text-sm text-muted-foreground">{results.length}件</p>
-                      )}
+                      {!searching && <p className="mt-1 text-sm text-muted-foreground">{results.length}件</p>}
                     </div>
-                    {(searching || loading) && (
-                      <span className="text-sm text-muted-foreground">検索中...</span>
-                    )}
+                    {(searching || loading) && <span className="text-sm text-muted-foreground">検索中...</span>}
                   </div>
 
                   {searchError ? (
-                    <div className="max-w-5xl rounded-2xl border border-dashed border-border bg-card/50 p-12 text-center">
+                    <div className="w-full rounded-2xl border border-dashed border-border bg-card/50 p-12 text-center">
                       <p className="font-medium">検索できませんでした。</p>
                       <p className="mt-2 text-sm text-muted-foreground">{searchError}</p>
                     </div>
                   ) : results.length === 0 && !searching ? (
-                    <div className="max-w-5xl rounded-2xl border border-dashed border-border bg-card/50 p-12 text-center">
+                    <div className="w-full rounded-2xl border border-dashed border-border bg-card/50 p-12 text-center">
                       <p className="font-medium">該当するパッケージが見つかりませんでした。</p>
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        別のキーワードで検索してみてください。
-                      </p>
+                      <p className="mt-2 text-sm text-muted-foreground">別のキーワードで検索してみてください。</p>
                     </div>
                   ) : (
                     <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">

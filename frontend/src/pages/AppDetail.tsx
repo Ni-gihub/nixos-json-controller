@@ -1,11 +1,10 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { ArrowLeft, ExternalLink, Package, Tag, Download, Check } from 'lucide-react'
-import { invoke } from '@tauri-apps/api/core'
+import { useEffect, useState } from 'react'
+import { ArrowLeft, ExternalLink, Package, Tag } from 'lucide-react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
+import InstallButton from '@/components/InstallButton'
 import { findApp, type App } from '@/catalog'
 import { useAppState } from '@/lib/app-state'
 
@@ -16,15 +15,11 @@ function AppDetail() {
   const { states, refreshPackage } = useAppState()
   const [app, setApp] = useState<App | undefined>()
   const [loadingApp, setLoadingApp] = useState(true)
-  const [installing, setInstalling] = useState(false)
-  const [passwordRequired, setPasswordRequired] = useState(false)
-  const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [refreshError, setRefreshError] = useState<string | null>(null)
-  const [installSucceeded, setInstallSucceeded] = useState(false)
 
   const appState = id ? states[id] : undefined
-  const installed = installSucceeded || appState?.active === true
+  const installed = appState?.active === true
   const statusKnown = appState !== undefined
 
   useEffect(() => {
@@ -58,49 +53,6 @@ function AppDetail() {
         </div>
       </div>
     )
-  }
-
-  const install = async (authPassword: string | null) => {
-    setInstalling(true)
-    setError(null)
-    try {
-      await invoke('install_app', { package: id, password: authPassword })
-      setInstallSucceeded(true)
-      setPassword('')
-      setPasswordRequired(false)
-      try {
-        await refreshPackage(id)
-        setRefreshError(null)
-      } catch (err) {
-        setRefreshError(String(err))
-      }
-    } catch (err) {
-      setError(String(err))
-    } finally {
-      setInstalling(false)
-    }
-  }
-
-  const handleInstall = async () => {
-    if (installing || installed || !statusKnown) return
-    setError(null)
-    try {
-      const available = await invoke<boolean>('sudo_available')
-      if (available) {
-        await install(null)
-        return
-      }
-      setPasswordRequired(true)
-    } catch (err) {
-      setError(String(err))
-    }
-  }
-
-  const handlePasswordSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (!password) return
-    setPasswordRequired(false)
-    await install(password)
   }
 
   return (
@@ -177,7 +129,9 @@ function AppDetail() {
             <Card className="rounded-3xl border-blue-100 bg-white/95">
               <CardContent className="p-7 sm:p-8">
                 <div className="flex items-center gap-3">
-                  <div className="flex size-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><Download className="size-5" /></div>
+                  <div className="flex size-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                    <Package className="size-5" />
+                  </div>
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">インストール</p>
                     <h2 className="font-semibold">{app.name}</h2>
@@ -189,37 +143,29 @@ function AppDetail() {
                   <div className="mt-3 flex items-center justify-between gap-4 text-sm"><span className="text-muted-foreground">パッケージ</span><span className="max-w-[190px] truncate font-mono text-xs">{app.id}</span></div>
                 </div>
 
-                {error && <p className="mt-5 text-sm text-destructive">{error}</p>}
                 {refreshError && (
                   <div className="mt-5 space-y-2 text-sm text-destructive">
                     <p>インストール状態を更新できませんでした。</p>
                     <Button variant="outline" size="sm" onClick={() => { void refreshPackage(id).then(() => setRefreshError(null)).catch((err) => setRefreshError(String(err))) }}>再試行</Button>
                   </div>
                 )}
-                {!statusKnown && !refreshError && <p className="mt-5 text-sm text-muted-foreground">インストール状態を確認中...</p>}
 
-                <Button size="lg" className="mt-6 h-13 w-full rounded-xl bg-blue-600 text-base text-white hover:bg-blue-700" disabled={installing || installed || !statusKnown} onClick={handleInstall}>
-                  {installed ? <><Check className="mr-2 size-4" />インストール済み</> : installing ? 'インストール中...' : 'インストール'}
-                </Button>
+                <div className="mt-6">
+                  <InstallButton
+                    packageId={id}
+                    appName={app.name}
+                    installed={installed}
+                    statusKnown={statusKnown}
+                    onInstalled={() => refreshPackage(id)}
+                    className="h-13 w-full rounded-xl bg-blue-600 text-base text-white hover:bg-blue-700"
+                    size="lg"
+                  />
+                </div>
               </CardContent>
             </Card>
           </aside>
         </div>
       </main>
-
-      {passwordRequired && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-6 backdrop-blur-sm">
-          <form onSubmit={handlePasswordSubmit} className="w-full max-w-sm rounded-2xl border border-blue-100 bg-background p-6 shadow-xl">
-            <h2 className="text-lg font-semibold">認証が必要です</h2>
-            <p className="mt-2 text-sm text-muted-foreground">{app.name}をインストールするため、パスワードを入力してください。</p>
-            <Input autoFocus className="mt-4" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="パスワード" autoComplete="current-password" />
-            <div className="mt-6 flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => { setPassword(''); setPasswordRequired(false) }}>キャンセル</Button>
-              <Button type="submit" className="bg-blue-600 text-white hover:bg-blue-700" disabled={!password}>続行</Button>
-            </div>
-          </form>
-        </div>
-      )}
     </div>
   )
 }

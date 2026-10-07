@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import { apps } from '@/data/apps'
-
+import { apps } from '@/catalog'
+ 
 export type AppState = {
   name: string
   configured: boolean

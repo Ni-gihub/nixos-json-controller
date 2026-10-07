@@ -4,14 +4,15 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import AppCard from '@/components/AppCard'
 import { Button } from '@/components/ui/button'
-import { apps, categories, getFeaturedApps, getTags, searchApps, type AppCategory } from '@/catalog'
+import { categories, searchApps, type AppCategory } from '@/catalog'
 import { useAppState } from '@/lib/app-state'
 
 function Discover() {
   const [query, setQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<AppCategory | null>(null)
-  const [selectedTag, setSelectedTag] = useState<string | null>(null)
   const { states, loading, error, refreshAll } = useAppState()
+
+  const hasSearch = query.trim().length > 0 || selectedCategory !== null
 
   const filteredApps = useMemo(() => {
     let result = searchApps(query)
@@ -20,54 +21,55 @@ function Discover() {
       result = result.filter((app) => app.category === selectedCategory)
     }
 
-    if (selectedTag) {
-      result = result.filter((app) =>
-        app.tags.some((tag) => tag.toLowerCase() === selectedTag.toLowerCase()),
-      )
-    }
-
     return result
-  }, [query, selectedCategory, selectedTag])
-
-  const showFeatured = !query.trim() && !selectedCategory && !selectedTag
-  const featuredApps = getFeaturedApps()
-  const otherApps = filteredApps.filter((app) => !app.featured)
+  }, [query, selectedCategory])
 
   const clearFilters = () => {
-    setSelectedCategory(null)
-    setSelectedTag(null)
     setQuery('')
+    setSelectedCategory(null)
   }
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-6 py-4">
-          <h1 className="text-xl font-semibold">nxc App Store</h1>
-          <div className="relative w-full max-w-sm">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="pl-9"
-              placeholder="アプリを検索..."
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </div>
+      <header className="border-b border-border/70 bg-background/90 backdrop-blur">
+        <div className="mx-auto flex max-w-4xl items-center px-5 py-4 sm:px-6">
+          <h1 className="text-lg font-semibold tracking-tight">nxc App Store</h1>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-6 py-10">
-        <section className="mb-10">
-          <h2 className="text-4xl font-bold tracking-tight">アプリを探す</h2>
+      <main className="mx-auto max-w-4xl px-5 py-8 sm:px-6 sm:py-12">
+        <section className="mb-8 sm:mb-10">
+          <p className="mb-2 text-sm font-medium text-primary">NixOS App Store</p>
+          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">アプリを探す</h2>
           <p className="mt-2 text-muted-foreground">
-            NixOSにインストールできるアプリを探せます。
+            欲しいアプリを検索して、NixOSにインストールできます。
           </p>
+
+          <div className="relative mt-6">
+            <Search className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="h-12 rounded-2xl border-border/80 bg-card pl-12 pr-4 text-base shadow-sm sm:h-14"
+              placeholder="アプリを検索..."
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              autoFocus
+            />
+          </div>
         </section>
 
         <section className="mb-8">
-          <h3 className="mb-4 text-lg font-semibold">カテゴリ</h3>
-          <div className="flex flex-wrap gap-2">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-semibold">カテゴリ</h3>
+            {hasSearch && (
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
+                クリア
+              </Button>
+            )}
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto pb-2">
             <Button
+              className="shrink-0 rounded-full"
               variant={selectedCategory === null ? 'default' : 'outline'}
               size="sm"
               onClick={() => setSelectedCategory(null)}
@@ -77,12 +79,10 @@ function Discover() {
             {categories.map((category) => (
               <Button
                 key={category}
+                className="shrink-0 rounded-full"
                 variant={selectedCategory === category ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => {
-                  setSelectedCategory(category)
-                  setSelectedTag(null)
-                }}
+                onClick={() => setSelectedCategory(category)}
               >
                 {category}
               </Button>
@@ -90,85 +90,61 @@ function Discover() {
           </div>
         </section>
 
-        <section className="mb-10">
-          <h3 className="mb-4 text-lg font-semibold">タグ</h3>
-          <div className="flex flex-wrap gap-2">
-            {getTags().map((tag) => (
-              <Badge
-                key={tag}
-                variant={selectedTag === tag ? 'default' : 'secondary'}
-                className="cursor-pointer px-3 py-1.5"
-                onClick={() => {
-                  setSelectedTag(selectedTag === tag ? null : tag)
-                  setSelectedCategory(null)
-                }}
-              >
-                {tag}
-              </Badge>
-            ))}
-          </div>
-        </section>
-
-        {showFeatured && (
-          <section className="mb-10">
-            <h3 className="mb-4 text-lg font-semibold">おすすめ</h3>
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {featuredApps.map((app) => (
-                <AppCard
-                  key={app.id}
-                  id={app.id}
-                  name={app.name}
-                  description={app.description}
-                  category={app.category}
-                  tags={app.tags}
-                  installed={states[app.id]?.active ?? false}
-                />
-              ))}
+        {!hasSearch ? (
+          <section className="rounded-3xl border border-dashed border-border/80 bg-card/60 px-6 py-14 text-center sm:py-20">
+            <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <Search className="size-6" />
             </div>
+            <h3 className="mt-4 text-lg font-semibold">アプリを検索してください</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              アプリ名、説明、カテゴリ、タグから探せます。
+            </p>
           </section>
-        )}
+        ) : (
+          <section>
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <h3 className="text-lg font-semibold">
+                検索結果
+                <span className="ml-2 text-sm font-normal text-muted-foreground">
+                  {filteredApps.length}件
+                </span>
+              </h3>
+              {loading && (
+                <span className="text-sm text-muted-foreground">状態を確認中...</span>
+              )}
+              {error && (
+                <Button variant="outline" size="sm" onClick={() => void refreshAll()}>
+                  再確認
+                </Button>
+              )}
+            </div>
 
-        <section>
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-lg font-semibold">
-              {showFeatured ? 'その他のアプリ' : '検索結果'}
-            </h3>
-            {loading && <span className="text-sm text-muted-foreground">システムの状態を確認中...</span>}
-            {error && (
-              <Button variant="outline" size="sm" onClick={() => void refreshAll()}>
-                状態を再確認
-              </Button>
+            {filteredApps.length === 0 ? (
+              <div className="rounded-3xl border border-dashed border-border/80 bg-card/60 p-10 text-center">
+                <p className="font-medium">アプリが見つかりませんでした。</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  別のキーワードやカテゴリを試してください。
+                </p>
+                <Button variant="outline" className="mt-5 rounded-full" onClick={clearFilters}>
+                  検索をクリア
+                </Button>
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {filteredApps.map((app) => (
+                  <AppCard
+                    key={app.id}
+                    id={app.id}
+                    name={app.name}
+                    description={app.description}
+                    category={app.category}
+                    tags={app.tags}
+                    installed={states[app.id]?.active ?? false}
+                  />
+                ))}
+              </div>
             )}
-          </div>
-
-          {filteredApps.length === 0 ? (
-            <div className="rounded-xl border border-dashed p-10 text-center">
-              <p className="text-muted-foreground">条件に一致するアプリがありません。</p>
-              <Button variant="outline" className="mt-4" onClick={clearFilters}>
-                フィルターを解除
-              </Button>
-            </div>
-          ) : (
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {(showFeatured ? otherApps : filteredApps).map((app) => (
-                <AppCard
-                  key={app.id}
-                  id={app.id}
-                  name={app.name}
-                  description={app.description}
-                  category={app.category}
-                  tags={app.tags}
-                  installed={states[app.id]?.active ?? false}
-                />
-              ))}
-            </div>
-          )}
-        </section>
-
-        {showFeatured && otherApps.length === 0 && apps.length === featuredApps.length && (
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            カタログに新しいアプリを追加すると、ここに表示されます。
-          </p>
+          </section>
         )}
       </main>
     </div>

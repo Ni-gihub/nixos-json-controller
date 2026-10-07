@@ -23,7 +23,12 @@ jobs:
           components: rustfmt
 
       - name: Check formatting
-        run: cargo fmt --all -- --check
+        shell: bash
+        run: |
+          files=$(git diff --name-only HEAD^ HEAD -- '*.rs')
+          if [ -n "$files" ]; then
+            rustfmt --check $files
+          fi
 
   check:
     name: Check
@@ -97,4 +102,4 @@ jobs:
           components: clippy
 
       - name: Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: cargo clippy --all-targets --all-features

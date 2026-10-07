@@ -53,8 +53,8 @@ function Discover() {
               </div>
             </div>
 
-            <nav className="mt-10 space-y-1">
-              <div className="rounded-lg bg-muted px-3 py-2.5 text-sm font-medium">
+            <nav aria-label="App Store" className="mt-10 space-y-1">
+              <div aria-current="page" className="rounded-lg bg-muted px-3 py-2.5 text-sm font-medium">
                 アプリを探す
               </div>
             </nav>

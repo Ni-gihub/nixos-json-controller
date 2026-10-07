@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { apps } from '@/data/apps'
+import { findApp } from '@/catalog'
 import { useAppState } from '@/lib/app-state'
 
 function AppDetail() {
@@ -19,7 +19,7 @@ function AppDetail() {
   const [refreshError, setRefreshError] = useState<string | null>(null)
   const [installSucceeded, setInstallSucceeded] = useState(false)
 
-  const app = apps.find((item) => item.id === id)
+  const app = id ? findApp(id) : undefined
   const appState = id ? states[id] : undefined
   const installed = installSucceeded || appState?.active === true
   const statusKnown = appState !== undefined

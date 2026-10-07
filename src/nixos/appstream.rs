@@ -52,7 +52,7 @@ fn load_index() -> HashMap<String, String> {
         };
 
         if !output.status.success() {
-            log::warn!(
+            eprintln!(
                 "failed to decompress AppStream data {}: status={}, stderr={}",
                 xml_path.display(),
                 output.status,

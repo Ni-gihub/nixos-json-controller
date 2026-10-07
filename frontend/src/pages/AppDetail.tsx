@@ -1,10 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Package, Tag } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { Link, useParams } from 'react-router'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { findApp, type App } from '@/catalog'
 import { useAppState } from '@/lib/app-state'
@@ -55,7 +55,7 @@ function AppDetail() {
 
   if (loadingApp) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-muted-foreground">
+      <div className="flex min-h-screen items-center justify-center bg-muted/20 text-muted-foreground">
         パッケージ情報を取得中...
       </div>
     )
@@ -63,7 +63,7 @@ function AppDetail() {
 
   if (!app || !id) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-muted/20">
         <div className="text-center">
           <h1 className="text-2xl font-bold">パッケージが見つかりません</h1>
           {error && <p className="mt-2 max-w-md text-sm text-muted-foreground">{error}</p>}
@@ -119,68 +119,144 @@ function AppDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b">
-        <div className="mx-auto max-w-7xl px-6 py-4">
-          <Link to="/discover" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+    <div className="min-h-screen bg-muted/20 text-foreground">
+      <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
+        <div className="flex h-16 items-center px-8">
+          <Link
+            to="/discover"
+            className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+          >
             <ArrowLeft className="size-4" />
-            パッケージを探す
+            アプリを探す
           </Link>
+          <div className="ml-6 border-l pl-6 text-sm font-semibold">nxc App Store</div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-4xl px-6 py-12">
-        <Card>
-          <CardHeader>
-            <div className="flex items-start gap-6">
-              <div className="flex size-24 shrink-0 items-center justify-center rounded-2xl bg-muted text-4xl font-bold">
-                {app.name[0]}
-              </div>
-              <div className="min-w-0">
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="secondary">{app.category}</Badge>
-                  {app.tags.map((tag) => (
-                    <Badge key={tag} variant="outline">{tag}</Badge>
-                  ))}
-                </div>
-                <CardTitle className="mt-3 text-3xl">{app.name}</CardTitle>
-                {app.version && (
-                  <p className="mt-1 text-sm text-muted-foreground">v{app.version}</p>
-                )}
-                <p className="mt-2 text-muted-foreground">{app.description}</p>
-              </div>
-            </div>
-          </CardHeader>
+      <main className="mx-auto w-full max-w-[1440px] px-8 py-10 lg:px-12 lg:py-14">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <section className="min-w-0 space-y-8">
+            <Card className="border-border/70 shadow-sm">
+              <CardContent className="p-8 lg:p-10">
+                <div className="flex items-start gap-7">
+                  <div className="flex size-28 shrink-0 items-center justify-center rounded-3xl bg-primary/10 text-5xl font-bold text-primary">
+                    {app.name[0]}
+                  </div>
 
-          <CardContent>
-            {app.homepage && (
-              <p className="mb-4 break-all text-sm text-muted-foreground">{app.homepage}</p>
-            )}
-            {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
-            {refreshError && (
-              <div className="mb-4 flex items-center gap-3 text-sm text-destructive">
-                <span>インストール状態を更新できませんでした。</span>
+                  <div className="min-w-0 pt-1">
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="secondary">{app.category}</Badge>
+                      {app.tags.map((tag) => (
+                        <Badge key={tag} variant="outline">{tag}</Badge>
+                      ))}
+                    </div>
+                    <h1 className="mt-4 text-4xl font-bold tracking-tight lg:text-5xl">{app.name}</h1>
+                    {app.version && (
+                      <p className="mt-2 text-sm text-muted-foreground">バージョン {app.version}</p>
+                    )}
+                    <p className="mt-5 max-w-3xl text-base leading-7 text-muted-foreground lg:text-lg">
+                      {app.description}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/70 shadow-sm">
+              <CardContent className="p-8 lg:p-10">
+                <h2 className="text-xl font-semibold">説明・詳細情報</h2>
+
+                <div className="mt-7 grid gap-7 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <Package className="size-4 text-muted-foreground" />
+                      パッケージ
+                    </div>
+                    <p className="break-all rounded-lg bg-muted/60 px-4 py-3 font-mono text-sm">{app.id}</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <Tag className="size-4 text-muted-foreground" />
+                      カテゴリ
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="secondary">{app.category}</Badge>
+                      {app.tags.map((tag) => (
+                        <Badge key={tag} variant="outline">{tag}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {app.homepage && (
+                  <div className="mt-8 border-t pt-7">
+                    <p className="text-sm font-medium">Homepage</p>
+                    <a
+                      href={app.homepage}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 inline-flex max-w-full items-center gap-2 break-all text-sm text-primary hover:underline"
+                    >
+                      {app.homepage}
+                      <ExternalLink className="size-4 shrink-0" />
+                    </a>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </section>
+
+          <aside className="lg:sticky lg:top-24 lg:self-start">
+            <Card className="border-border/70 shadow-sm">
+              <CardContent className="p-7">
+                <p className="text-sm font-medium text-muted-foreground">インストール</p>
+                <h2 className="mt-2 text-xl font-semibold">{app.name}</h2>
+
+                <div className="mt-6 rounded-xl bg-muted/50 p-4">
+                  <div className="flex items-center justify-between gap-4 text-sm">
+                    <span className="text-muted-foreground">バージョン</span>
+                    <span className="font-medium">{app.version || '—'}</span>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-4 text-sm">
+                    <span className="text-muted-foreground">パッケージ</span>
+                    <span className="max-w-[190px] truncate font-mono text-xs">{app.id}</span>
+                  </div>
+                </div>
+
+                {error && <p className="mt-5 text-sm text-destructive">{error}</p>}
+                {refreshError && (
+                  <div className="mt-5 space-y-2 text-sm text-destructive">
+                    <p>インストール状態を更新できませんでした。</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        void refreshPackage(id)
+                          .then(() => setRefreshError(null))
+                          .catch((err) => setRefreshError(String(err)))
+                      }}
+                    >
+                      再試行
+                    </Button>
+                  </div>
+                )}
+                {!statusKnown && !refreshError && (
+                  <p className="mt-5 text-sm text-muted-foreground">インストール状態を確認中...</p>
+                )}
+
                 <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    void refreshPackage(id)
-                      .then(() => setRefreshError(null))
-                      .catch((err) => setRefreshError(String(err)))
-                  }}
+                  size="lg"
+                  className="mt-6 h-12 w-full"
+                  disabled={installing || installed || !statusKnown}
+                  onClick={handleInstall}
                 >
-                  再試行
+                  {installed ? '● インストール済み' : installing ? 'インストール中...' : 'インストール'}
                 </Button>
-              </div>
-            )}
-            {!statusKnown && !refreshError && (
-              <p className="mb-4 text-sm text-muted-foreground">インストール状態を確認中...</p>
-            )}
-            <Button size="lg" className="w-full sm:w-auto" disabled={installing || installed || !statusKnown} onClick={handleInstall}>
-              {installed ? '● インストール済み' : installing ? 'インストール中...' : 'インストール'}
-            </Button>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </aside>
+        </div>
       </main>
 
       {passwordRequired && (

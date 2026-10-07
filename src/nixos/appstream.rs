@@ -13,7 +13,11 @@ pub fn icon_for_package(candidates: &[&str]) -> Option<String> {
     let cache = ICON_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
 
     for candidate in candidates {
-        let Some(icon_entry) = index.get(*candidate) else {
+        let icon_entry = index
+            .get(*candidate)
+            .or_else(|| index.get(&candidate.to_lowercase()));
+
+        let Some(icon_entry) = icon_entry else {
             continue;
         };
 
@@ -107,25 +111,36 @@ fn parse_index(xml: &str) -> HashMap<String, String> {
         let end = start + end_rel + "</component>".len();
         let component = &xml[start..end];
 
-        let Some(icon) = element_text(component, "icon") else {
-            offset = end;
-            continue;
-        };
-
-        let icon_type = element_attribute(component, "icon", "type");
-        if icon_type.as_deref().is_some_and(|value| value != "cached") {
+        let icons = cached_icon_names(component);
+        if icons.is_empty() {
             offset = end;
             continue;
         }
 
+        let mut packages = Vec::new();
+
         if let Some(pkgname) = element_text(component, "pkgname") {
-            for package in pkgname.split_whitespace() {
-                index.entry(package.to_string()).or_insert_with(|| icon.clone());
-            }
+            packages.extend(pkgname.split_whitespace().map(str::to_string));
         }
 
         if let Some(id) = element_text(component, "id") {
-            index.entry(id).or_insert_with(|| icon.clone());
+            packages.push(id.clone());
+            if let Some(leaf) = id.rsplit('.').next() {
+                packages.push(leaf.to_string());
+            }
+        }
+
+        for launchable in element_texts(component, "launchable") {
+            if let Some(desktop_id) = launchable.strip_suffix(".desktop") {
+                packages.push(desktop_id.to_string());
+            }
+        }
+
+        for package in packages {
+            for icon in &icons {
+                index.entry(package.clone()).or_insert_with(|| icon.clone());
+                index.entry(package.to_lowercase()).or_insert_with(|| icon.clone());
+            }
         }
 
         offset = end;
@@ -134,14 +149,68 @@ fn parse_index(xml: &str) -> HashMap<String, String> {
     index
 }
 
+fn cached_icon_names(input: &str) -> Vec<String> {
+    let mut icons = Vec::new();
+    let mut offset = 0;
+
+    while let Some(relative_start) = input[offset..].find("<icon") {
+        let start = offset + relative_start;
+        let Some(tag_end_rel) = input[start..].find('>') else {
+            break;
+        };
+        let tag_end = start + tag_end_rel;
+        let tag = &input[start..=tag_end];
+
+        if (tag.starts_with("<icon ") || tag.starts_with("<icon>"))
+            && element_attribute(tag, "icon", "type")
+                .as_deref()
+                .is_none_or(|value| value == "cached")
+        {
+            let content_start = tag_end + 1;
+            if let Some(close_rel) = input[content_start..].find("</icon>") {
+                let value = input[content_start..content_start + close_rel].trim();
+                if !value.is_empty() {
+                    icons.push(value.to_string());
+                }
+                offset = content_start + close_rel + "</icon>".len();
+                continue;
+            }
+        }
+
+        offset = tag_end + 1;
+    }
+
+    icons
+}
+
 fn element_text(input: &str, element: &str) -> Option<String> {
+    element_texts(input, element).into_iter().next()
+}
+
+fn element_texts(input: &str, element: &str) -> Vec<String> {
     let open = format!("<{element}");
-    let start = input.find(&open)?;
-    let content_start = input[start..].find('>')? + start + 1;
     let close = format!("</{element}>");
-    let content_end = input[content_start..].find(&close)? + content_start;
-    let value = input[content_start..content_end].trim();
-    (!value.is_empty()).then(|| value.to_string())
+    let mut values = Vec::new();
+    let mut offset = 0;
+
+    while let Some(relative_start) = input[offset..].find(&open) {
+        let start = offset + relative_start;
+        let Some(content_start_rel) = input[start..].find('>') else {
+            break;
+        };
+        let content_start = start + content_start_rel + 1;
+        let Some(content_end_rel) = input[content_start..].find(&close) else {
+            break;
+        };
+        let content_end = content_start + content_end_rel;
+        let value = input[content_start..content_end].trim();
+        if !value.is_empty() {
+            values.push(value.to_string());
+        }
+        offset = content_end + close.len();
+    }
+
+    values
 }
 
 fn element_attribute(input: &str, element: &str, attribute: &str) -> Option<String> {
@@ -159,10 +228,43 @@ fn load_icon(entry: &str) -> Option<String> {
     let (root, icon_name) = entry.split_once('|')?;
     let root = Path::new(root);
 
-    for size in ["128x128", "64x64", "48x48"] {
-        let path = root.join(size).join(icon_name);
-        if let Some(data_url) = read_icon(&path) {
-            return Some(data_url);
+    let mut names = vec![icon_name.to_string()];
+    if let Some(name) = icon_name.strip_suffix(".desktop") {
+        names.push(name.to_string());
+    }
+
+    let preferred_sizes = [
+        "128x128@2",
+        "128x128",
+        "96x96@2",
+        "96x96",
+        "64x64@2",
+        "64x64",
+        "48x48@2",
+        "48x48",
+        "256x256",
+        "scalable",
+    ];
+
+    for size in preferred_sizes {
+        for name in &names {
+            if let Some(data_url) = read_icon(&root.join(size).join(name)) {
+                return Some(data_url);
+            }
+        }
+    }
+
+    let entries = fs::read_dir(root).ok()?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+
+        for name in &names {
+            if let Some(data_url) = read_icon(&path.join(name)) {
+                return Some(data_url);
+            }
         }
     }
 

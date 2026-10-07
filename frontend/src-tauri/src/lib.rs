@@ -36,10 +36,8 @@ async fn search_catalog(
 async fn get_catalog_app(
     id: String,
 ) -> Result<Option<nixos_json_controller::nixos::catalog::CatalogPackage>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        nixos_json_controller::nixos::catalog::find(&id)
-    })
-    .await
+    tauri::async_runtime::spawn_blocking(move || nixos_json_controller::nixos::catalog::find(&id))
+        .await
         .map_err(|error| format!("catalog lookup task failed: {error}"))?
 }
 

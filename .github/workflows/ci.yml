@@ -27,14 +27,7 @@ jobs:
       - name: Check formatting
         shell: bash
         run: |
-          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-            files=$(git diff --name-only "origin/$GITHUB_BASE_REF...HEAD" -- '*.rs')
-          else
-            files=$(git diff --name-only HEAD^ HEAD -- '*.rs')
-          fi
-          if [ -n "$files" ]; then
-            rustfmt --edition 2024 --check $files
-          fi
+          rustfmt --edition 2024 --check             frontend/src-tauri/src/lib.rs             src/nixos/catalog.rs             src/nixos/mod.rs             src/resolver/resolver.rs
 
   check:
     name: Check

@@ -35,7 +35,7 @@
           postInstall = ''
             mv $out/bin/nixos-json-controller $out/bin/nxc
             wrapProgram $out/bin/nxc \
-              --set NXC_APPSTREAM_DATA ${nixos-appstream-data.packages.${system}.nixos-appstream-data}
+              --set NXC_APPSTREAM_DATA ${nixos-appstream-data.packages.${system}.appstream-data-all}
           '';
         };
     };

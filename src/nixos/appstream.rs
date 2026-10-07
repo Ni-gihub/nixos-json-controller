@@ -77,9 +77,7 @@ fn load_index() -> HashMap<String, Vec<String>> {
                 } else {
                     format!("cached|{}|{}", icon_root.display(), icon)
                 };
-                if !entries.contains(&source) {
-                    entries.push(source);
-                }
+                merge_icon_candidate(entries, source);
             }
         }
     }
@@ -107,10 +105,27 @@ fn find_xml() -> Vec<(PathBuf, PathBuf)> {
                 .filter_map(move |section| {
                     let xml = root.join("share/swcatalog/xml").join(format!("{section}.xml.gz"));
                     let icons = root.join("share/swcatalog/icons").join(section);
-                    (xml.is_file() && icons.is_dir()).then_some((xml, icons))
+                    xml.is_file().then_some((xml, icons))
                 })
         })
         .collect()
+}
+
+/// Merge an icon candidate while keeping cached icons ahead of remote fallbacks.fn merge_icon_candidate(entries: &mut Vec<String>, candidate: String) {
+    if entries.contains(&candidate) {
+        return;
+    }
+
+    let is_remote = candidate.starts_with("remote|");
+    if is_remote {
+        entries.push(candidate);
+    } else {
+        let insert_at = entries
+            .iter()
+            .position(|entry| entry.starts_with("remote|"))
+            .unwrap_or(entries.len());
+        entries.insert(insert_at, candidate);
+    }
 }
 
 /// Parse AppStream components into package aliases and ordered icon candidates.
@@ -385,6 +400,46 @@ mod tests {
         assert_eq!(index.get("firefox"), Some(&expected));
         assert_eq!(index.get("org.mozilla.Firefox"), Some(&expected));
         assert_eq!(index.get("org.mozilla.firefox"), Some(&expected));
+    }
+
+    #[test]
+    fn merges_cached_icons_before_remote_icons_across_components() {
+        let xml = r#"
+            <component type="desktop-application">
+              <pkgname>example</pkgname>
+              <icon type="remote">https://example.com/remote.png</icon>
+            </component>
+            <component type="desktop-application">
+              <pkgname>example</pkgname>
+              <icon type="cached">example.png</icon>
+            </component>
+        "#;
+
+        let index = parse_index(xml);
+        assert_eq!(
+            index.get("example"),
+            Some(&vec![
+                "example.png".to_string(),
+                "remote|https://example.com/remote.png".to_string()
+            ])
+        );
+    }
+
+    #[test]
+    fn merge_icon_candidate_keeps_cached_first() {
+        let mut entries = vec![
+            "remote|https://example.com/remote.png".to_string(),
+        ];
+
+        merge_icon_candidate(&mut entries, "cached|/icons|example.png".to_string());
+
+        assert_eq!(
+            entries,
+            vec![
+                "cached|/icons|example.png".to_string(),
+                "remote|https://example.com/remote.png".to_string()
+            ]
+        );
     }
 
     #[test]

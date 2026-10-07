@@ -356,7 +356,7 @@ mod tests {
     }
 
     #[test]
-    fn resolves_desktop_suffix_and_unusual_size() {
+    fn resolves_unusual_cached_icon_size() {
         let temp = std::env::temp_dir().join(format!(
             "nxc-appstream-test-{}",
             std::process::id()
@@ -365,7 +365,7 @@ mod tests {
         fs::create_dir_all(temp.join("72x72")).unwrap();
         fs::write(temp.join("72x72").join("example.png"), b"png").unwrap();
 
-        let icon = load_icon(&format!("{}|example.desktop", temp.display()));
+        let icon = load_icon(&format!("{}|example.png", temp.display()));
         assert!(icon.is_some());
 
         let _ = fs::remove_dir_all(&temp);

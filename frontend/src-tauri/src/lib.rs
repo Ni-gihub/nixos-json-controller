@@ -22,6 +22,28 @@ fn install_app(package: String, password: Option<String>) -> Result<InstallResul
 }
 
 #[tauri::command]
+async fn search_catalog(
+    query: String,
+) -> Result<Vec<nixos_json_controller::nixos::catalog::CatalogPackage>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        nixos_json_controller::nixos::catalog::search(&query)
+    })
+    .await
+    .map_err(|error| format!("catalog search task failed: {error}"))?
+}
+
+#[tauri::command]
+async fn get_catalog_app(
+    id: String,
+) -> Result<Option<nixos_json_controller::nixos::catalog::CatalogPackage>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        nixos_json_controller::nixos::catalog::find(&id)
+    })
+    .await
+    .map_err(|error| format!("catalog lookup task failed: {error}"))?
+}
+
+#[tauri::command]
 async fn get_app_states(
     packages: Vec<String>,
 ) -> Result<Vec<nixos_json_controller::nixos::status::PackageState>, String> {
@@ -49,6 +71,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             sudo_available,
             install_app,
+            search_catalog,
+            get_catalog_app,
             get_app_states,
             get_app_state
         ])

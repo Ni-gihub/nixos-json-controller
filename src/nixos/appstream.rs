@@ -66,7 +66,12 @@ fn load_index() -> HashMap<String, String> {
         }
 
         for (package, icon) in parse_index(&String::from_utf8_lossy(&output.stdout)) {
-            index.entry(package).or_insert_with(|| format!("{}|{}", icon_root.display(), icon));
+            let source = if let Some(url) = icon.strip_prefix("remote|") {
+                format!("remote|{url}")
+            } else {
+                format!("cached|{}|{}", icon_root.display(), icon)
+            };
+            index.entry(package).or_insert(source);
         }
     }
 
@@ -111,7 +116,7 @@ fn parse_index(xml: &str) -> HashMap<String, String> {
         let end = start + end_rel + "</component>".len();
         let component = &xml[start..end];
 
-        let icons = cached_icon_names(component);
+        let icons = icon_sources(component);
         if icons.is_empty() {
             offset = end;
             continue;
@@ -149,7 +154,7 @@ fn parse_index(xml: &str) -> HashMap<String, String> {
     index
 }
 
-fn cached_icon_names(input: &str) -> Vec<String> {
+fn icon_sources(input: &str) -> Vec<String> {
     let mut icons = Vec::new();
     let mut offset = 0;
 
@@ -162,9 +167,10 @@ fn cached_icon_names(input: &str) -> Vec<String> {
         let tag = &input[start..=tag_end];
 
         if (tag.starts_with("<icon ") || tag.starts_with("<icon>"))
-            && element_attribute(tag, "icon", "type")
-                .as_deref()
-                .map_or(true, |value| value == "cached")
+            && matches!(
+                element_attribute(tag, "icon", "type").as_deref(),
+                Some("cached") | None
+            )
         {
             let content_start = tag_end + 1;
             if let Some(close_rel) = input[content_start..].find("</icon>") {
@@ -225,6 +231,11 @@ fn element_attribute(input: &str, element: &str, attribute: &str) -> Option<Stri
 }
 
 fn load_icon(entry: &str) -> Option<String> {
+    if let Some(url) = entry.strip_prefix("remote|") {
+        return Some(url.to_string());
+    }
+
+    let entry = entry.strip_prefix("cached|").unwrap_or(entry);
     let (root, icon_name) = entry.split_once('|')?;
     let root = Path::new(root);
 
@@ -344,11 +355,27 @@ mod tests {
     }
 
     #[test]
-    fn ignores_non_cached_icons() {
+    fn parses_absolute_remote_icons() {
         let xml = r#"
             <component>
               <pkgname>example</pkgname>
               <icon type="remote">https://example.com/icon.png</icon>
+            </component>
+        "#;
+
+        let index = parse_index(xml);
+        assert_eq!(
+            index.get("example"),
+            Some(&"remote|https://example.com/icon.png".to_string())
+        );
+    }
+
+    #[test]
+    fn ignores_relative_remote_icons() {
+        let xml = r#"
+            <component>
+              <pkgname>example</pkgname>
+              <icon type="remote">icons/example.png</icon>
             </component>
         "#;
 

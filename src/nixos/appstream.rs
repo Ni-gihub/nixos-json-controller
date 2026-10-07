@@ -47,7 +47,7 @@ pub fn icon_for_package(candidates: &[&str]) -> Option<String> {
 
 /// Load AppStream component aliases and retain every icon candidate for fallback resolution.
 fn load_index() -> HashMap<String, Vec<String>> {
-    let mut index = HashMap::new();
+    let mut index: HashMap<String, Vec<String>> = HashMap::new();
 
     for (xml_path, icon_root) in find_xml() {
         let Ok(output) = Command::new("gzip")
@@ -115,7 +115,7 @@ fn find_xml() -> Vec<(PathBuf, PathBuf)> {
 
 /// Parse AppStream components into package aliases and ordered icon candidates.
 fn parse_index(xml: &str) -> HashMap<String, Vec<String>> {
-    let mut index = HashMap::new();
+    let mut index: HashMap<String, Vec<String>> = HashMap::new();
     let mut offset = 0;
 
     while let Some(start) = xml[offset..].find("<component ") {
@@ -454,9 +454,8 @@ mod tests {
 
         let cached = format!("cached|{}|missing.png", temp.display());
         let remote = "remote|https://example.com/icon.png";
-        assert_eq!(
+        assert!(
             load_icon(&cached).is_none(),
-            true,
             "missing cached icon must fall back to the next source"
         );
         assert_eq!(load_icon(remote), Some("https://example.com/icon.png".to_string()));

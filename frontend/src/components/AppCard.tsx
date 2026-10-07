@@ -14,11 +14,12 @@ type AppCardProps = {
   category: string
   tags: string[]
   installed: boolean
+  searchQuery?: string
 }
 
-function AppCard({ id, name, description, category, tags, installed }: AppCardProps) {
+function AppCard({ id, name, description, category, tags, installed, searchQuery }: AppCardProps) {
   return (
-    <Link to={`/apps/${id}`} className="block h-full">
+    <Link to={searchQuery ? `/apps/${id}?query=${encodeURIComponent(searchQuery)}` : `/apps/${id}`} className="block h-full">
       <Card className="h-full rounded-xl border-border/70 bg-card shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-border hover:shadow-md">
         <CardHeader className="p-6">
           <div className="flex items-start gap-4">
@@ -28,7 +29,7 @@ function AppCard({ id, name, description, category, tags, installed }: AppCardPr
 
             <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between gap-3">
-                <CardTitle className="line-clamp-2 text-base leading-6">{name}</CardTitle>
+                <CardTitle className="line-clamp-2 text-lg leading-7">{name}</CardTitle>
                 {installed && (
                   <Badge className="shrink-0 rounded-full px-2.5 py-0.5 text-[11px]">
                     インストール済み
@@ -36,14 +37,14 @@ function AppCard({ id, name, description, category, tags, installed }: AppCardPr
                 )}
               </div>
 
-              <CardDescription className="mt-2 line-clamp-3 text-sm leading-5">
+              <CardDescription className="mt-2 line-clamp-3 text-base leading-6">
                 {description}
               </CardDescription>
             </div>
           </div>
 
           <div className="mt-5 flex items-center gap-2 overflow-hidden">
-            <Badge variant="outline" className="shrink-0 rounded-full px-2.5 py-1 text-xs">
+            <Badge variant="outline" className="shrink-0 rounded-full px-2.5 py-1 text-sm">
               {category}
             </Badge>
             {tags.slice(0, 2).map((tag) => (

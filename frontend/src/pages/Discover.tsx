@@ -65,7 +65,7 @@ function Discover() {
   return (
     <div className="min-h-screen bg-muted/20 text-foreground">
       <div className="flex min-h-screen">
-        <aside className="hidden w-72 shrink-0 border-r border-border/80 bg-background/95 lg:block">
+        <aside className="hidden w-80 shrink-0 border-r border-border/80 bg-background/95 lg:block">
           <div className="sticky top-0 flex h-screen flex-col p-6">
             <div className="flex items-center gap-3">
               <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">

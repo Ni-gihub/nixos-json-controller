@@ -3,16 +3,36 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 
 static INDEX: OnceLock<HashMap<String, String>> = OnceLock::new();
+static ICON_CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
 
 pub fn icon_for_package(candidates: &[&str]) -> Option<String> {
     let index = INDEX.get_or_init(load_index);
-    candidates
-        .iter()
-        .filter_map(|candidate| index.get(*candidate))
-        .find_map(|icon_name| load_icon(icon_name))
+    let cache = ICON_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+
+    for candidate in candidates {
+        let Some(icon_name) = index.get(*candidate) else {
+            continue;
+        };
+
+        if let Ok(icons) = cache.lock() {
+            if let Some(cached) = icons.get(icon_name) {
+                return cached.clone();
+            }
+        }
+
+        let icon = load_icon(icon_name);
+        if let Ok(mut icons) = cache.lock() {
+            icons.insert(icon_name.clone(), icon.clone());
+        }
+        if icon.is_some() {
+            return icon;
+        }
+    }
+
+    None
 }
 
 fn load_index() -> HashMap<String, String> {
@@ -60,7 +80,7 @@ fn parse_index(xml: &str) -> HashMap<String, String> {
     let mut index = HashMap::new();
     let mut offset = 0;
 
-    while let Some(start) = xml[offset..].find("<component") {
+    while let Some(start) = xml[offset..].find("<component ") {
         let start = offset + start;
         let Some(end_rel) = xml[start..].find("</component>") else {
             break;

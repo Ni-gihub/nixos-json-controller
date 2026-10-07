@@ -17,7 +17,7 @@ impl Resolver {
         let name = match action {
             Action::InstallPackage | Action::RemovePackage => dictionary
                 .resolve_package(&target.raw)
-                .or_else(|| is_safe_package_reference(&target.raw).then_some(target.raw.as_str()))
+                .or_else(|| is_safe_package_reference(&target.raw).then_some(target.raw.as_str())),
 
             Action::EnableService | Action::DisableService => {
                 dictionary.resolve_service(&target.raw)

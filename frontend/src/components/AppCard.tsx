@@ -9,17 +9,22 @@ type AppCardProps = {
   category: string
   tags: string[]
   installed: boolean
+  icon?: string
   searchQuery?: string
 }
 
-function AppCard({ id, name, description, category, tags, installed, searchQuery }: AppCardProps) {
+function AppCard({ id, name, description, category, tags, installed, icon, searchQuery }: AppCardProps) {
   return (
     <Link to={searchQuery ? `/apps/${id}?query=${encodeURIComponent(searchQuery)}` : `/apps/${id}`} className="block h-full">
       <Card className="group h-full overflow-hidden rounded-2xl border-blue-100 bg-white/90 transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50/40">
         <CardHeader className="p-6 sm:p-7">
           <div className="flex items-start gap-4">
             <div className="flex size-20 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-indigo-100 text-3xl font-bold text-blue-600 transition-transform duration-200 group-hover:scale-[1.03]">
-              {name[0]}
+              {icon ? (
+                <img src={icon} alt="" className="size-14 object-contain" loading="lazy" />
+              ) : (
+                name[0]
+              )}
             </div>
 
             <div className="min-w-0 flex-1">

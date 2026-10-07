@@ -190,6 +190,7 @@ function Discover() {
                           category={app.category}
                           tags={app.tags}
                           installed={states[app.id]?.active ?? false}
+                          icon={app.icon}
                           searchQuery={submittedQuery}
                         />
                       ))}

@@ -47,7 +47,7 @@ fn load_index() -> HashMap<String, String> {
             .arg(&xml_path)
             .output()
         else {
-            log::warn!("failed to start gzip for AppStream data {}", xml_path.display());
+            eprintln!("failed to start gzip for AppStream data {}", xml_path.display());
             continue;
         };
 

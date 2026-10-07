@@ -133,7 +133,7 @@ function AppDetail() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-[1440px] px-8 py-10 lg:px-12 lg:py-14">
+      <main className="mx-auto w-full max-w-none px-8 py-10 lg:px-12 lg:py-14">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
           <section className="min-w-0 space-y-8">
             <Card className="border-border/70 shadow-sm">

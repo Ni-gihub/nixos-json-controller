@@ -138,10 +138,10 @@ function AppDetail() {
       <main className="mx-auto w-full max-w-none px-8 py-10 lg:px-12 lg:py-14">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
           <section className="min-w-0 space-y-8">
-            <Card className="border-border/70 shadow-sm">
+            <Card className="border-border/60 bg-gradient-to-br from-white via-white to-blue-50/50 shadow-md shadow-blue-100/40">
               <CardContent className="p-8 lg:p-10">
                 <div className="flex flex-col items-start gap-7 sm:flex-row">
-                  <div className="flex size-28 shrink-0 items-center justify-center rounded-3xl bg-primary/10 text-5xl font-bold text-primary">
+                  <div className="flex size-28 shrink-0 items-center justify-center rounded-3xl bg-gradient-to-br from-primary/15 via-blue-100/70 to-white text-6xl font-bold text-primary shadow-inner shadow-white">
                     {app.name[0]}
                   </div>
 
@@ -164,7 +164,7 @@ function AppDetail() {
               </CardContent>
             </Card>
 
-            <Card className="border-border/70 shadow-sm">
+            <Card className="border-border/60 bg-gradient-to-br from-white via-white to-blue-50/50 shadow-md shadow-blue-100/40">
               <CardContent className="p-8 lg:p-10">
                 <h2 className="text-xl font-semibold">説明・詳細情報</h2>
 
@@ -210,7 +210,7 @@ function AppDetail() {
           </section>
 
           <aside className="lg:sticky lg:top-24 lg:self-start">
-            <Card className="border-border/70 shadow-sm">
+            <Card className="border-border/60 bg-gradient-to-br from-white via-white to-blue-50/50 shadow-md shadow-blue-100/40">
               <CardContent className="p-7">
                 <p className="text-sm font-medium text-muted-foreground">インストール</p>
                 <h2 className="mt-2 text-xl font-semibold">{app.name}</h2>

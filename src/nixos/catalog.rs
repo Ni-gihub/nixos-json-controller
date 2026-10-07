@@ -342,7 +342,7 @@ mod tests {
     #[test]
     fn find_pattern_matches_normalized_attributes() {
         let pattern = format!(r"^.*\.{}$", regex_escape_attribute("firefox-beta"));
-        assert_eq!(pattern, r"^.*\.firefox-beta$");
+        assert_eq!(pattern, r"^.*\.firefox\-beta$");
     }
 
     #[test]

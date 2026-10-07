@@ -115,8 +115,6 @@ fn parse_results(output: &[u8], query: &str) -> Result<Vec<CatalogPackage>, Stri
             let score = relevance_score(query, &id, &name, &description);
             let category = category_for(&name, &description);
             let tags = tags_for(&name, &description, &category);
-            let id_leaf = id.rsplit('.').next().unwrap_or(&id);
-            let icon = appstream::icon_for_package(&[&id, id_leaf, &name]);
 
             Some((
                 score,
@@ -128,7 +126,7 @@ fn parse_results(output: &[u8], query: &str) -> Result<Vec<CatalogPackage>, Stri
                     category,
                     tags,
                     homepage,
-                    icon,
+                    icon: None,
                 },
             ))
         })
@@ -147,6 +145,11 @@ fn parse_results(output: &[u8], query: &str) -> Result<Vec<CatalogPackage>, Stri
     });
 
     results.truncate(MAX_RESULTS);
+
+    for (_, package) in &mut results {
+        let id_leaf = package.id.rsplit('.').next().unwrap_or(&package.id);
+        package.icon = appstream::icon_for_package(&[&package.id, id_leaf, &package.name]);
+    }
     Ok(results.into_iter().map(|(_, package)| package).collect())
 }
 

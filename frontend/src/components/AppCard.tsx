@@ -20,7 +20,7 @@ function AppCard({ id, name, description, category, tags, installed, icon, searc
 
   return (
     <div className="group border-b border-blue-100 py-6 md:odd:border-r md:odd:pr-8 md:even:pl-8">
-      <div className="grid grid-cols-[5rem_minmax(0,1fr)] gap-4">
+      <div className="grid grid-cols-[5rem_minmax(0,1fr)] gap-x-4 gap-y-2">
         <Link to={detailPath} className="row-span-3 flex size-20 shrink-0 items-center justify-center self-start rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-indigo-100 text-3xl font-bold text-blue-600 shadow-sm ring-1 ring-blue-50 transition-transform duration-200 group-hover:scale-[1.03] group-hover:shadow-md">
           {icon ? (
             <img src={icon} alt="" className="size-16 object-contain drop-shadow-sm" loading="lazy" />
@@ -29,17 +29,18 @@ function AppCard({ id, name, description, category, tags, installed, icon, searc
           )}
         </Link>
 
-        <Link to={detailPath} className="min-w-0">
-          <div className="flex items-start justify-between gap-3">
-            <h3 className="line-clamp-1 text-xl font-bold leading-7 tracking-tight text-slate-900">{name}</h3>
-            {installed && (
-              <Badge className="shrink-0 rounded-full bg-blue-600 px-2.5 py-1 text-xs text-white hover:bg-blue-600">
-                インストール済み
-              </Badge>
-            )}
-          </div>
-          <p className="mt-0.5 line-clamp-1 text-sm font-medium text-slate-600">{description}</p>
-        </Link>
+        <div className="min-w-0">
+          <Link to={detailPath} className="block min-w-0">
+            <div className="flex items-start justify-between gap-3">
+              <h3 className="line-clamp-1 text-xl font-bold leading-7 tracking-tight text-slate-900">{name}</h3>
+              {installed && (
+                <Badge className="shrink-0 rounded-full bg-blue-600 px-2.5 py-1 text-xs text-white hover:bg-blue-600">
+                  インストール済み
+                </Badge>
+              )}
+            </div>
+          </Link>
+        </div>
 
         <div className="flex min-w-0 items-center gap-3">
           <Link to={detailPath} className="min-w-0 flex-1">

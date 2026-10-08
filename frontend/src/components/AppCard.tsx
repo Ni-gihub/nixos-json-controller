@@ -1,5 +1,6 @@
 import { Badge } from '@/components/ui/badge'
 import InstallButton from '@/components/InstallButton'
+import AppIcon from '@/components/AppIcon'
 import { Link } from 'react-router'
 import { useAppState } from '@/lib/app-state'
 
@@ -22,11 +23,12 @@ function AppCard({ id, name, description, category, tags, installed, icon, searc
     <div className="group py-4">
       <div className="grid grid-cols-[5.5rem_minmax(0,1fr)_auto] gap-x-6">
         <Link to={detailPath} className="row-span-3 flex size-20 shrink-0 items-center justify-center self-start rounded-2xl bg-muted/50 text-2xl font-bold text-blue-600 transition-transform duration-200 group-hover:scale-[1.03]">
-          {icon ? (
-            <img src={icon} alt="" className="size-[4.5rem] object-contain" loading="lazy" />
-          ) : (
-            name[0]
-          )}
+          <AppIcon
+            name={name}
+            icon={icon}
+            imageClassName="size-[4.5rem] object-contain"
+            fallbackClassName="size-10 text-muted-foreground"
+          />
         </Link>
 
         <Link to={detailPath} className="min-w-0">

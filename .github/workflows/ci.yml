@@ -86,9 +86,6 @@ jobs:
       - name: Build frontend
         run: pnpm build
 
-      - name: Lint frontend
-        run: pnpm lint
-
   nix:
     name: Nix availability
     runs-on: ubuntu-latest

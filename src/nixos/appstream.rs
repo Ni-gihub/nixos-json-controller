@@ -96,7 +96,42 @@ fn find_xml() -> Vec<(PathBuf, PathBuf)> {
     roots.extend([
         PathBuf::from("/run/current-system/sw"),
         PathBuf::from("/usr"),
+        PathBuf::from("/usr/local"),
     ]);
+
+    // Nix profiles and XDG data directories may hold AppStream metadata
+    // without it being linked into the system profile.
+    if let Ok(home) = env::var("HOME") {
+        let home = PathBuf::from(home);
+        roots.extend([
+            home.join(".nix-profile"),
+            home.join(".local"),
+            home.join(".local/state/nix/profiles/profile"),
+        ]);
+    }
+
+    if let Ok(data_dirs) = env::var("XDG_DATA_DIRS") {
+        for data_dir in data_dirs.split(':').filter(|value| !value.is_empty()) {
+            let data_dir = PathBuf::from(data_dir);
+            if data_dir.file_name().is_some_and(|name| name == "share") {
+                if let Some(prefix) = data_dir.parent() {
+                    roots.push(prefix.to_path_buf());
+                }
+            }
+        }
+    }
+
+    if let Ok(data_home) = env::var("XDG_DATA_HOME") {
+        let data_home = PathBuf::from(data_home);
+        if data_home.file_name().is_some_and(|name| name == "share") {
+            if let Some(prefix) = data_home.parent() {
+                roots.push(prefix.to_path_buf());
+            }
+        }
+    }
+
+    roots.sort();
+    roots.dedup();
 
     find_xml_from_roots(&roots)
 }

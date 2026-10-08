@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import InstallButton from '@/components/InstallButton'
+import AppIcon from '@/components/AppIcon'
 import { findApp, type App } from '@/catalog'
 import { useAppState } from '@/lib/app-state'
 
@@ -78,11 +79,12 @@ function AppDetail() {
                 <div className="pointer-events-none absolute -right-20 -top-24 size-64 rounded-full bg-blue-400/15 blur-3xl" />
                 <div className="relative flex flex-col items-start gap-7 sm:flex-row">
                   <div className="flex size-32 shrink-0 items-center justify-center rounded-3xl border border-blue-100 bg-white/80 text-6xl font-bold text-blue-600">
-                    {app.icon ? (
-                      <img src={app.icon} alt="" className="size-24 object-contain" />
-                    ) : (
-                      app.name[0]
-                    )}
+                    <AppIcon
+                      name={app.name}
+                      icon={app.icon}
+                      imageClassName="size-24 object-contain"
+                      fallbackClassName="size-16 text-muted-foreground"
+                    />
                   </div>
                   <div className="min-w-0 flex-1 pt-1">
                     <div className="flex flex-wrap items-start justify-between gap-5">

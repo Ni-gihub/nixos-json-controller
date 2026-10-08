@@ -31,14 +31,14 @@ function AppCard({ id, name, description, category, tags, installed, icon, searc
 
         <Link to={detailPath} className="min-w-0">
           <div className="flex items-start gap-2">
-            <h3 className="line-clamp-1 text-lg font-semibold leading-6 tracking-tight">{name}</h3>
+            <h3 className="line-clamp-1 text-xl font-semibold leading-7 tracking-tight">{name}</h3>
             {installed && (
-              <Badge variant="secondary" className="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium">
+              <Badge variant="secondary" className="shrink-0 rounded-full px-2.5 py-0.5 text-sm font-medium">
                 インストール済み
               </Badge>
             )}
           </div>
-          <p className="mt-0.5 line-clamp-1 text-sm text-muted-foreground">{description}</p>
+          <p className="mt-1 line-clamp-2 text-base leading-6 text-muted-foreground">{description}</p>
         </Link>
 
         <InstallButton
@@ -51,7 +51,7 @@ function AppCard({ id, name, description, category, tags, installed, icon, searc
         />
 
         <Link to={detailPath} className="col-start-2 col-span-2 mt-2 flex min-w-0 items-center gap-2 overflow-hidden">
-          <Badge variant="outline" className="shrink-0 rounded-full border-border px-2.5 py-1 text-xs font-medium">
+          <Badge variant="outline" className="shrink-0 rounded-full border-border px-2.5 py-1 text-sm font-medium">
             {category}
           </Badge>
           {tags.slice(0, 2).map((tag) => (

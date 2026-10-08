@@ -27,7 +27,7 @@ function AppCard({ id, name, description, category, tags, installed, icon, searc
             name={name}
             icon={icon}
             imageClassName="size-[4.5rem] object-contain"
-            fallbackClassName="size-10 text-muted-foreground"
+            fallbackClassName="size-10 text-foreground/70"
           />
         </Link>
 

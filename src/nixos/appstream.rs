@@ -98,16 +98,32 @@ fn find_xml() -> Vec<(PathBuf, PathBuf)> {
         PathBuf::from("/usr"),
     ]);
 
+    find_xml_from_roots(&roots)
+}
+
+/// Discover AppStream catalogs from both the freedesktop swcatalog layout and
+/// the app-info layouts used by AppStream data packages.
+fn find_xml_from_roots(roots: &[PathBuf]) -> Vec<(PathBuf, PathBuf)> {
+    let layouts = [
+        ("share/swcatalog/xml", "share/swcatalog/icons"),
+        ("share/app-info/xml", "share/app-info/icons"),
+        ("share/app-info/xmls", "share/app-info/icons"),
+    ];
+
     roots
-        .into_iter()
+        .iter()
         .flat_map(|root| {
-            ["nixos-unstable", "nixos-unstable-unfree"]
-                .into_iter()
-                .filter_map(move |section| {
-                    let xml = root.join("share/swcatalog/xml").join(format!("{section}.xml.gz"));
-                    let icons = root.join("share/swcatalog/icons").join(section);
-                    xml.is_file().then_some((xml, icons))
-                })
+            layouts.into_iter().flat_map(move |(xml_dir, icon_dir)| {
+                ["nixos-unstable", "nixos-unstable-unfree"]
+                    .into_iter()
+                    .filter_map(move |section| {
+                        let xml = root
+                            .join(xml_dir)
+                            .join(format!("{section}.xml.gz"));
+                        let icons = root.join(icon_dir).join(section);
+                        xml.is_file().then_some((xml, icons))
+                    })
+            })
         })
         .collect()
 }
@@ -540,6 +556,48 @@ fn base64_encode(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn discovers_swcatalog_and_app_info_layouts() {
+        let temp = std::env::temp_dir().join(format!(
+            "nxc-appstream-path-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&temp);
+
+        let expected = [
+            (
+                "share/swcatalog/xml/nixos-unstable.xml.gz",
+                "share/swcatalog/icons/nixos-unstable",
+            ),
+            (
+                "share/app-info/xml/nixos-unstable-unfree.xml.gz",
+                "share/app-info/icons/nixos-unstable-unfree",
+            ),
+            (
+                "share/app-info/xmls/nixos-unstable.xml.gz",
+                "share/app-info/icons/nixos-unstable",
+            ),
+        ];
+
+        for (xml, _) in expected {
+            let path = temp.join(xml);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, b"test catalog").unwrap();
+        }
+
+        let found = find_xml_from_roots(std::slice::from_ref(&temp));
+        assert_eq!(found.len(), expected.len());
+
+        for (xml, icons) in expected {
+            assert!(found.contains(&(
+                temp.join(xml),
+                temp.join(icons),
+            )));
+        }
+
+        let _ = fs::remove_dir_all(&temp);
+    }
 
     #[test]
     fn parses_multiple_cached_icons_and_aliases() {

@@ -295,7 +295,11 @@ fn load_icon(entry: &str) -> Option<String> {
         names.push(name.to_string());
     }
 
+    // Prefer scalable/high-resolution assets so the App Store does not upscale
+    // a small cached icon when a better source is already available.
     let preferred_sizes = [
+        "scalable",
+        "256x256",
         "128x128@2",
         "128x128",
         "96x96@2",
@@ -304,8 +308,6 @@ fn load_icon(entry: &str) -> Option<String> {
         "64x64",
         "48x48@2",
         "48x48",
-        "256x256",
-        "scalable",
     ];
 
     for size in preferred_sizes {

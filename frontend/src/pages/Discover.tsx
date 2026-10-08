@@ -180,7 +180,7 @@ function Discover() {
                       <p className="mt-2 text-sm text-muted-foreground">別のキーワードで検索してみてください。</p>
                     </div>
                   ) : (
-                    <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                    <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
                       {results.map((app) => (
                         <AppCard
                           key={app.id}

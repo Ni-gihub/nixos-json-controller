@@ -24,9 +24,9 @@ function AppCard({ id, name, description, category, tags, installed, icon, searc
       <Link to={detailPath} className="block flex-1">
         <CardHeader className="p-7 sm:p-8">
           <div className="flex items-start gap-5">
-            <div className="flex size-24 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-indigo-100 text-4xl font-bold text-blue-600 transition-transform duration-200 group-hover:scale-[1.03]">
+            <div className="flex size-24 shrink-0 items-center justify-center rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-indigo-100 text-4xl font-bold text-blue-600 shadow-sm ring-1 ring-blue-50 transition-transform duration-200 group-hover:scale-[1.04] group-hover:shadow-md">
               {icon ? (
-                <img src={icon} alt="" className="size-16 object-contain" loading="lazy" />
+                <img src={icon} alt="" className="size-[4.5rem] object-contain drop-shadow-sm" loading="lazy" />
               ) : (
                 name[0]
               )}
@@ -34,7 +34,7 @@ function AppCard({ id, name, description, category, tags, installed, icon, searc
 
             <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between gap-3">
-                <CardTitle className="line-clamp-2 text-3xl leading-9">{name}</CardTitle>
+                <CardTitle className="line-clamp-2 text-3xl font-bold leading-9 tracking-tight text-slate-900">{name}</CardTitle>
                 {installed && (
                   <Badge className="shrink-0 rounded-full bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-600">
                     インストール済み
@@ -42,18 +42,18 @@ function AppCard({ id, name, description, category, tags, installed, icon, searc
                 )}
               </div>
 
-              <CardDescription className="mt-3 line-clamp-4 text-lg leading-8 sm:text-xl">
+              <CardDescription className="mt-3 line-clamp-4 text-lg font-medium leading-8 text-slate-700 sm:text-xl">
                 {description}
               </CardDescription>
             </div>
           </div>
 
-          <div className="mt-7 flex items-center gap-2 overflow-hidden border-t border-blue-50 pt-5">
-            <Badge variant="outline" className="shrink-0 rounded-full border-blue-200 bg-blue-50/60 px-3 py-1.5 text-sm text-blue-700">
+          <div className="mt-7 flex items-center gap-2 overflow-hidden border-t border-blue-100 pt-5">
+            <Badge variant="outline" className="shrink-0 rounded-full border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700">
               {category}
             </Badge>
             {tags.slice(0, 2).map((tag) => (
-              <Badge key={tag} variant="secondary" className="shrink-0 rounded-full px-3 py-1.5 text-base">
+              <Badge key={tag} variant="secondary" className="shrink-0 rounded-full px-3 py-1.5 text-base font-medium">
                 {tag}
               </Badge>
             ))}
@@ -61,7 +61,7 @@ function AppCard({ id, name, description, category, tags, installed, icon, searc
         </CardHeader>
       </Link>
 
-      <div className="border-t border-blue-50 px-7 pb-7 pt-5 sm:px-8 sm:pb-8">
+      <div className="border-t border-blue-100 bg-blue-50/20 px-7 pb-7 pt-5 sm:px-8 sm:pb-8">
         <InstallButton
           packageId={id}
           appName={name}

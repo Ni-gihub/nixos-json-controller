@@ -71,7 +71,7 @@ function AppDetail() {
       </header>
 
       <main className="mx-auto w-full max-w-none px-6 py-8 sm:px-8 lg:px-12 lg:py-12">
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_420px]">
+        <div className="mx-auto max-w-6xl">
           <section className="min-w-0 space-y-7">
             <Card className="overflow-hidden rounded-3xl border-blue-100 bg-gradient-to-br from-white via-blue-50/50 to-indigo-100/70">
               <CardContent className="relative p-7 sm:p-9 lg:p-10">
@@ -88,9 +88,11 @@ function AppDetail() {
                     <div className="flex flex-wrap items-start justify-between gap-5">
                       <div className="min-w-0">
                         <div className="flex flex-wrap gap-2">
-                      <Badge className="rounded-full bg-blue-600 px-3 py-1 text-white hover:bg-blue-600">{app.category}</Badge>
-                      {app.tags.map((tag) => <Badge key={tag} variant="outline" className="rounded-full border-blue-200 bg-white/60">{tag}</Badge>)}
-                    </div>
+                          <Badge className="rounded-full bg-blue-600 px-3 py-1 text-white hover:bg-blue-600">{app.category}</Badge>
+                          {app.tags.map((tag) => (
+                            <Badge key={tag} variant="outline" className="rounded-full border-blue-200 bg-white/60">{tag}</Badge>
+                          ))}
+                        </div>
                       </div>
                       <InstallButton
                         packageId={id}

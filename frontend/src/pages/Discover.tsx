@@ -147,7 +147,7 @@ function Discover() {
                 <>
                   <div className="mb-6">
                     <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-                      「${submittedQuery}」の検索結果
+                      「{submittedQuery}」の検索結果
                     </h2>
                     {!searching && (
                       <p className="mt-1 text-sm text-slate-500">{results.length}件のApp</p>
@@ -183,22 +183,24 @@ function Discover() {
                           return (
                             <div
                               key={app.id}
-                              className="flex min-h-[112px] items-center gap-5 border-b border-slate-200 py-5"
+                              className="grid min-h-[128px] grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 gap-y-4 border-b border-slate-200 py-6"
                             >
                               <Link
                                 to={detailPath}
-                                className="flex min-w-0 flex-1 items-center gap-4 rounded-xl outline-none transition-opacity hover:opacity-75 focus-visible:ring-2 focus-visible:ring-blue-500"
+                                className="flex min-w-0 items-center gap-5 rounded-xl outline-none transition-opacity hover:opacity-75 focus-visible:ring-2 focus-visible:ring-blue-500"
                               >
-                                <div className="flex size-[72px] shrink-0 items-center justify-center overflow-hidden rounded-[18px] border border-slate-200 bg-gradient-to-br from-blue-50 via-white to-indigo-50 text-2xl font-bold text-blue-600 shadow-sm">
-                                  {app.icon ? (
+                                <div className="relative flex size-[72px] shrink-0 items-center justify-center overflow-hidden rounded-[18px] border border-slate-200 bg-gradient-to-br from-blue-50 via-white to-indigo-50 text-2xl font-bold text-blue-600 shadow-sm">
+                                  <span aria-hidden="true">{app.name[0]}</span>
+                                  {app.icon && (
                                     <img
                                       src={app.icon}
                                       alt=""
-                                      className="size-14 object-contain"
+                                      className="absolute inset-0 size-full object-contain p-2.5"
                                       loading="lazy"
+                                      onError={(event) => {
+                                        event.currentTarget.style.display = 'none'
+                                      }}
                                     />
-                                  ) : (
-                                    app.name[0]
                                   )}
                                 </div>
 
@@ -213,13 +215,13 @@ function Discover() {
                                 </div>
                               </Link>
 
-                              <div className="w-[120px] shrink-0 sm:w-[132px]">
+                              <div className="w-[116px] shrink-0 sm:w-[132px]">
                                 <InstallButton
                                   packageId={app.id}
                                   appName={app.name}
                                   installed={installed}
                                   onInstalled={() => refreshPackage(app.id)}
-                                  className="h-9 w-full rounded-full bg-blue-50 px-4 text-sm font-semibold text-blue-600 shadow-none hover:bg-blue-100 hover:text-blue-700"
+                                  className="h-10 w-full rounded-full bg-blue-50 px-4 text-sm font-semibold text-blue-600 shadow-none hover:bg-blue-100 hover:text-blue-700"
                                   size="sm"
                                 />
                               </div>

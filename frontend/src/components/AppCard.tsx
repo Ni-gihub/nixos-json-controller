@@ -19,7 +19,7 @@ function AppCard({ id, name, description, category, tags, installed, icon, searc
   const detailPath = searchQuery ? `/apps/${id}?query=${encodeURIComponent(searchQuery)}` : `/apps/${id}`
 
   return (
-    <div className="group py-2">
+    <div className="group py-4">
       <div className="grid grid-cols-[4.5rem_minmax(0,1fr)_auto] gap-x-4">
         <Link to={detailPath} className="row-span-3 flex size-16 shrink-0 items-center justify-center self-start rounded-2xl bg-muted/50 text-2xl font-bold text-blue-600 transition-transform duration-200 group-hover:scale-[1.03]">
           {icon ? (
@@ -46,7 +46,7 @@ function AppCard({ id, name, description, category, tags, installed, icon, searc
           appName={name}
           installed={installed}
           onInstalled={() => refreshPackage(id)}
-          className="h-9 min-w-24 shrink-0 rounded-full px-4 text-sm"
+          className="h-9 min-w-20 shrink-0 rounded-full px-3 text-sm"
           size="sm"
         />
 

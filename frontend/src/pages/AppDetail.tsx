@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { ArrowLeft, ExternalLink, Package, Tag } from 'lucide-react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import InstallButton from '@/components/InstallButton'
 import AppIcon from '@/components/AppIcon'
@@ -107,6 +106,7 @@ function AppDetail() {
                     <h1 className="mt-4 text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">{app.name}</h1>
                     {app.version && <p className="mt-2 text-sm text-muted-foreground">バージョン {app.version}</p>}
                     <p className="mt-5 max-w-3xl text-base leading-7 text-muted-foreground sm:text-lg lg:text-xl">{app.description}</p>
+                    {refreshError && <p role="status" className="mt-3 text-sm text-muted-foreground">インストール状態を取得できませんでした。</p>}
                   </div>
                 </div>
               </CardContent>

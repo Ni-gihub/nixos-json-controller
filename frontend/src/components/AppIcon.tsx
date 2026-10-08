@@ -9,8 +9,8 @@ type AppIconProps = {
 }
 
 function AppIcon({ name, icon, imageClassName, fallbackClassName }: AppIconProps) {
-  const [failedSource, setFailedSource] = useState<{ icon: string; failed: boolean } | undefined>()
-  const iconFailed = Boolean(icon && failedSource?.icon === icon && failedSource.failed)
+  const [failedIcon, setFailedIcon] = useState<string | undefined>()
+  const iconFailed = Boolean(icon && failedIcon === icon)
 
   if (!icon || iconFailed) {
     return <Package aria-hidden="true" className={fallbackClassName} />
@@ -23,7 +23,7 @@ function AppIcon({ name, icon, imageClassName, fallbackClassName }: AppIconProps
       aria-label={`${name} icon`}
       className={imageClassName}
       loading="lazy"
-      onError={() => setFailedSource({ icon, failed: true })}
+      onError={() => setFailedIcon(icon)}
     />
   )
 }

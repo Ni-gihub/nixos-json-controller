@@ -118,12 +118,8 @@ fn merge_icon_candidate(entries: &mut Vec<String>, candidate: String) {
         return;
     }
 
-    let candidate_priority = icon_source_priority(&candidate);
-    let insert_at = entries
-        .iter()
-        .position(|entry| icon_source_priority(entry) > candidate_priority)
-        .unwrap_or(entries.len());
-    entries.insert(insert_at, candidate);
+    entries.push(candidate);
+    entries.sort_by_key(|entry| icon_source_priority(entry));
 }
 
 fn icon_source_priority(entry: &str) -> u8 {

@@ -183,7 +183,7 @@ function Discover() {
                           return (
                             <div
                               key={app.id}
-                              className="grid min-h-[128px] grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 gap-y-4 border-b border-slate-200 py-6"
+                              className="grid min-h-[128px] grid-cols-1 items-center gap-x-6 gap-y-4 border-b border-slate-200 py-6 sm:grid-cols-[minmax(0,1fr)_auto]"
                             >
                               <Link
                                 to={detailPath}

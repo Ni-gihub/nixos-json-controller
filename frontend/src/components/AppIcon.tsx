@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Package } from 'lucide-react'
 
 type AppIconProps = {
@@ -9,13 +9,10 @@ type AppIconProps = {
 }
 
 function AppIcon({ name, icon, imageClassName, fallbackClassName }: AppIconProps) {
-  const [failedIcon, setFailedIcon] = useState<string | undefined>()
+  const [failedSource, setFailedSource] = useState<{ icon: string; failed: boolean } | undefined>()
+  const iconFailed = Boolean(icon && failedSource?.icon === icon && failedSource.failed)
 
-  useEffect(() => {
-    setFailedIcon(undefined)
-  }, [icon])
-
-  if (!icon || failedIcon === icon) {
+  if (!icon || iconFailed) {
     return <Package aria-hidden="true" className={fallbackClassName} />
   }
 
@@ -26,7 +23,7 @@ function AppIcon({ name, icon, imageClassName, fallbackClassName }: AppIconProps
       aria-label={`${name} icon`}
       className={imageClassName}
       loading="lazy"
-      onError={() => setFailedIcon(icon)}
+      onError={() => setFailedSource({ icon, failed: true })}
     />
   )
 }

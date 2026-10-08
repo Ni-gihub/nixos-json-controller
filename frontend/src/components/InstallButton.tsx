@@ -2,7 +2,6 @@ import { useState, type FormEvent } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { } from 'lucide-react'
 
 type InstallButtonProps = {
   packageId: string

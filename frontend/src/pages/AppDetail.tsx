@@ -84,10 +84,23 @@ function AppDetail() {
                       app.name[0]
                     )}
                   </div>
-                  <div className="min-w-0 pt-1">
-                    <div className="flex flex-wrap gap-2">
+                  <div className="min-w-0 flex-1 pt-1">
+                    <div className="flex flex-wrap items-start justify-between gap-5">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap gap-2">
                       <Badge className="rounded-full bg-blue-600 px-3 py-1 text-white hover:bg-blue-600">{app.category}</Badge>
                       {app.tags.map((tag) => <Badge key={tag} variant="outline" className="rounded-full border-blue-200 bg-white/60">{tag}</Badge>)}
+                    </div>
+                      </div>
+                      <InstallButton
+                        packageId={id}
+                        appName={app.name}
+                        installed={installed}
+                        statusKnown={statusKnown}
+                        onInstalled={() => refreshPackage(id)}
+                        className="h-10 shrink-0 rounded-full bg-blue-600 px-4 text-sm text-white hover:bg-blue-700"
+                        size="sm"
+                      />
                     </div>
                     <h1 className="mt-4 text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">{app.name}</h1>
                     {app.version && <p className="mt-2 text-sm text-muted-foreground">バージョン {app.version}</p>}
@@ -125,45 +138,6 @@ function AppDetail() {
             </Card>
           </section>
 
-          <aside className="lg:sticky lg:top-24 lg:self-start">
-            <Card className="rounded-3xl border-blue-100 bg-white/95">
-              <CardContent className="p-7 sm:p-8">
-                <div className="flex items-center gap-3">
-                  <div className="flex size-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                    <Package className="size-5" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">インストール</p>
-                    <h2 className="font-semibold">{app.name}</h2>
-                  </div>
-                </div>
-
-                <div className="mt-6 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50/80 to-white p-5">
-                  <div className="flex items-center justify-between gap-4 text-sm"><span className="text-muted-foreground">バージョン</span><span className="font-medium">{app.version || '—'}</span></div>
-                  <div className="mt-3 flex items-center justify-between gap-4 text-sm"><span className="text-muted-foreground">パッケージ</span><span className="max-w-[190px] truncate font-mono text-xs">{app.id}</span></div>
-                </div>
-
-                {refreshError && (
-                  <div className="mt-5 space-y-2 text-sm text-destructive">
-                    <p>インストール状態を更新できませんでした。</p>
-                    <Button variant="outline" size="sm" onClick={() => { void refreshPackage(id).then(() => setRefreshError(null)).catch((err) => setRefreshError(String(err))) }}>再試行</Button>
-                  </div>
-                )}
-
-                <div className="mt-6">
-                  <InstallButton
-                    packageId={id}
-                    appName={app.name}
-                    installed={installed}
-                    statusKnown={statusKnown}
-                    onInstalled={() => refreshPackage(id)}
-                    className="h-13 w-full rounded-xl bg-blue-600 text-base text-white hover:bg-blue-700"
-                    size="lg"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </aside>
         </div>
       </main>
     </div>

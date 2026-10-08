@@ -106,7 +106,7 @@ function Discover() {
             </div>
           </header>
 
-          <main className="mx-auto w-full max-w-6xl px-6 py-8 sm:px-8 lg:px-10 lg:py-12">
+          <main className="w-full px-6 py-8 sm:px-8 lg:px-12 lg:py-12">
             <section className="relative overflow-hidden rounded-3xl border border-blue-100 bg-gradient-to-br from-white via-blue-50/70 to-indigo-100/70 px-7 py-9 sm:px-10 sm:py-11">
               <div className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full bg-blue-400/15 blur-3xl" />
               <div className="relative">

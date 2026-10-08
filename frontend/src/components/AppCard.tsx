@@ -34,15 +34,15 @@ function AppCard({ id, name, description, category, tags, installed, icon, searc
 
             <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between gap-3">
-                <CardTitle className="line-clamp-2 text-2xl leading-8">{name}</CardTitle>
+                <CardTitle className="line-clamp-2 text-3xl leading-9">{name}</CardTitle>
                 {installed && (
-                  <Badge className="shrink-0 rounded-full bg-blue-600 px-3 py-1.5 text-xs text-white hover:bg-blue-600">
+                  <Badge className="shrink-0 rounded-full bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-600">
                     インストール済み
                   </Badge>
                 )}
               </div>
 
-              <CardDescription className="mt-3 line-clamp-4 text-base leading-7 sm:text-lg">
+              <CardDescription className="mt-3 line-clamp-4 text-lg leading-8 sm:text-xl">
                 {description}
               </CardDescription>
             </div>
@@ -53,7 +53,7 @@ function AppCard({ id, name, description, category, tags, installed, icon, searc
               {category}
             </Badge>
             {tags.slice(0, 2).map((tag) => (
-              <Badge key={tag} variant="secondary" className="shrink-0 rounded-full px-3 py-1.5 text-sm">
+              <Badge key={tag} variant="secondary" className="shrink-0 rounded-full px-3 py-1.5 text-base">
                 {tag}
               </Badge>
             ))}

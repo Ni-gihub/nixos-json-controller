@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -7,6 +7,7 @@ use std::sync::{Mutex, OnceLock};
 
 static INDEX: OnceLock<HashMap<String, Vec<String>>> = OnceLock::new();
 static ICON_CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
+static STOCK_ICON_INDEX: OnceLock<HashMap<String, Vec<PathBuf>>> = OnceLock::new();
 
 /// Resolve the first usable AppStream icon for the supplied package aliases.
 pub fn icon_for_package(candidates: &[&str]) -> Option<String> {
@@ -72,8 +73,8 @@ fn load_index() -> HashMap<String, Vec<String>> {
         for (package, icons) in parse_index(&String::from_utf8_lossy(&output.stdout)) {
             let entries = index.entry(package).or_default();
             for icon in icons {
-                let source = if let Some(url) = icon.strip_prefix("remote|") {
-                    format!("remote|{url}")
+                let source = if icon.starts_with("remote|") || icon.starts_with("stock|") {
+                    icon.clone()
                 } else {
                     format!("cached|{}|{}", icon_root.display(), icon)
                 };
@@ -111,21 +112,27 @@ fn find_xml() -> Vec<(PathBuf, PathBuf)> {
         .collect()
 }
 
-/// Merge an icon candidate while keeping cached icons ahead of remote fallbacks.
+/// Merge icon candidates in order: cached/local file, stock theme icon, then remote URL.
 fn merge_icon_candidate(entries: &mut Vec<String>, candidate: String) {
     if entries.contains(&candidate) {
         return;
     }
 
-    let is_remote = candidate.starts_with("remote|");
-    if is_remote {
-        entries.push(candidate);
+    let candidate_priority = icon_source_priority(&candidate);
+    let insert_at = entries
+        .iter()
+        .position(|entry| icon_source_priority(entry) > candidate_priority)
+        .unwrap_or(entries.len());
+    entries.insert(insert_at, candidate);
+}
+
+fn icon_source_priority(entry: &str) -> u8 {
+    if entry.starts_with("remote|") {
+        2
+    } else if entry.starts_with("stock|") {
+        1
     } else {
-        let insert_at = entries
-            .iter()
-            .position(|entry| entry.starts_with("remote|"))
-            .unwrap_or(entries.len());
-        entries.insert(insert_at, candidate);
+        0
     }
 }
 
@@ -183,9 +190,10 @@ fn parse_index(xml: &str) -> HashMap<String, Vec<String>> {
     index
 }
 
-/// Extract cached and absolute remote icon references from one AppStream component.
+/// Extract cached, stock-theme, and absolute remote icon references from one AppStream component.
 fn icon_sources(input: &str) -> Vec<String> {
     let mut cached_icons = Vec::new();
+    let mut stock_icons = Vec::new();
     let mut remote_icons = Vec::new();
     let mut offset = 0;
 
@@ -206,6 +214,7 @@ fn icon_sources(input: &str) -> Vec<String> {
                     let value = decode_xml_entities(value);
                     match icon_type.as_deref() {
                         Some("cached") | None => cached_icons.push(value),
+                        Some("stock") => stock_icons.push(format!("stock|{value}")),
                         Some("remote")
                             if value.starts_with("https://") || value.starts_with("http://") =>
                         {
@@ -222,6 +231,7 @@ fn icon_sources(input: &str) -> Vec<String> {
         offset = tag_end + 1;
     }
 
+    cached_icons.extend(stock_icons);
     cached_icons.extend(remote_icons);
     cached_icons
 }
@@ -280,10 +290,14 @@ fn element_attribute(input: &str, element: &str, attribute: &str) -> Option<Stri
     Some(tag[value_start..value_end].to_string())
 }
 
-/// Load a cached icon from AppStream data or return an absolute remote URL.
+/// Load an AppStream icon from cached data, the system icon theme, or a remote URL.
 fn load_icon(entry: &str) -> Option<String> {
     if let Some(url) = entry.strip_prefix("remote|") {
         return Some(url.to_string());
+    }
+
+    if let Some(icon_name) = entry.strip_prefix("stock|") {
+        return load_stock_icon(icon_name);
     }
 
     let entry = entry.strip_prefix("cached|").unwrap_or(entry);
@@ -333,6 +347,156 @@ fn load_icon(entry: &str) -> Option<String> {
     }
 
     None
+}
+
+/// Resolve stock icon names against icon themes available to the current user/system.
+///
+/// XDG data directories are included because profile-installed icon themes may live outside
+/// `/run/current-system/sw`. Icon files are converted to data URLs so the web frontend does
+/// not need direct filesystem access.
+fn load_stock_icon(icon_name: &str) -> Option<String> {
+    let index = STOCK_ICON_INDEX.get_or_init(build_stock_icon_index);
+    let paths = index.get(&icon_name.to_lowercase())?;
+
+    paths.iter().find_map(|path| read_icon(path))
+}
+
+fn build_stock_icon_index() -> HashMap<String, Vec<PathBuf>> {
+    build_stock_icon_index_from_roots(&stock_icon_roots())
+}
+
+fn build_stock_icon_index_from_roots(roots: &[PathBuf]) -> HashMap<String, Vec<PathBuf>> {
+    let mut index: HashMap<String, Vec<PathBuf>> = HashMap::new();
+    let mut visited = HashSet::new();
+
+    for root in roots {
+        index_stock_icon_dir(root, &mut index, &mut visited, 0);
+    }
+
+    for paths in index.values_mut() {
+        paths.sort_by_key(|path| (stock_icon_path_priority(path), path.clone()));
+    }
+
+    index
+}
+
+fn stock_icon_roots() -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+
+    if let Ok(data_dirs) = env::var("XDG_DATA_DIRS") {
+        for data_dir in data_dirs.split(':').filter(|value| !value.is_empty()) {
+            let data_dir = PathBuf::from(data_dir);
+            roots.push(data_dir.join("icons"));
+            roots.push(data_dir.join("pixmaps"));
+        }
+    }
+
+    if let Ok(home) = env::var("HOME") {
+        let home = PathBuf::from(home);
+        roots.extend([
+            home.join(".local/share/icons"),
+            home.join(".icons"),
+            home.join(".local/share/pixmaps"),
+            home.join(".nix-profile/share/icons"),
+            home.join(".nix-profile/share/pixmaps"),
+        ]);
+    }
+
+    roots.extend([
+        PathBuf::from("/run/current-system/sw/share/icons"),
+        PathBuf::from("/run/current-system/sw/share/pixmaps"),
+        PathBuf::from("/usr/share/icons"),
+        PathBuf::from("/usr/share/pixmaps"),
+        PathBuf::from("/usr/local/share/icons"),
+        PathBuf::from("/usr/local/share/pixmaps"),
+    ]);
+
+    let mut seen = HashSet::new();
+    roots
+        .into_iter()
+        .filter(|root| root.is_dir())
+        .filter(|root| {
+            let identity = fs::canonicalize(root).unwrap_or_else(|_| root.clone());
+            seen.insert(identity)
+        })
+        .collect()
+}
+
+fn index_stock_icon_dir(
+    directory: &Path,
+    index: &mut HashMap<String, Vec<PathBuf>>,
+    visited: &mut HashSet<PathBuf>,
+    depth: usize,
+) {
+    // Icon theme directories are shallow; cap traversal and guard against symlink cycles.
+    if depth > 12 {
+        return;
+    }
+
+    let Ok(metadata) = fs::metadata(directory) else {
+        return;
+    };
+    if !metadata.is_dir() {
+        return;
+    }
+
+    let identity = fs::canonicalize(directory).unwrap_or_else(|_| directory.to_path_buf());
+    if !visited.insert(identity) {
+        return;
+    }
+
+    let Ok(entries) = fs::read_dir(directory) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            index_stock_icon_dir(&path, index, visited, depth + 1);
+            continue;
+        }
+
+        let Some(extension) = path.extension().and_then(|value| value.to_str()) else {
+            continue;
+        };
+        if !matches!(extension.to_ascii_lowercase().as_str(), "png" | "svg" | "jpg" | "jpeg") {
+            continue;
+        }
+
+        let Some(name) = path.file_stem().and_then(|value| value.to_str()) else {
+            continue;
+        };
+        index.entry(name.to_lowercase()).or_default().push(path);
+    }
+}
+
+fn stock_icon_path_priority(path: &Path) -> (u8, u8) {
+    let normalized = path.to_string_lossy().to_lowercase();
+    let size_priority = if normalized.contains("/scalable/") {
+        0
+    } else if normalized.contains("/256x256/") || normalized.contains("/256x256@2/") {
+        1
+    } else if normalized.contains("/128x128/") || normalized.contains("/128x128@2/") {
+        2
+    } else if normalized.contains("/96x96/") || normalized.contains("/96x96@2/") {
+        3
+    } else if normalized.contains("/64x64/") || normalized.contains("/64x64@2/") {
+        4
+    } else if normalized.contains("/48x48/") || normalized.contains("/48x48@2/") {
+        5
+    } else {
+        6
+    };
+
+    let category_priority = if normalized.contains("/apps/") {
+        0
+    } else if normalized.contains("/mimetypes/") {
+        1
+    } else {
+        2
+    };
+
+    (size_priority, category_priority)
 }
 
 /// Read a supported local image and encode it as a data URL.
@@ -441,6 +605,67 @@ mod tests {
                 "remote|https://example.com/remote.png".to_string()
             ]
         );
+    }
+
+    #[test]
+    fn parses_stock_icons_and_keeps_cached_first_remote_last() {
+        let xml = r#"
+            <component type="desktop-application">
+              <pkgname>example</pkgname>
+              <icon type="remote">https://example.com/remote.png</icon>
+              <icon type="stock">applications-internet</icon>
+              <icon type="cached">example.png</icon>
+            </component>
+        "#;
+
+        let index = parse_index(xml);
+        assert_eq!(
+            index.get("example"),
+            Some(&vec![
+                "example.png".to_string(),
+                "stock|applications-internet".to_string(),
+                "remote|https://example.com/remote.png".to_string()
+            ])
+        );
+    }
+
+    #[test]
+    fn merge_icon_candidate_keeps_stock_between_cached_and_remote() {
+        let mut entries = vec![
+            "remote|https://example.com/remote.png".to_string(),
+            "stock|applications-internet".to_string(),
+        ];
+
+        merge_icon_candidate(&mut entries, "cached|/icons|example.png".to_string());
+
+        assert_eq!(
+            entries,
+            vec![
+                "cached|/icons|example.png".to_string(),
+                "stock|applications-internet".to_string(),
+                "remote|https://example.com/remote.png".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn resolves_stock_icons_from_icon_theme_roots() {
+        let temp = std::env::temp_dir().join(format!(
+            "nxc-stock-icon-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&temp);
+        let icon_path = temp.join("hicolor/scalable/apps/example-stock.svg");
+        fs::create_dir_all(icon_path.parent().unwrap()).unwrap();
+        fs::write(&icon_path, "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>").unwrap();
+
+        let index = build_stock_icon_index_from_roots(std::slice::from_ref(&temp));
+        let resolved = index
+            .get("example-stock")
+            .and_then(|paths| paths.iter().find_map(|path| read_icon(path)));
+
+        assert!(resolved.unwrap().starts_with("data:image/svg+xml;base64,"));
+        let _ = fs::remove_dir_all(&temp);
     }
 
     #[test]

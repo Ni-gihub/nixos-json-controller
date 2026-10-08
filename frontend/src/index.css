@@ -126,6 +126,8 @@
   }
   html {
     @apply font-sans;
+    /* Keep the App Store readable on desktop Linux/WebKit views. */
+    font-size: 18px;
   }
   body {
     background-image:

@@ -20,10 +20,10 @@ function AppCard({ id, name, description, category, tags, installed, icon, searc
 
   return (
     <div className="group py-4">
-      <div className="grid grid-cols-[4.5rem_minmax(0,1fr)_auto] gap-x-4">
-        <Link to={detailPath} className="row-span-3 flex size-16 shrink-0 items-center justify-center self-start rounded-2xl bg-muted/50 text-2xl font-bold text-blue-600 transition-transform duration-200 group-hover:scale-[1.03]">
+      <div className="grid grid-cols-[5rem_minmax(0,1fr)_auto] gap-x-5">
+        <Link to={detailPath} className="row-span-3 flex size-18 shrink-0 items-center justify-center self-start rounded-2xl bg-muted/50 text-2xl font-bold text-blue-600 transition-transform duration-200 group-hover:scale-[1.03]">
           {icon ? (
-            <img src={icon} alt="" className="size-14 object-contain" loading="lazy" />
+            <img src={icon} alt="" className="size-16 object-contain" loading="lazy" />
           ) : (
             name[0]
           )}
@@ -55,7 +55,7 @@ function AppCard({ id, name, description, category, tags, installed, icon, searc
             {category}
           </Badge>
           {tags.slice(0, 2).map((tag) => (
-            <Badge key={tag} variant="secondary" className="shrink-0 rounded-full px-2.5 py-1 text-xs font-medium">
+            <Badge key={tag} variant="secondary" className="shrink-0 rounded-full px-2.5 py-1 text-sm font-medium">
               {tag}
             </Badge>
           ))}

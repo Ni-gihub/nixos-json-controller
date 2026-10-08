@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Check, Download } from 'lucide-react'
+import { } from 'lucide-react'
 
 type InstallButtonProps = {
   packageId: string
@@ -89,17 +89,11 @@ function InstallButton({
         }}
       >
         {effectiveInstalled ? (
-          <>
-            <Check className="mr-2 size-4" />
-            インストール済み
-          </>
+          'インストール済み'
         ) : installing ? (
           'インストール中...'
         ) : (
-          <>
-            <Download className="mr-2 size-4" />
-            インストール
-          </>
+          'インストール'
         )}
       </Button>
 

@@ -86,6 +86,7 @@ fn load_index() -> HashMap<String, Vec<String>> {
     index
 }
 
+/// Finds AppStream catalog files from system, profile, and XDG data roots.
 fn find_xml() -> Vec<(PathBuf, PathBuf)> {
     let mut roots = Vec::new();
 

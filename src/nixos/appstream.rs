@@ -593,6 +593,7 @@ fn base64_encode(bytes: &[u8]) -> String {
 mod tests {
     use super::*;
 
+    /// Verifies each supported AppStream catalog layout is detected.
     #[test]
     fn discovers_swcatalog_and_app_info_layouts() {
         let temp = std::env::temp_dir().join(format!(

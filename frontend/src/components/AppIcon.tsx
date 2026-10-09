@@ -56,7 +56,7 @@ function AppIcon({
   const candidates = Array.from(
     new Set([...(icon ? [icon] : []), ...(iconCandidates ?? [])]),
   )
-  const candidateKey = candidates.join('\\u0000')
+  const candidateKey = JSON.stringify(candidates)
   const [failedCandidate, setFailedCandidate] = useState<{
     key: string
     index: number

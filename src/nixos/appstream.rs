@@ -9,7 +9,7 @@ static INDEX: OnceLock<HashMap<String, Vec<String>>> = OnceLock::new();
 static ICON_CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
 static STOCK_ICON_INDEX: OnceLock<HashMap<String, Vec<PathBuf>>> = OnceLock::new();
 
-/// Resolve the first usable AppStream icon for the supplied package aliases.
+/// Maximum number of local and remote icon URLs sent for one package.
 const MAX_ICON_CANDIDATES: usize = 4;
 
 /// Resolve the first usable AppStream icon for the supplied package aliases.

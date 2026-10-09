@@ -10,4 +10,5 @@ export type App = {
   tags: AppTag[]
   homepage?: string
   icon?: string
+  iconCandidates?: string[]
 }

@@ -40,6 +40,7 @@ function isFullyTransparentLocalImage(image: HTMLImageElement): boolean {
   }
 }
 
+/** Renders an application icon, falling back when its image is missing or invisible. */
 function AppIcon({ name, icon, imageClassName, fallbackClassName }: AppIconProps) {
   const [failedIcon, setFailedIcon] = useState<string | undefined>()
   const iconFailed = Boolean(icon && failedIcon === icon)

@@ -98,7 +98,7 @@ fn resolve_icon_candidates(candidates: &[&str], limit: usize) -> Vec<String> {
 
     // Reserve room for the system/profile icon matching the package name.
     let stock_index = STOCK_ICON_INDEX.get_or_init(build_stock_icon_index);
-    if let Some(icon) = direct_stock_icon_from_index(candidates, stock_index) {
+    if let Some(icon) = resolve_direct_stock_icon(candidates, stock_index, cache) {
         push_icon_candidate(&mut resolved, icon, limit);
     }
 
@@ -141,6 +141,45 @@ fn resolve_cached_entry(
         icons.insert(entry.to_string(), icon.clone());
     }
     icon
+}
+
+/// Resolve the direct theme lookup once per normalized set of package aliases.
+///
+/// Cache misses as well as successful results: catalog search can ask for the same
+/// package on many keystrokes, and even an unsuccessful theme lookup should not
+/// repeatedly scan icon paths and encode image files.
+fn resolve_direct_stock_icon(
+    candidates: &[&str],
+    index: &HashMap<String, Vec<PathBuf>>,
+    cache: &Mutex<HashMap<String, Option<String>>>,
+) -> Option<String> {
+    let key = direct_stock_cache_key(candidates);
+    let cached = cache
+        .lock()
+        .ok()
+        .and_then(|icons| icons.get(&key).cloned());
+
+    if let Some(icon) = cached {
+        return icon;
+    }
+
+    let icon = direct_stock_icon_from_index(candidates, index);
+    if let Ok(mut icons) = cache.lock() {
+        icons.insert(key, icon.clone());
+    }
+    icon
+}
+
+/// Build a collision-resistant key for the original candidate sequence.
+fn direct_stock_cache_key(candidates: &[&str]) -> String {
+    let mut key = String::from("direct|");
+    for candidate in candidates {
+        use std::fmt::Write as _;
+        // Length prefixes avoid collisions if an alias contains the separator.
+        let _ = write!(key, "{}:{candidate}", candidate.len());
+        key.push('|');
+    }
+    key
 }
 
 /// Look for stock icons using package IDs, ID leaves, and package names even without AppStream data.
@@ -766,6 +805,50 @@ mod tests {
             )));
         }
 
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn direct_stock_cache_key_distinguishes_candidate_sequences() {
+        assert_ne!(
+            direct_stock_cache_key(&["firefox", "mozilla"]),
+            direct_stock_cache_key(&["firefox|mozilla"])
+        );
+    }
+
+    #[test]
+    fn caches_negative_direct_stock_lookups() {
+        let temp = std::env::temp_dir().join(format!(
+            "nxc-direct-stock-cache-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&temp);
+        fs::create_dir_all(&temp).unwrap();
+
+        let empty_index = HashMap::new();
+        let cache = Mutex::new(HashMap::new());
+        assert!(
+            resolve_direct_stock_icon(&["firefox"], &empty_index, &cache).is_none()
+        );
+
+        // Repeated searches reuse a cached miss instead of scanning the index again.
+        let icon_path = temp.join("hicolor/scalable/apps/firefox.svg");
+        fs::create_dir_all(icon_path.parent().unwrap()).unwrap();
+        fs::write(
+            &icon_path,
+            "<svg xmlns=\"http://www.w3.org/2000/svg\"><circle cx=\"1\" cy=\"1\" r=\"1\"/></svg>",
+        )
+        .unwrap();
+        let populated_index = build_stock_icon_index_from_roots(std::slice::from_ref(&temp));
+        assert!(
+            resolve_direct_stock_icon(&["firefox"], &populated_index, &cache).is_none()
+        );
+
+        let cached_key = direct_stock_cache_key(&["firefox"]);
+        assert!(
+            cache.lock().unwrap().contains_key(&cached_key),
+            "negative lookups must be stored in the cache"
+        );
         let _ = fs::remove_dir_all(&temp);
     }
 

@@ -8,6 +8,7 @@ import AppIcon from '@/components/AppIcon'
 import { findApp, type App } from '@/catalog'
 import { useAppState } from '@/lib/app-state'
 
+/** Loads and displays details for the selected catalog package. */
 function AppDetail() {
   const { id } = useParams()
   const [searchParams] = useSearchParams()

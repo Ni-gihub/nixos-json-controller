@@ -16,7 +16,6 @@ function AppDetail() {
   const [app, setApp] = useState<App | undefined>()
   const [loadingApp, setLoadingApp] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [refreshError, setRefreshError] = useState<string | null>(null)
 
   const appState = id ? states[id] : undefined
   const installed = appState?.active === true
@@ -36,7 +35,9 @@ function AppDetail() {
 
   useEffect(() => {
     if (!id) return
-    void refreshPackage(id).catch((err) => setRefreshError(String(err)))
+
+    // Initial status lookup is non-fatal; InstallButton reports errors for user-initiated actions.
+    void refreshPackage(id).catch(() => undefined)
   }, [id, refreshPackage])
 
   if (loadingApp) {
@@ -106,7 +107,6 @@ function AppDetail() {
                     <h1 className="mt-4 text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">{app.name}</h1>
                     {app.version && <p className="mt-2 text-sm text-muted-foreground">バージョン {app.version}</p>}
                     <p className="mt-5 max-w-3xl text-base leading-7 text-muted-foreground sm:text-lg lg:text-xl">{app.description}</p>
-                    {refreshError && <p role="status" className="mt-3 text-sm text-muted-foreground">インストール状態を取得できませんでした。</p>}
                   </div>
                 </div>
               </CardContent>

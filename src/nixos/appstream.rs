@@ -9,10 +9,31 @@ static INDEX: OnceLock<HashMap<String, Vec<String>>> = OnceLock::new();
 static ICON_CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
 static STOCK_ICON_INDEX: OnceLock<HashMap<String, Vec<PathBuf>>> = OnceLock::new();
 
+/// Maximum number of local and remote icon URLs sent for one package.
+const MAX_ICON_CANDIDATES: usize = 4;
+
 /// Resolve the first usable AppStream icon for the supplied package aliases.
 pub fn icon_for_package(candidates: &[&str]) -> Option<String> {
+    resolve_icon_candidates(candidates, 1).into_iter().next()
+}
+
+/// Return a short, ordered list of usable icon candidates for frontend fallback.
+///
+/// Some cached assets decode but contain no useful visible pixels. The frontend
+/// can reject those candidates and try the next one without searching the
+/// catalog again. Keep this list short to avoid bloating Tauri search responses.
+pub fn icon_candidates_for_package(candidates: &[&str]) -> Vec<String> {
+    resolve_icon_candidates(candidates, MAX_ICON_CANDIDATES)
+}
+
+fn resolve_icon_candidates(candidates: &[&str], limit: usize) -> Vec<String> {
     let index = INDEX.get_or_init(load_index);
     let cache = ICON_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut resolved = Vec::new();
+
+    if limit == 0 {
+        return resolved;
+    }
 
     for candidate in candidates {
         let icon_entries = index
@@ -24,26 +45,39 @@ pub fn icon_for_package(candidates: &[&str]) -> Option<String> {
         };
 
         for icon_entry in icon_entries {
-            if let Ok(icons) = cache.lock() {
-                if let Some(cached) = icons.get(icon_entry) {
-                    if cached.is_some() {
-                        return cached.clone();
-                    }
-                    continue;
+            let cached = cache
+                .lock()
+                .ok()
+                .and_then(|icons| icons.get(icon_entry).cloned());
+
+            if let Some(cached) = cached {
+                if let Some(icon) = cached {
+                    push_icon_candidate(&mut resolved, icon, limit);
+                }
+            } else {
+                let icon = load_icon(icon_entry);
+                if let Ok(mut icons) = cache.lock() {
+                    icons.insert(icon_entry.clone(), icon.clone());
+                }
+                if let Some(icon) = icon {
+                    push_icon_candidate(&mut resolved, icon, limit);
                 }
             }
 
-            let icon = load_icon(icon_entry);
-            if let Ok(mut icons) = cache.lock() {
-                icons.insert(icon_entry.clone(), icon.clone());
-            }
-            if icon.is_some() {
-                return icon;
+            if resolved.len() >= limit {
+                return resolved;
             }
         }
     }
 
-    None
+    resolved
+}
+
+/// Add a resolved icon once, preserving source priority and response-size bounds.
+fn push_icon_candidate(icons: &mut Vec<String>, icon: String, limit: usize) {
+    if icons.len() < limit && !icons.contains(&icon) {
+        icons.push(icon);
+    }
 }
 
 /// Load AppStream component aliases and retain every icon candidate for fallback resolution.
@@ -634,6 +668,17 @@ mod tests {
         }
 
         let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn keeps_icon_candidates_unique_and_within_limit() {
+        let mut icons = Vec::new();
+        push_icon_candidate(&mut icons, "first".to_string(), 2);
+        push_icon_candidate(&mut icons, "first".to_string(), 2);
+        push_icon_candidate(&mut icons, "second".to_string(), 2);
+        push_icon_candidate(&mut icons, "third".to_string(), 2);
+
+        assert_eq!(icons, vec!["first".to_string(), "second".to_string()]);
     }
 
     #[test]

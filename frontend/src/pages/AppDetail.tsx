@@ -83,6 +83,7 @@ function AppDetail() {
                     <AppIcon
                       name={app.name}
                       icon={app.icon}
+                      iconCandidates={app.iconCandidates}
                       imageClassName="size-24 object-contain"
                       fallbackClassName="size-16 text-foreground/70"
                     />

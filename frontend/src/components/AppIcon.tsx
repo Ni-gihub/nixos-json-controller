@@ -10,13 +10,13 @@ type AppIconProps = {
 }
 
 /**
- * Detect empty or practically invisible local images.
+ * Detect local images that will be effectively invisible on the light icon surface.
  *
- * A few non-transparent pixels can occur in broken/placeholder assets. The
- * threshold is intentionally tiny so legitimate icons with transparent
- * padding are retained.
+ * Alpha alone is not sufficient: a mostly-empty image, or an opaque white
+ * placeholder, can load successfully while looking blank in the App Store.
+ * Remote images are not inspected because canvas access may be blocked by CORS.
  */
-function isBlankLocalImage(image: HTMLImageElement): boolean {
+function isVisuallyBlankLocalImage(image: HTMLImageElement): boolean {
   if (!image.currentSrc.startsWith('data:image/')) return false
 
   const canvas = document.createElement('canvas')
@@ -29,18 +29,34 @@ function isBlankLocalImage(image: HTMLImageElement): boolean {
   try {
     context.drawImage(image, 0, 0, canvas.width, canvas.height)
     const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data
-    let visiblePixels = 0
 
-    for (let alphaIndex = 3; alphaIndex < pixels.length; alphaIndex += 4) {
-      if (pixels[alphaIndex] > 16) {
-        visiblePixels += 1
-        if (visiblePixels >= 4) return false
+    // Approximate the light muted background behind App Store icons.
+    const background = [247, 248, 250] as const
+    const minimumContrast = 22
+    const minimumVisiblePixels = 8
+    let contrastingPixels = 0
+
+    for (let offset = 0; offset < pixels.length; offset += 4) {
+      const alpha = pixels[offset + 3] / 255
+      if (alpha < 0.08) continue
+
+      const red = pixels[offset] * alpha + background[0] * (1 - alpha)
+      const green = pixels[offset + 1] * alpha + background[1] * (1 - alpha)
+      const blue = pixels[offset + 2] * alpha + background[2] * (1 - alpha)
+      const contrast = Math.max(
+        Math.abs(red - background[0]),
+        Math.abs(green - background[1]),
+        Math.abs(blue - background[2]),
+      )
+
+      if (contrast >= minimumContrast) {
+        contrastingPixels += 1
+        if (contrastingPixels >= minimumVisiblePixels) return false
       }
     }
 
     return true
   } catch {
-    // Cross-origin remote images may disallow pixel inspection.
     return false
   }
 }
@@ -91,7 +107,7 @@ function AppIcon({
         className={imageClassName}
         loading="lazy"
         onLoad={(event) => {
-          if (isBlankLocalImage(event.currentTarget)) tryNextCandidate()
+          if (isVisuallyBlankLocalImage(event.currentTarget)) tryNextCandidate()
         }}
         onError={tryNextCandidate}
       />

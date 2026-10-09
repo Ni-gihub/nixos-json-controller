@@ -9,31 +9,35 @@ static INDEX: OnceLock<HashMap<String, Vec<String>>> = OnceLock::new();
 static ICON_CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
 static STOCK_ICON_INDEX: OnceLock<HashMap<String, Vec<PathBuf>>> = OnceLock::new();
 
-/// Maximum number of local and remote icon URLs sent for one package.
-const MAX_ICON_CANDIDATES: usize = 4;
+/// Maximum number of icon URLs exposed per package without making search responses excessive.
+const MAX_ICON_CANDIDATES: usize = 5;
+const MAX_CACHED_ICON_CANDIDATES: usize = 2;
+const MAX_APPSTREAM_STOCK_ICON_CANDIDATES: usize = 1;
+const MAX_REMOTE_ICON_CANDIDATES: usize = 1;
 
 /// Resolve the first usable AppStream icon for the supplied package aliases.
 pub fn icon_for_package(candidates: &[&str]) -> Option<String> {
     resolve_icon_candidates(candidates, 1).into_iter().next()
 }
 
-/// Return a short, ordered list of usable icon candidates for frontend fallback.
+/// Return ordered AppStream and local icon-theme candidates for frontend fallback.
 ///
-/// Some cached assets decode but contain no useful visible pixels. The frontend
-/// can reject those candidates and try the next one without searching the
-/// catalog again. Keep this list short to avoid bloating Tauri search responses.
+/// AppStream does not contain an entry for every installed desktop application.
+/// After checking metadata-provided icons, also try package aliases directly in
+/// the current icon theme so applications such as Firefox can still resolve an
+/// installed desktop icon when the AppStream component is missing.
 pub fn icon_candidates_for_package(candidates: &[&str]) -> Vec<String> {
     resolve_icon_candidates(candidates, MAX_ICON_CANDIDATES)
 }
 
 fn resolve_icon_candidates(candidates: &[&str], limit: usize) -> Vec<String> {
+    if limit == 0 {
+        return Vec::new();
+    }
+
     let index = INDEX.get_or_init(load_index);
     let cache = ICON_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
-    let mut resolved = Vec::new();
-
-    if limit == 0 {
-        return resolved;
-    }
+    let mut entries_by_priority: [Vec<String>; 3] = [Vec::new(), Vec::new(), Vec::new()];
 
     for candidate in candidates {
         let icon_entries = index
@@ -44,40 +48,174 @@ fn resolve_icon_candidates(candidates: &[&str], limit: usize) -> Vec<String> {
             continue;
         };
 
-        for icon_entry in icon_entries {
-            let cached = cache
-                .lock()
-                .ok()
-                .and_then(|icons| icons.get(icon_entry).cloned());
-
-            if let Some(cached) = cached {
-                if let Some(icon) = cached {
-                    push_icon_candidate(&mut resolved, icon, limit);
-                }
-            } else {
-                let icon = load_icon(icon_entry);
-                if let Ok(mut icons) = cache.lock() {
-                    icons.insert(icon_entry.clone(), icon.clone());
-                }
-                if let Some(icon) = icon {
-                    push_icon_candidate(&mut resolved, icon, limit);
-                }
+        for entry in icon_entries {
+            let priority = icon_source_priority(entry) as usize;
+            if priority < entries_by_priority.len()
+                && !entries_by_priority[priority].contains(entry)
+            {
+                entries_by_priority[priority].push(entry.clone());
             }
+        }
+    }
 
-            if resolved.len() >= limit {
-                return resolved;
+    let mut resolved = Vec::new();
+
+    // Keep multiple cached icons for recovery from empty or low-contrast assets.
+    let mut cached_count = 0;
+    for entry in &entries_by_priority[0] {
+        if let Some(icon) = resolve_cached_entry(entry, cache) {
+            if push_icon_candidate(&mut resolved, icon, limit) {
+                cached_count += 1;
             }
+        }
+        if cached_count >= MAX_CACHED_ICON_CANDIDATES || resolved.len() >= limit {
+            break;
+        }
+    }
+
+    if resolved.len() >= limit {
+        return resolved;
+    }
+
+    // AppStream-declared stock icons take precedence over guessed aliases.
+    let mut appstream_stock_count = 0;
+    for entry in &entries_by_priority[1] {
+        if let Some(icon) = load_icon(entry) {
+            if push_icon_candidate(&mut resolved, icon, limit) {
+                appstream_stock_count += 1;
+            }
+        }
+        if appstream_stock_count >= MAX_APPSTREAM_STOCK_ICON_CANDIDATES
+            || resolved.len() >= limit
+        {
+            break;
+        }
+    }
+
+    if resolved.len() >= limit {
+        return resolved;
+    }
+
+    // Reserve room for the system/profile icon matching the package name.
+    let stock_index = STOCK_ICON_INDEX.get_or_init(build_stock_icon_index);
+    if let Some(icon) = resolve_direct_stock_icon(candidates, stock_index, cache) {
+        push_icon_candidate(&mut resolved, icon, limit);
+    }
+
+    if resolved.len() >= limit {
+        return resolved;
+    }
+
+    // Remote icons are the final fallback because they depend on network access.
+    let mut remote_count = 0;
+    for entry in &entries_by_priority[2] {
+        if let Some(icon) = load_icon(entry) {
+            if push_icon_candidate(&mut resolved, icon, limit) {
+                remote_count += 1;
+            }
+        }
+        if remote_count >= MAX_REMOTE_ICON_CANDIDATES || resolved.len() >= limit {
+            break;
         }
     }
 
     resolved
 }
 
-/// Add a resolved icon once, preserving source priority and response-size bounds.
-fn push_icon_candidate(icons: &mut Vec<String>, icon: String, limit: usize) {
-    if icons.len() < limit && !icons.contains(&icon) {
-        icons.push(icon);
+/// Resolve and cache an AppStream icon entry while avoiding a filesystem read on cache hits.
+fn resolve_cached_entry(
+    entry: &str,
+    cache: &Mutex<HashMap<String, Option<String>>>,
+) -> Option<String> {
+    let cached = cache
+        .lock()
+        .ok()
+        .and_then(|icons| icons.get(entry).cloned());
+
+    if let Some(cached) = cached {
+        return cached;
     }
+
+    let icon = load_icon(entry);
+    if let Ok(mut icons) = cache.lock() {
+        icons.insert(entry.to_string(), icon.clone());
+    }
+    icon
+}
+
+/// Resolve the direct theme lookup once per normalized set of package aliases.
+///
+/// Cache misses as well as successful results: catalog search can ask for the same
+/// package on many keystrokes, and even an unsuccessful theme lookup should not
+/// repeatedly scan icon paths and encode image files.
+fn resolve_direct_stock_icon(
+    candidates: &[&str],
+    index: &HashMap<String, Vec<PathBuf>>,
+    cache: &Mutex<HashMap<String, Option<String>>>,
+) -> Option<String> {
+    let key = direct_stock_cache_key(candidates);
+    let cached = cache
+        .lock()
+        .ok()
+        .and_then(|icons| icons.get(&key).cloned());
+
+    if let Some(icon) = cached {
+        return icon;
+    }
+
+    let icon = direct_stock_icon_from_index(candidates, index);
+    if let Ok(mut icons) = cache.lock() {
+        icons.insert(key, icon.clone());
+    }
+    icon
+}
+
+/// Build a collision-resistant key for the original candidate sequence.
+fn direct_stock_cache_key(candidates: &[&str]) -> String {
+    let mut key = String::from("direct|");
+    for candidate in candidates {
+        use std::fmt::Write as _;
+        // Length prefixes avoid collisions if an alias contains the separator.
+        let _ = write!(key, "{}:{candidate}", candidate.len());
+        key.push('|');
+    }
+    key
+}
+
+/// Look for stock icons using package IDs, ID leaves, and package names even without AppStream data.
+fn direct_stock_icon_from_index(
+    candidates: &[&str],
+    index: &HashMap<String, Vec<PathBuf>>,
+) -> Option<String> {
+    let mut aliases = Vec::new();
+
+    for candidate in candidates {
+        let leaf = candidate.rsplit('.').next().unwrap_or(candidate);
+        for alias in [*candidate, leaf] {
+            let alias = alias
+                .strip_suffix(".desktop")
+                .unwrap_or(alias)
+                .to_lowercase();
+            if !alias.is_empty() && !aliases.contains(&alias) {
+                aliases.push(alias);
+            }
+        }
+    }
+
+    aliases.iter().find_map(|alias| {
+        index
+            .get(alias)
+            .and_then(|paths| paths.iter().find_map(|path| read_icon(path)))
+    })
+}
+
+/// Add one unique candidate while respecting the response-size bound.
+fn push_icon_candidate(icons: &mut Vec<String>, icon: String, limit: usize) -> bool {
+    if icons.len() >= limit || icons.contains(&icon) {
+        return false;
+    }
+    icons.push(icon);
+    true
 }
 
 /// Load AppStream component aliases and retain every icon candidate for fallback resolution.
@@ -667,6 +805,73 @@ mod tests {
             )));
         }
 
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn direct_stock_cache_key_distinguishes_candidate_sequences() {
+        assert_ne!(
+            direct_stock_cache_key(&["firefox", "mozilla"]),
+            direct_stock_cache_key(&["firefox|mozilla"])
+        );
+    }
+
+    #[test]
+    fn caches_negative_direct_stock_lookups() {
+        let temp = std::env::temp_dir().join(format!(
+            "nxc-direct-stock-cache-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&temp);
+        fs::create_dir_all(&temp).unwrap();
+
+        let empty_index = HashMap::new();
+        let cache = Mutex::new(HashMap::new());
+        assert!(
+            resolve_direct_stock_icon(&["firefox"], &empty_index, &cache).is_none()
+        );
+
+        // Repeated searches reuse a cached miss instead of scanning the index again.
+        let icon_path = temp.join("hicolor/scalable/apps/firefox.svg");
+        fs::create_dir_all(icon_path.parent().unwrap()).unwrap();
+        fs::write(
+            &icon_path,
+            "<svg xmlns=\"http://www.w3.org/2000/svg\"><circle cx=\"1\" cy=\"1\" r=\"1\"/></svg>",
+        )
+        .unwrap();
+        let populated_index = build_stock_icon_index_from_roots(std::slice::from_ref(&temp));
+        assert!(
+            resolve_direct_stock_icon(&["firefox"], &populated_index, &cache).is_none()
+        );
+
+        let cached_key = direct_stock_cache_key(&["firefox"]);
+        assert!(
+            cache.lock().unwrap().contains_key(&cached_key),
+            "negative lookups must be stored in the cache"
+        );
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn resolves_stock_icon_by_package_alias_without_appstream_metadata() {
+        let temp = std::env::temp_dir().join(format!(
+            "nxc-direct-stock-icon-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&temp);
+        let icon_path = temp.join("hicolor/scalable/apps/firefox.svg");
+        fs::create_dir_all(icon_path.parent().unwrap()).unwrap();
+        fs::write(
+            &icon_path,
+            "<svg xmlns=\"http://www.w3.org/2000/svg\"><circle cx=\"1\" cy=\"1\" r=\"1\"/></svg>",
+        )
+        .unwrap();
+
+        let index = build_stock_icon_index_from_roots(std::slice::from_ref(&temp));
+        let resolved =
+            direct_stock_icon_from_index(&["org.mozilla.firefox", "firefox"], &index);
+
+        assert!(resolved.unwrap().starts_with("data:image/svg+xml;base64,"));
         let _ = fs::remove_dir_all(&temp);
     }
 

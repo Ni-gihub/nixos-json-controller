@@ -86,6 +86,7 @@ fn load_index() -> HashMap<String, Vec<String>> {
     index
 }
 
+/// Finds AppStream catalog files from system, profile, and XDG data roots.
 fn find_xml() -> Vec<(PathBuf, PathBuf)> {
     let mut roots = Vec::new();
 
@@ -96,18 +97,69 @@ fn find_xml() -> Vec<(PathBuf, PathBuf)> {
     roots.extend([
         PathBuf::from("/run/current-system/sw"),
         PathBuf::from("/usr"),
+        PathBuf::from("/usr/local"),
     ]);
 
+    // Nix profiles and XDG data directories may hold AppStream metadata
+    // without it being linked into the system profile.
+    if let Ok(home) = env::var("HOME") {
+        let home = PathBuf::from(home);
+        roots.extend([
+            home.join(".nix-profile"),
+            home.join(".local"),
+            home.join(".local/state/nix/profiles/profile"),
+        ]);
+    }
+
+    if let Ok(data_dirs) = env::var("XDG_DATA_DIRS") {
+        for data_dir in data_dirs.split(':').filter(|value| !value.is_empty()) {
+            let data_dir = PathBuf::from(data_dir);
+            if data_dir.file_name().and_then(|name| name.to_str()) == Some("share") {
+                if let Some(prefix) = data_dir.parent() {
+                    roots.push(prefix.to_path_buf());
+                }
+            }
+        }
+    }
+
+    if let Ok(data_home) = env::var("XDG_DATA_HOME") {
+        let data_home = PathBuf::from(data_home);
+        if data_home.file_name().and_then(|name| name.to_str()) == Some("share") {
+            if let Some(prefix) = data_home.parent() {
+                roots.push(prefix.to_path_buf());
+            }
+        }
+    }
+
+    let mut seen = HashSet::new();
+    roots.retain(|root| seen.insert(root.clone()));
+
+    find_xml_from_roots(&roots)
+}
+
+/// Discover AppStream catalogs from both the freedesktop swcatalog layout and
+/// the app-info layouts used by AppStream data packages.
+fn find_xml_from_roots(roots: &[PathBuf]) -> Vec<(PathBuf, PathBuf)> {
+    let layouts = [
+        ("share/swcatalog/xml", "share/swcatalog/icons"),
+        ("share/app-info/xml", "share/app-info/icons"),
+        ("share/app-info/xmls", "share/app-info/icons"),
+    ];
+
     roots
-        .into_iter()
+        .iter()
         .flat_map(|root| {
-            ["nixos-unstable", "nixos-unstable-unfree"]
-                .into_iter()
-                .filter_map(move |section| {
-                    let xml = root.join("share/swcatalog/xml").join(format!("{section}.xml.gz"));
-                    let icons = root.join("share/swcatalog/icons").join(section);
-                    xml.is_file().then_some((xml, icons))
-                })
+            layouts.into_iter().flat_map(move |(xml_dir, icon_dir)| {
+                ["nixos-unstable", "nixos-unstable-unfree"]
+                    .into_iter()
+                    .filter_map(move |section| {
+                        let xml = root
+                            .join(xml_dir)
+                            .join(format!("{section}.xml.gz"));
+                        let icons = root.join(icon_dir).join(section);
+                        xml.is_file().then_some((xml, icons))
+                    })
+            })
         })
         .collect()
 }
@@ -540,6 +592,49 @@ fn base64_encode(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Verifies each supported AppStream catalog layout is detected.
+    #[test]
+    fn discovers_swcatalog_and_app_info_layouts() {
+        let temp = std::env::temp_dir().join(format!(
+            "nxc-appstream-path-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&temp);
+
+        let expected = [
+            (
+                "share/swcatalog/xml/nixos-unstable.xml.gz",
+                "share/swcatalog/icons/nixos-unstable",
+            ),
+            (
+                "share/app-info/xml/nixos-unstable-unfree.xml.gz",
+                "share/app-info/icons/nixos-unstable-unfree",
+            ),
+            (
+                "share/app-info/xmls/nixos-unstable.xml.gz",
+                "share/app-info/icons/nixos-unstable",
+            ),
+        ];
+
+        for (xml, _) in expected {
+            let path = temp.join(xml);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, b"test catalog").unwrap();
+        }
+
+        let found = find_xml_from_roots(std::slice::from_ref(&temp));
+        assert_eq!(found.len(), expected.len());
+
+        for (xml, icons) in expected {
+            assert!(found.contains(&(
+                temp.join(xml),
+                temp.join(icons),
+            )));
+        }
+
+        let _ = fs::remove_dir_all(&temp);
+    }
 
     #[test]
     fn parses_multiple_cached_icons_and_aliases() {

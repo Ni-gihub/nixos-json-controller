@@ -15,6 +15,7 @@ type AppCardProps = {
   searchQuery?: string
 }
 
+/** Displays an application search result with its metadata and install action. */
 function AppCard({ id, name, description, category, tags, installed, icon, searchQuery }: AppCardProps) {
   const { refreshPackage } = useAppState()
   const detailPath = searchQuery ? `/apps/${id}?query=${encodeURIComponent(searchQuery)}` : `/apps/${id}`
@@ -27,7 +28,7 @@ function AppCard({ id, name, description, category, tags, installed, icon, searc
             name={name}
             icon={icon}
             imageClassName="size-[4.5rem] object-contain"
-            fallbackClassName="size-10 text-muted-foreground"
+            fallbackClassName="size-10 text-foreground/70"
           />
         </Link>
 

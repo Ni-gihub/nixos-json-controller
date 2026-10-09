@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react'
 import { ArrowLeft, ExternalLink, Package, Tag } from 'lucide-react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import InstallButton from '@/components/InstallButton'
 import AppIcon from '@/components/AppIcon'
 import { findApp, type App } from '@/catalog'
 import { useAppState } from '@/lib/app-state'
 
+/** Loads and displays details for the selected catalog package. */
 function AppDetail() {
   const { id } = useParams()
   const [searchParams] = useSearchParams()
@@ -17,7 +17,6 @@ function AppDetail() {
   const [app, setApp] = useState<App | undefined>()
   const [loadingApp, setLoadingApp] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [refreshError, setRefreshError] = useState<string | null>(null)
 
   const appState = id ? states[id] : undefined
   const installed = appState?.active === true
@@ -37,7 +36,9 @@ function AppDetail() {
 
   useEffect(() => {
     if (!id) return
-    void refreshPackage(id).catch((err) => setRefreshError(String(err)))
+
+    // Initial status lookup is non-fatal; InstallButton reports errors for user-initiated actions.
+    void refreshPackage(id).catch(() => undefined)
   }, [id, refreshPackage])
 
   if (loadingApp) {
@@ -83,7 +84,7 @@ function AppDetail() {
                       name={app.name}
                       icon={app.icon}
                       imageClassName="size-24 object-contain"
-                      fallbackClassName="size-16 text-muted-foreground"
+                      fallbackClassName="size-16 text-foreground/70"
                     />
                   </div>
                   <div className="min-w-0 flex-1 pt-1">

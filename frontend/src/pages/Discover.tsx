@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
+import type { FormEvent } from 'react'
 import { Search, Store, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -7,6 +8,7 @@ import { searchApps, type App } from '@/catalog'
 import { useAppState } from '@/lib/app-state'
 import { useSearchParams } from 'react-router'
 
+/** Provides the searchable Nixpkgs application catalog page. */
 function Discover() {
   const [searchParams, setSearchParams] = useSearchParams()
   const initialQuery = searchParams.get('query')?.trim() ?? ''

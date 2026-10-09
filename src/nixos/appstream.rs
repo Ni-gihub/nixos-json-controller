@@ -13,7 +13,6 @@ static STOCK_ICON_INDEX: OnceLock<HashMap<String, Vec<PathBuf>>> = OnceLock::new
 const MAX_ICON_CANDIDATES: usize = 5;
 const MAX_CACHED_ICON_CANDIDATES: usize = 2;
 const MAX_APPSTREAM_STOCK_ICON_CANDIDATES: usize = 1;
-const MAX_DIRECT_STOCK_ICON_CANDIDATES: usize = 1;
 const MAX_REMOTE_ICON_CANDIDATES: usize = 1;
 
 /// Resolve the first usable AppStream icon for the supplied package aliases.

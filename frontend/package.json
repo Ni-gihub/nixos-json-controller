@@ -8,7 +8,8 @@
     "tauri": "NXC_APPSTREAM_DATA=$(cd .. && nix build .#appstream-data --no-link --print-out-paths) tauri",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --experimental-strip-types --test src/components/AppIcon.logic.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

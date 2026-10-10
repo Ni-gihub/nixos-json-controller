@@ -13,7 +13,6 @@ static STOCK_ICON_INDEX: OnceLock<HashMap<String, Vec<PathBuf>>> = OnceLock::new
 const MAX_ICON_CANDIDATES: usize = 5;
 const MAX_CACHED_ICON_CANDIDATES: usize = 2;
 const MAX_APPSTREAM_STOCK_ICON_CANDIDATES: usize = 1;
-const MAX_REMOTE_ICON_CANDIDATES: usize = 1;
 
 /// Resolve the first usable AppStream icon for the supplied package aliases.
 pub fn icon_for_package(candidates: &[&str]) -> Option<String> {
@@ -37,7 +36,27 @@ fn resolve_icon_candidates(candidates: &[&str], limit: usize) -> Vec<String> {
 
     let index = INDEX.get_or_init(load_index);
     let cache = ICON_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
-    let mut entries_by_priority: [Vec<String>; 3] = [Vec::new(), Vec::new(), Vec::new()];
+    let stock_index = STOCK_ICON_INDEX.get_or_init(build_stock_icon_index);
+
+    resolve_icon_candidates_from_index(candidates, limit, index, stock_index, cache)
+}
+
+/// Resolve local AppStream and theme icons while excluding remote URLs that cannot be inspected for blank content.
+fn resolve_icon_candidates_from_index(
+    candidates: &[&str],
+    limit: usize,
+    index: &HashMap<String, Vec<String>>,
+    stock_index: &HashMap<String, Vec<PathBuf>>,
+    cache: &Mutex<HashMap<String, Option<String>>>,
+) -> Vec<String> {
+    if limit == 0 {
+        return Vec::new();
+    }
+
+    // Only return local assets. Remote AppStream URLs cannot be reliably checked for blank
+    // content inside the WebView due to cross-origin canvas restrictions; an opaque blank
+    // remote image can hide the generic icon behind it. The frontend uses Package as fallback.
+    let mut entries_by_priority: [Vec<String>; 2] = [Vec::new(), Vec::new()];
 
     for candidate in candidates {
         let icon_entries = index
@@ -97,26 +116,8 @@ fn resolve_icon_candidates(candidates: &[&str], limit: usize) -> Vec<String> {
     }
 
     // Reserve room for the system/profile icon matching the package name.
-    let stock_index = STOCK_ICON_INDEX.get_or_init(build_stock_icon_index);
     if let Some(icon) = resolve_direct_stock_icon(candidates, stock_index, cache) {
         push_icon_candidate(&mut resolved, icon, limit);
-    }
-
-    if resolved.len() >= limit {
-        return resolved;
-    }
-
-    // Remote icons are the final fallback because they depend on network access.
-    let mut remote_count = 0;
-    for entry in &entries_by_priority[2] {
-        if let Some(icon) = load_icon(entry) {
-            if push_icon_candidate(&mut resolved, icon, limit) {
-                remote_count += 1;
-            }
-        }
-        if remote_count >= MAX_REMOTE_ICON_CANDIDATES || resolved.len() >= limit {
-            break;
-        }
     }
 
     resolved
@@ -987,6 +988,29 @@ mod tests {
                 "remote|https://example.com/remote.png".to_string()
             ]
         );
+    }
+
+    #[test]
+    fn does_not_expose_unvalidated_remote_only_icons() {
+        let xml = r#"
+            <component type="desktop-application">
+              <pkgname>example-remote-only</pkgname>
+              <icon type="remote">https://example.com/blank.png</icon>
+            </component>
+        "#;
+        let index = parse_index(xml);
+        let empty_stock_index: HashMap<String, Vec<PathBuf>> = HashMap::new();
+        let cache = Mutex::new(HashMap::new());
+
+        let resolved = resolve_icon_candidates_from_index(
+            &["example-remote-only"],
+            MAX_ICON_CANDIDATES,
+            &index,
+            &empty_stock_index,
+            &cache,
+        );
+
+        assert!(resolved.is_empty());
     }
 
     #[test]

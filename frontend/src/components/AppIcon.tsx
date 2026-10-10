@@ -1,5 +1,11 @@
 import { useState } from 'react'
 import { Package } from 'lucide-react'
+import {
+  collectIconCandidates,
+  getActiveIconCandidate,
+  isVisuallyBlankPixels,
+  nextCandidateIndex,
+} from './app-icon-logic'
 
 type AppIconProps = {
   name: string
@@ -28,34 +34,7 @@ function isVisuallyBlankLocalImage(image: HTMLImageElement): boolean {
 
   try {
     context.drawImage(image, 0, 0, canvas.width, canvas.height)
-    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data
-
-    // Approximate the light muted background behind App Store icons.
-    const background = [247, 248, 250] as const
-    const minimumContrast = 22
-    const minimumVisiblePixels = 8
-    let contrastingPixels = 0
-
-    for (let offset = 0; offset < pixels.length; offset += 4) {
-      const alpha = pixels[offset + 3] / 255
-      if (alpha < 0.08) continue
-
-      const red = pixels[offset] * alpha + background[0] * (1 - alpha)
-      const green = pixels[offset + 1] * alpha + background[1] * (1 - alpha)
-      const blue = pixels[offset + 2] * alpha + background[2] * (1 - alpha)
-      const contrast = Math.max(
-        Math.abs(red - background[0]),
-        Math.abs(green - background[1]),
-        Math.abs(blue - background[2]),
-      )
-
-      if (contrast >= minimumContrast) {
-        contrastingPixels += 1
-        if (contrastingPixels >= minimumVisiblePixels) return false
-      }
-    }
-
-    return true
+    return isVisuallyBlankPixels(context.getImageData(0, 0, canvas.width, canvas.height).data)
   } catch {
     return false
   }
@@ -69,9 +48,7 @@ function AppIcon({
   imageClassName,
   fallbackClassName,
 }: AppIconProps) {
-  const candidates = Array.from(
-    new Set([...(icon ? [icon] : []), ...(iconCandidates ?? [])]),
-  )
+  const candidates = collectIconCandidates(icon, iconCandidates)
   const candidateKey = JSON.stringify(candidates)
   const [failedCandidate, setFailedCandidate] = useState<{
     key: string
@@ -80,7 +57,7 @@ function AppIcon({
 
   // Reset the effective index when the package/candidate list changes.
   const candidateIndex = failedCandidate?.key === candidateKey ? failedCandidate.index : 0
-  const activeIcon = candidates[candidateIndex]
+  const activeIcon = getActiveIconCandidate(candidates, candidateIndex)
 
   if (!activeIcon) {
     return <Package aria-hidden="true" className={fallbackClassName} />
@@ -89,7 +66,10 @@ function AppIcon({
   const tryNextCandidate = () => {
     setFailedCandidate((current) => ({
       key: candidateKey,
-      index: (current?.key === candidateKey ? current.index : 0) + 1,
+      index: nextCandidateIndex(
+        current?.key === candidateKey ? current.index : 0,
+        candidates.length,
+      ),
     }))
   }
 

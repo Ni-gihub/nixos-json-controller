@@ -26,13 +26,14 @@ function AppDetail() {
     if (!id) return
     let cancelled = false
     setLoadingApp(true)
+    setApp(undefined)
     setError(null)
-    void findApp(id)
+    void findApp(id, returnQuery)
       .then((result) => { if (!cancelled) setApp(result) })
       .catch((err) => { if (!cancelled) setError(String(err)) })
       .finally(() => { if (!cancelled) setLoadingApp(false) })
     return () => { cancelled = true }
-  }, [id])
+  }, [id, returnQuery])
 
   useEffect(() => {
     if (!id) return

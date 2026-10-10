@@ -176,9 +176,7 @@ fn parse_unlimited_results(
 }
 
 /// Resolve icon candidates only after result selection to avoid doing icon work for discarded rows.
-fn attach_icon_candidates(
-    mut results: Vec<(u32, CatalogPackage)>,
-) -> Vec<(u32, CatalogPackage)> {
+fn attach_icon_candidates(mut results: Vec<(u32, CatalogPackage)>) -> Vec<(u32, CatalogPackage)> {
     for (_, package) in &mut results {
         let id_leaf = package.id.rsplit('.').next().unwrap_or(&package.id);
         let mut icons =

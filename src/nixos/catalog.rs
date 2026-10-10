@@ -60,10 +60,7 @@ pub fn find(id: &str) -> Result<Option<CatalogPackage>, String> {
     Ok(find_exact_result(search(id)?, id))
 }
 
-fn find_exact_result(
-    packages: Vec<CatalogPackage>,
-    id: &str,
-) -> Option<CatalogPackage> {
+fn find_exact_result(packages: Vec<CatalogPackage>, id: &str) -> Option<CatalogPackage> {
     packages.into_iter().find(|package| package.id == id)
 }
 

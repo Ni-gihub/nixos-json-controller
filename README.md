@@ -1,410 +1,323 @@
-# NixOS-JSON-Controller
+# NixOS JSON Controller（NXC）
 
-NixOSの設定を安全に変更するためのCLIコントローラーです。
+NXC は、NixOS の設定を安全に変更するための CLI コントローラーと、そのコア機能を利用するデスクトップ版 App Store を開発するプロジェクトです。
 
-パッケージの追加・削除、サービスの有効化・無効化などを、NixOSの宣言的な設定として反映し、必要に応じて `nixos-rebuild switch` まで実行します。
+CLI ではパッケージの追加・削除やサービスの有効化・無効化を NixOS の宣言的な設定に反映し、必要に応じて nixos-rebuild switch まで実行します。GUI では Nixpkgs のパッケージを検索し、アプリの詳細やインストール状態を確認してインストール操作を行えます。
 
-> **Status:** CLIのコア機能は一旦完成したMVPです。今後は実際の利用を通して改善していきます。
+## 現在の状態
 
-## Features
+- **CLI：** Nix profile からインストールして利用できます。
+- **GUI：** React / TypeScript と Tauri 2 で開発中です。開発環境での起動・動作確認ができます。
+- **GUI の本番インストール：** Nix profile からの配布、ランチャー統合、更新・削除手順は未整備です。実装は Issue [#101](https://github.com/Ni-gihub/nixos-json-controller/issues/101) で管理しています。
+- **既知の問題：** App Store の検索結果でアイコンが透明になる問題を調査中です。詳細は [Issue #96](https://github.com/Ni-gihub/nixos-json-controller/issues/96) を参照してください。
 
-- NixOSパッケージの追加・削除
-- NixOSサービスの有効化・無効化
-- 日本語などの別名に対応
-- NixOS設定用FlakeのDiscovery
-- 現在のsystem / Discovery状態の確認
-- パッケージ・サービスの状態や定義元の確認
-- 宣言されているパッケージの一覧表示
-- 宣言されているパッケージの検索
-- 既存設定を安全に編集できない場合のNXC専用module fallback
-- 設定変更後のNix評価・rebuildによる検証
-- rebuildや検証に失敗した場合の変更ロールバック
-- `--dry-run` による実行内容の確認
+現在の Flake package は x86_64-linux を対象としています。
 
----
+## 主な機能
 
-# Installation
+### CLI
 
-## NixOS / Nix profile
+- NixOS パッケージの追加・削除
+- NixOS サービスの有効化・無効化
+- 登録された日本語名などの別名によるパッケージ・サービス指定
+- NixOS 用 Flake の探索と選択結果の保存
+- 現在の system generation、パッケージ、コマンド、サービス状態の表示
+- NixOS 設定に宣言されたパッケージの一覧・検索
+- パッケージやサービスの状態、宣言元、編集対象の説明
+- 実行計画を確認する dry-run
+- Nix 評価や rebuild 後の検証、および失敗時のロールバック処理
 
-NixOSでは、通常のアプリケーションと同じようにNix profileへインストールできます。
+### GUI（開発中）
 
-```bash
-nix profile install github:Ni-gihub/nixos-json-controller
-```
+- Nixpkgs を利用したパッケージ検索
+- アプリの説明・バージョン・カテゴリ・タグ・ホームページなどの詳細表示
+- 現在の NixOS におけるインストール状態の表示
+- 検索結果や詳細画面からのインストール操作
+- sudo 認証が必要な場合のパスワード入力 UI
+- AppStream やローカルのアイコンテーマを利用したアイコン解決
 
-インストール後、
-
-```bash
-nxc --help
-```
-
-で確認できます。
-
-現在のFlake packageは `x86_64-linux` を対象としています。
-
-NXC自身をNixOSの `flake.nix` に追加する必要はありません。
-
-## 更新
-
-profileにインストールしたNXCは通常のprofileアプリとして更新できます。
-
-```bash
-nix profile upgrade nixos-json-controller
-```
-
-## ソースからビルド
-
-Rust / Cargoを使用する場合は、リポジトリを取得してビルドできます。
-
-```bash
-git clone https://github.com/Ni-gihub/nixos-json-controller.git
-cd nixos-json-controller
-cargo build --release
-```
-
-生成された実行ファイルは、
-
-```text
-target/release/nixos-json-controller
-```
-
-です。
-
-`nxc` として使用する場合はPATHの通った場所へ配置してください。
-
-```bash
-install -Dm755 target/release/nixos-json-controller ~/.local/bin/nxc
-```
+GUI はまだ本番用の Nix package として配布できる状態ではありません。通常利用向けのプロファイルインストール手順は、Issue #101 の完了後に追加します。
 
 ---
 
-# Quick Start
+# CLI のインストール
 
-最初にNixOS設定をDiscoveryします。
+## Nix profile からインストールする
 
-```bash
-nxc discover
-```
+NixOS 上で、リポジトリの default package をインストールします。
 
-Discoveryに成功したら、通常の操作を実行できます。
+    nix profile install github:Ni-gihub/nixos-json-controller
 
-### Package
+インストールできたら、コマンドを確認します。
 
-```bash
-nxc i firefox
-nxc r firefox
-```
+    nxc --help
 
-インストール操作は省略して、
+NXC 自身を利用者の NixOS configuration の flake.nix に追加する必要はありません。ユーザーの Nix profile で管理できます。
 
-```bash
-nxc firefox
-```
+### 更新
 
-とも書けます。
+まず、インストール済みの profile element 名を確認します。
 
-### Service
+    nix profile list
 
-```bash
-nxc e openssh
-nxc d openssh
-```
+表示された NXC の element 名を使って更新します。通常は次のコマンドを利用できます。
 
-### 状態確認
+    nix profile upgrade nixos-json-controller
 
-```bash
-nxc status
-nxc list
-nxc search firefox
-```
+profile element 名が異なる場合は、nix profile list の結果に合わせて指定してください。
 
----
+### 削除
 
-# Discovery
+profile 内の NXC の element 名を確認し、その element を削除します。
 
-NXCはNixOS設定用のFlakeを自動的に探索します。
+    nix profile list
+    nix profile remove nixos-json-controller
 
-```bash
-nxc discover
-```
+削除対象の名前が異なる場合は、実際に表示された名前を指定してください。NXC を profile から削除しても、NixOS の設定に NXC 自身を登録しているわけではありません。
 
-Discoveryでは単純に `flake.nix` の存在だけを見るのではなく、候補となったFlakeを検査し、Nix評価によって `nixosConfigurations` を確認します。
+## ソースから CLI をビルドする
 
-```text
-候補探索
-  ↓
-Filesystem Inspection
-  ↓
-Nix Evaluation
-  ↓
-nixosConfigurations確認
-  ↓
-Configuration選択
-  ↓
-Discovery結果を保存
-```
+開発や調査のためにソースからビルドする場合は、Rust と Cargo が必要です。
 
-選択されたFlakeとConfigurationは保存され、通常の操作では保存済みのDiscovery結果が使用されます。
+    git clone https://github.com/Ni-gihub/nixos-json-controller.git
+    cd nixos-json-controller
+    cargo build --release
 
-保存先:
+生成される CLI 実行ファイルは次の場所です。
 
-```text
-~/.config/nxc/discovery.json
-```
+    target/release/nixos-json-controller
 
-そのため、通常のパッケージ・サービス操作のたびにFlake全体を探索する必要はありません。
+ローカルで nxc という名前で利用したい場合は、PATH の通ったユーザー用ディレクトリなどへ配置してください。
 
-## Discoveryをやり直す
+    install -Dm755 target/release/nixos-json-controller ~/.local/bin/nxc
 
-NixOS設定の場所や構成を変更した場合は、再度実行してください。
-
-```bash
-nxc discover
-```
-
-保存済みのDiscovery結果が現在の環境と一致しない場合、NXCは古い情報を使ったまま設定を変更せず、Discoveryの再実行を要求します。
+これはソースから実行ファイルを配置する方法です。Nix profile による管理や、GUI の本番インストールとは別の方法です。
 
 ---
 
-# Package
+# CLI の基本的な使い方
 
-## インストール
+設定を変更する前に、NixOS configuration の Flake を探索します。
 
-```bash
-nxc i firefox
-```
+    nxc discover
 
-または、
+Discovery が完了したら、パッケージやサービスの操作を行います。
 
-```bash
-nxc firefox
-```
+## パッケージ
 
-## 削除
+インストール：
 
-```bash
-nxc r firefox
-```
+    nxc i firefox
 
-## Dry Run
+操作名を省略してもインストールできます。
 
-実際に設定を変更せず、実行計画を確認できます。
+    nxc firefox
 
-```bash
-nxc i firefox --dry-run
-```
+削除：
 
-`--dry-run` は設定を変更したりrebuildしたりせず、実行予定の内容だけを表示します。
+    nxc r firefox
+
+変更を行わず、実行予定の内容だけを確認する場合：
+
+    nxc i firefox --dry-run
+
+dry-run は設定変更と nixos-rebuild を実行せず、実行計画を確認するための機能です。実際の設定変更が必要な操作では、権限や対象の設定構造などに応じて処理が拒否されることがあります。
+
+## サービス
+
+サービスの有効化：
+
+    nxc e openssh
+
+無効化：
+
+    nxc d openssh
+
+辞書に登録された別名も利用できます。たとえば ssh や sshd は openssh として解決されます。
+
+## 状態確認
+
+NXC と現在の NixOS system の情報：
+
+    nxc status
+
+NixOS configuration で宣言されているパッケージ一覧：
+
+    nxc list
+
+宣言されているパッケージの検索：
+
+    nxc search firefox
+
+パッケージの状態・宣言元を確認：
+
+    nxc explain package firefox
+
+サービスの状態・宣言元を確認：
+
+    nxc explain service openssh
+
+すべてのコマンドとオプションは次で確認できます。
+
+    nxc --help
 
 ---
 
-# Service
+# NixOS configuration の Discovery
 
-## 有効化
+NXC は対象となる NixOS Flake と configuration を探索し、選択結果を保存します。
 
-```bash
-nxc e openssh
-```
+    nxc discover
 
-別名も使用できます。
+Discovery は単純に flake.nix の存在だけで判断するものではありません。候補となる Flake を調査し、Nix の評価によって nixosConfigurations などを確認して対象を決めます。
 
-```bash
-nxc e ssh
-nxc e sshd
-```
+Discovery 結果は次の場所に保存されます。
 
-## 無効化
+    ~/.config/nxc/discovery.json
 
-```bash
-nxc d openssh
-```
+通常の操作では、この保存済み情報が使われます。flake.nix / flake.lock や環境が Discovery 時点から変わっているなど、保存情報が現在の環境と一致しない場合、NXC は古い情報を使ったまま変更を続けず、Discovery の再実行を要求します。
+
+NixOS 設定の場所や構成を変更した場合は、再度 Discovery を実行してください。
+
+    nxc discover
 
 ---
 
-# List
+# CLI の一覧・検索について
 
-`nxc list` は、NixOSの `environment.systemPackages` に実際に宣言されているパッケージを一覧表示します。
+## nxc list
 
-```bash
-nxc list
-```
+nxc list は、評価された NixOS configuration の environment.systemPackages に宣言されているパッケージを一覧表示します。
 
-NixOSの設定ファイルを単純に検索して一覧を作るのではなく、評価されたNixOS設定の情報を利用します。
+これは、現在の system に存在するすべてのアプリやコマンドの一覧でも、Nixpkgs 全体の検索結果でもありません。
 
-そのため、複数のmoduleから宣言されているパッケージも対象になります。
+## nxc search
 
----
+nxc search は、NixOS configuration に宣言されているパッケージ集合から検索します。
 
-# Search
+    nxc search firefox
 
-`nxc search` は、現在のNixOS設定に宣言されているパッケージを検索します。
+検索結果では主に次の情報を確認できます。
 
-```bash
-nxc search firefox
-```
-
-検索は大文字・小文字を区別しない部分一致です。
-
-検索結果では、該当パッケージについて次の情報を確認できます。
-
-- NixOS設定に宣言されているか
-- 現在のsystemで有効になっているか
+- パッケージが NixOS 設定に宣言されていること
+- 現在の system に存在するかどうか
 - 宣言元の設定ファイル
-- system environment
-- 同名の実行ファイルが存在する場合のパス
+- system-wide な実行ファイルの場所（該当する場合）
 
-`search` はNixpkgs全体やsystem上の全バイナリを検索するコマンドではありません。
-
----
-
-# System
-
-## Status
-
-現在のNXCとNixOS systemの状態を確認できます。
-
-```bash
-nxc status
-```
-
-Discovery済みの場合は、使用中のFlakeとConfigurationも確認できます。
-
-表示される主な情報:
-
-- 現在のgeneration
-- system上のコマンド / アプリ数
-- 検出されたパッケージ数
-- 有効なsystemd service数
-- Discovery済みのFlake
-- 使用中のNixOS Configuration
+そのため、Nixpkgs のパッケージを自由に検索する GUI のカタログ検索とは役割が異なります。
 
 ---
 
-# Explain
+# 安全性と設定変更の流れ
 
-パッケージやサービスが現在どのような状態になっているかを確認できます。
+NXC はユーザーの NixOS 設定を無条件に書き換えることを目的としていません。対象、変更先、設定構造を確認し、可能な場合は NXC 専用 module へ変更を分離します。書き換え先を確実に判断できない場合などは、安全側に停止することがあります。
 
-## Package
+概念的な処理の流れは次のとおりです。
 
-```bash
-nxc explain package firefox
-```
+    入力
+      ↓
+    入力検証
+      ↓
+    パッケージ・サービス名の解決
+      ↓
+    実行計画の作成
+      ↓
+    設定変更
+      ↓
+    Nix 評価
+      ↓
+    nixos-rebuild switch
+      ↓
+    結果の検証
 
-現在のsystemに存在するか、NixOS設定で定義されているか、定義元や安全に編集可能な場所を確認できます。
+Nix 評価や rebuild 後の検証に失敗した場合は、変更前の状態へ戻すロールバック処理を行います。ロールバックの結果は、実際のエラー出力も含めて確認してください。
 
-## Service
-
-```bash
-nxc explain service openssh
-```
-
-NixOS設定上の定義と、現在systemdで有効になっている状態を分けて確認できます。
-
----
-
-# Japanese aliases
-
-登録されているパッケージ・サービスには別名を使用できます。
-
-例えばFirefoxの場合:
-
-```bash
-nxc i ファイアフォックス
-nxc i ファイヤーフォックス
-nxc i 火狐
-```
-
-これらはすべて `firefox` として扱われます。
-
-サービスも同様です。
-
-```bash
-nxc e ssh
-nxc e sshd
-```
-
-は `openssh` として解決されます。
-
-辞書に登録されていない名前は、勝手に別のパッケージやサービスとして解釈されません。
+NixOS の宣言的な設定変更と rebuild を伴うため、変更操作では必要に応じて sudo 認証が求められます。
 
 ---
 
-# Safety
+# GUI の開発環境
 
-NXCは、既存のNixOS設定を見つけたからといって無条件に書き換えることはありません。
+GUI は React / TypeScript、Vite、Tailwind CSS、Tauri 2 を利用しています。現在の GUI は開発環境での実行が中心です。
 
-パッケージやサービスを追加するときは、NXC専用moduleを利用できる場合はそこへ変更を分離します。
+## 必要なもの
 
-既存設定を安全に編集できない場合は、設定構造を推測して無理に変更するのではなく、安全側に停止または専用moduleへフォールバックします。
+- Nix が利用できる NixOS / Linux 環境
+- Rust / Cargo
+- Node.js（CI では Node.js 24 を利用）
+- pnpm（CI では pnpm 11.9.0 を利用）
+- Tauri 2 の Linux ビルド・実行に必要なライブラリ
 
-また、設定変更後はNix評価と `nixos-rebuild switch` を実行します。
+## 起動する
 
-```text
-入力
- ↓
-検証
- ↓
-名前解決
- ↓
-実行計画
- ↓
-NixOS設定変更
- ↓
-Nix評価
- ↓
-nixos-rebuild switch
- ↓
-system確認
-```
+リポジトリを取得し、Frontend のディレクトリで依存関係をインストールします。
 
-rebuildや検証に失敗した場合は、可能な範囲で変更前の状態へロールバックします。
+    git clone https://github.com/Ni-gihub/nixos-json-controller.git
+    cd nixos-json-controller/frontend
+    pnpm install --frozen-lockfile
 
-NixOSの設定を変更するため、通常の変更操作ではsudo権限が必要です。
+その後、リポジトリの Flake を使って AppStream データを用意し、Tauri の開発環境を起動します。
+
+    pnpm tauri dev
+
+frontend/package.json の tauri スクリプトは、リポジトリルートの Nix Flake から appstream-data 出力をビルドし、そのパスを NXC_APPSTREAM_DATA として渡して Tauri CLI を実行します。したがって、GUI の開発起動にはリポジトリの Nix Flake と Nix が必要です。
+
+## Frontend の確認コマンド
+
+frontend ディレクトリで実行します。
+
+    pnpm test
+    pnpm lint
+    pnpm build
+
+- pnpm test：アイコンの候補選択やフォールバックに関するテスト
+- pnpm lint：ESLint による静的チェック
+- pnpm build：TypeScript のビルドチェックと Vite の本番用 Frontend ビルド
+
+これらは開発者向けコマンドです。pnpm build が成功することだけでは、Tauri の本番パッケージや Niri のランチャー統合が完成したことにはなりません。
+
+## GUI の本番インストールについて
+
+現時点では、次のコマンドはまだ利用できるものとして扱わないでください。
+
+    nix profile install github:Ni-gihub/nixos-json-controller#nxc-app
+
+GUI 用の Flake package、Desktop Entry、静的なランチャーアイコン、本番起動時の環境設定、profile の更新・削除手順は整備中です。これらを実装して実機で検証する作業は [Issue #101](https://github.com/Ni-gihub/nixos-json-controller/issues/101) で管理しています。
+
+本番対応が完了したら、GUI 専用パッケージとして CLI と独立してインストール・更新・削除できる形にする予定です。
 
 ---
 
-# Commands
+# 主なコマンド一覧
 
-| Command | 説明 |
+| コマンド | 説明 |
 | --- | --- |
-| `nxc <package>` | パッケージをインストール |
-| `nxc i <package>` | パッケージをインストール |
-| `nxc r <package>` | パッケージを削除 |
-| `nxc e <service>` | サービスを有効化 |
-| `nxc d <service>` | サービスを無効化 |
-| `nxc discover` | NixOS Flakeを探索 |
-| `nxc list` | 宣言されているsystem packagesを一覧表示 |
-| `nxc search <query>` | 宣言されているsystem packagesを検索 |
-| `nxc status` | system / Discovery状態を表示 |
-| `nxc explain package <name>` | パッケージの状態・定義元を表示 |
-| `nxc explain service <name>` | サービスの状態・定義元を表示 |
-| `nxc --help` | ヘルプを表示 |
+| nxc <package> | パッケージをインストール |
+| nxc i <package> | パッケージをインストール |
+| nxc r <package> | パッケージを削除 |
+| nxc e <service> | サービスを有効化 |
+| nxc d <service> | サービスを無効化 |
+| nxc discover | NixOS Flake を探索 |
+| nxc list | 設定に宣言された system packages を一覧表示 |
+| nxc search <query> | 宣言された system packages を検索 |
+| nxc status | 現在の system / Discovery 状態を表示 |
+| nxc explain package <name> | パッケージの状態・宣言元を表示 |
+| nxc explain service <name> | サービスの状態・宣言元を表示 |
+| nxc --help | ヘルプを表示 |
+
+設定変更コマンドでは dry-run オプションを使えます。参照・表示用コマンドに dry-run を指定するとエラーになります。
 
 ---
 
-# Help
+# 関連 Issue
 
-すべてのコマンドは、
-
-```bash
-nxc --help
-```
-
-で確認できます。
+- [#43 — 検索後のインストール状態確認の遅延を調査・改善する](https://github.com/Ni-gihub/nixos-json-controller/issues/43)
+- [#88 — デスクトップ版 App Store の文字を読みやすくする](https://github.com/Ni-gihub/nixos-json-controller/issues/88)
+- [#96 — アプリのアイコンが透明になる問題を根本原因から調査する](https://github.com/Ni-gihub/nixos-json-controller/issues/96)
+- [#101 — nxc App Store を Nix profile から本番インストールできるようにする](https://github.com/Ni-gihub/nixos-json-controller/issues/101)
 
 ---
 
-# Project Direction
+# ライセンス
 
-NXCは、NixOSを直接操作するためのCLIとしてコア機能をまとめています。
-
-今後はNXCのコアを利用するGUIやAPIなど、より使いやすいインターフェースへ発展させることを想定しています。
-
-CLI自体は、実際の利用で問題が見つかった場合に改善していく方針です。
-
----
-
-# License
-
-現在、ライセンスは設定されていません。
+現在、リポジトリには利用者向けライセンスがまだ設定されていません。再配布や利用条件を明確にする場合は、ライセンスを別途設定する必要があります。

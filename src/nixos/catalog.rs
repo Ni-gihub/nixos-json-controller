@@ -21,12 +21,29 @@ pub struct CatalogPackage {
     pub icon_candidates: Vec<String>,
 }
 
+/// Search the catalog and return at most `MAX_RESULTS` ranked matches.
 pub fn search(query: &str) -> Result<Vec<CatalogPackage>, String> {
     let query = query.trim();
     if query.is_empty() {
         return Ok(Vec::new());
     }
 
+    let output = run_nix_search(query)?;
+    parse_results(&output, query, Some(MAX_RESULTS))
+}
+
+/// Find a package by exact attribute ID without truncating the ranked result set first.
+pub fn find(id: &str) -> Result<Option<CatalogPackage>, String> {
+    if !is_safe_attribute_path(id) {
+        return Err(format!("invalid catalog package id: {id}"));
+    }
+
+    let output = run_nix_search(id)?;
+    parse_find_result(&output, id)
+}
+
+/// Run the common Nix search command used by discovery and exact package lookup.
+fn run_nix_search(query: &str) -> Result<Vec<u8>, String> {
     let terms = query
         .split_whitespace()
         .map(escape_regex)
@@ -47,24 +64,48 @@ pub fn search(query: &str) -> Result<Vec<CatalogPackage>, String> {
         });
     }
 
-    parse_results(&output.stdout, query)
+    Ok(output.stdout)
 }
 
-pub fn find(id: &str) -> Result<Option<CatalogPackage>, String> {
-    if !is_safe_attribute_path(id) {
-        return Err(format!("invalid catalog package id: {id}"));
+/// Select the exact ID from the full ranked matches, before attaching icons or applying limits.
+fn parse_find_result(output: &[u8], id: &str) -> Result<Option<CatalogPackage>, String> {
+    let results = parse_unlimited_results(output, id)?;
+    let package = results
+        .into_iter()
+        .find(|(_, package)| package.id == id)
+        .map(|(_, package)| package);
+
+    Ok(package.map(|package| {
+        attach_icon_candidates(vec![(0, package)])
+            .into_iter()
+            .next()
+            .expect("one package was supplied")
+            .1
+    }))
+}
+
+/// Parse, rank, limit, and enrich search results for the discover page.
+fn parse_results(
+    output: &[u8],
+    query: &str,
+    limit: Option<usize>,
+) -> Result<Vec<CatalogPackage>, String> {
+    let mut results = parse_unlimited_results(output, query)?;
+    if let Some(limit) = limit {
+        results.truncate(limit);
     }
 
-    // Use the same search path as the discover page, then compare normalized package IDs exactly.
-    // This avoids maintaining a second, subtly different regex construction for detail lookups.
-    Ok(find_exact_result(search(id)?, id))
+    Ok(attach_icon_candidates(results)
+        .into_iter()
+        .map(|(_, package)| package)
+        .collect())
 }
 
-fn find_exact_result(packages: Vec<CatalogPackage>, id: &str) -> Option<CatalogPackage> {
-    packages.into_iter().find(|package| package.id == id)
-}
-
-fn parse_results(output: &[u8], query: &str) -> Result<Vec<CatalogPackage>, String> {
+/// Parse and rank all results without a limit or icon resolution.
+fn parse_unlimited_results(
+    output: &[u8],
+    query: &str,
+) -> Result<Vec<(u32, CatalogPackage)>, String> {
     let packages: BTreeMap<String, Value> = serde_json::from_slice(output)
         .map_err(|error| format!("failed to parse nix search output: {error}"))?;
 
@@ -131,8 +172,13 @@ fn parse_results(output: &[u8], query: &str) -> Result<Vec<CatalogPackage>, Stri
             .then_with(|| package_a.id.cmp(&package_b.id))
     });
 
-    results.truncate(MAX_RESULTS);
+    Ok(results)
+}
 
+/// Resolve icon candidates only after result selection to avoid doing icon work for discarded rows.
+fn attach_icon_candidates(
+    mut results: Vec<(u32, CatalogPackage)>,
+) -> Vec<(u32, CatalogPackage)> {
     for (_, package) in &mut results {
         let id_leaf = package.id.rsplit('.').next().unwrap_or(&package.id);
         let mut icons =
@@ -144,7 +190,7 @@ fn parse_results(output: &[u8], query: &str) -> Result<Vec<CatalogPackage>, Stri
         };
         package.icon_candidates = icons;
     }
-    Ok(results.into_iter().map(|(_, package)| package).collect())
+    results
 }
 
 fn normalize_attribute(attribute: &str) -> Option<String> {
@@ -334,42 +380,62 @@ mod tests {
         );
     }
 
-    fn catalog_package(id: &str) -> CatalogPackage {
-        CatalogPackage {
-            id: id.to_string(),
-            name: id.rsplit('.').next().unwrap_or(id).to_string(),
-            description: String::new(),
-            version: String::new(),
-            category: "その他".to_string(),
-            tags: Vec::new(),
-            homepage: None,
-            icon: None,
-            icon_candidates: Vec::new(),
+    fn nix_search_output(entries: &[(&str, &str)]) -> Vec<u8> {
+        let mut output = serde_json::Map::new();
+        for (id, name) in entries {
+            output.insert(
+                format!("legacyPackages.x86_64-linux.{id}"),
+                serde_json::json!({
+                    "pname": name,
+                    "description": "",
+                    "version": "1.0"
+                }),
+            );
         }
+        serde_json::to_vec(&output).unwrap()
     }
 
     #[test]
-    fn finds_exact_hyphenated_attribute_among_similar_results() {
-        let packages = vec![
-            catalog_package("google-chrome-beta"),
-            catalog_package("google-chrome"),
-        ];
+    fn find_checks_exact_id_before_the_ordinary_search_limit() {
+        let ids = (0..45)
+            .map(|index| format!("a{index:02}.foo"))
+            .chain(std::iter::once("foo".to_string()))
+            .collect::<Vec<_>>();
+        let entries = ids
+            .iter()
+            .map(|id| (id.as_str(), "foo"))
+            .collect::<Vec<_>>();
+        let output = nix_search_output(&entries);
 
+        let limited = parse_results(&output, "foo", Some(MAX_RESULTS)).unwrap();
+        assert_eq!(limited.len(), MAX_RESULTS);
+        assert!(!limited.iter().any(|package| package.id == "foo"));
+
+        let found = parse_find_result(&output, "foo").unwrap().unwrap();
+        assert_eq!(found.id, "foo");
+    }
+
+    #[test]
+    fn finds_exact_hyphenated_and_nested_attribute_ids() {
+        let hyphenated = nix_search_output(&[
+            ("google-chrome-beta", "chrome"),
+            ("google-chrome", "chrome"),
+        ]);
         assert_eq!(
-            find_exact_result(packages, "google-chrome").unwrap().id,
+            parse_find_result(&hyphenated, "google-chrome")
+                .unwrap()
+                .unwrap()
+                .id,
             "google-chrome"
         );
-    }
 
-    #[test]
-    fn finds_exact_nested_attribute_path() {
-        let packages = vec![
-            catalog_package("python3Packages.requests2"),
-            catalog_package("python3Packages.requests"),
-        ];
-
+        let nested = nix_search_output(&[
+            ("python3Packages.requests2", "requests"),
+            ("python3Packages.requests", "requests"),
+        ]);
         assert_eq!(
-            find_exact_result(packages, "python3Packages.requests")
+            parse_find_result(&nested, "python3Packages.requests")
+                .unwrap()
                 .unwrap()
                 .id,
             "python3Packages.requests"

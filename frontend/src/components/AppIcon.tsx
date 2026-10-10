@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { invoke } from '@tauri-apps/api/core'
 import { Package } from 'lucide-react'
 import {
   collectIconCandidates,
@@ -6,6 +7,23 @@ import {
   isVisuallyBlankPixels,
   nextCandidateIndex,
 } from './app-icon-logic'
+
+function reportIconDiagnostic(message: string) {
+  if (import.meta.env.VITE_ICON_DEBUG !== '1') return
+  void invoke('log_icon_debug', { message }).catch(() => {
+    // The component can also be rendered outside Tauri during frontend development.
+  })
+}
+
+function describeIconSource(source: string): string {
+  if (source.startsWith('data:image/png;base64,')) return `PNG (${source.length} chars)`
+  if (source.startsWith('data:image/svg+xml;base64,')) return `SVG (${source.length} chars)`
+  if (source.startsWith('data:image/jpeg;base64,')) return `JPEG (${source.length} chars)`
+  if (source.startsWith('data:')) return `data URL (${source.length} chars)`
+  return source.startsWith('https://') || source.startsWith('http://')
+    ? 'remote URL'
+    : 'unknown source'
+}
 
 type AppIconProps = {
   name: string
@@ -64,6 +82,12 @@ function AppIcon({
   const candidateIndex = failedCandidate?.key === candidateKey ? failedCandidate.index : 0
   const activeIcon = getActiveIconCandidate(candidates, candidateIndex)
 
+  useEffect(() => {
+    if (!activeIcon) {
+      reportIconDiagnostic(`${name}: no icon candidates; rendering generic Package icon`)
+    }
+  }, [activeIcon, candidateKey, name])
+
   if (!activeIcon) {
     return <Package aria-hidden="true" className={fallbackClassName} />
   }
@@ -92,9 +116,18 @@ function AppIcon({
         className={imageClassName}
         loading="lazy"
         onLoad={(event) => {
-          if (isVisuallyBlankLocalImage(event.currentTarget)) tryNextCandidate()
+          const blank = isVisuallyBlankLocalImage(event.currentTarget)
+          reportIconDiagnostic(
+            `${name}: loaded candidate ${candidateIndex + 1}/${candidates.length}; source=${describeIconSource(activeIcon)}; visuallyBlank=${blank}`,
+          )
+          if (blank) tryNextCandidate()
         }}
-        onError={tryNextCandidate}
+        onError={() => {
+          reportIconDiagnostic(
+            `${name}: failed candidate ${candidateIndex + 1}/${candidates.length}; source=${describeIconSource(activeIcon)}`,
+          )
+          tryNextCandidate()
+        }}
       />
     </span>
   )

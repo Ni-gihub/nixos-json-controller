@@ -187,6 +187,15 @@ fn attach_icon_candidates(mut results: Vec<(u32, CatalogPackage)>) -> Vec<(u32, 
             Some(icons.remove(0))
         };
         package.icon_candidates = icons;
+
+        if appstream::icon_debug_enabled() {
+            eprintln!(
+                "[nxc-icon-debug] catalog id={} primary_icon={} additional_candidates={}",
+                package.id,
+                package.icon.is_some(),
+                package.icon_candidates.len()
+            );
+        }
     }
     results
 }

@@ -14,6 +14,20 @@ const MAX_ICON_CANDIDATES: usize = 5;
 const MAX_CACHED_ICON_CANDIDATES: usize = 2;
 const MAX_APPSTREAM_STOCK_ICON_CANDIDATES: usize = 1;
 
+/// Enable opt-in diagnostics for missing or invisible application icons.
+pub(crate) fn icon_debug_enabled() -> bool {
+    matches!(
+        env::var("NXC_ICON_DEBUG").as_deref(),
+        Ok("1" | "true" | "yes")
+    )
+}
+
+fn debug_icon(message: impl std::fmt::Display) {
+    if icon_debug_enabled() {
+        eprintln!("[nxc-icon-debug] {message}");
+    }
+}
+
 /// Resolve the first usable AppStream icon for the supplied package aliases.
 pub fn icon_for_package(candidates: &[&str]) -> Option<String> {
     resolve_icon_candidates(candidates, 1).into_iter().next()
@@ -93,6 +107,7 @@ fn resolve_icon_candidates_from_index(
     }
 
     if resolved.len() >= limit {
+        log_icon_resolution(candidates, &entries_by_priority, stock_index, &resolved);
         return resolved;
     }
 
@@ -112,6 +127,7 @@ fn resolve_icon_candidates_from_index(
     }
 
     if resolved.len() >= limit {
+        log_icon_resolution(candidates, &entries_by_priority, stock_index, &resolved);
         return resolved;
     }
 
@@ -120,7 +136,52 @@ fn resolve_icon_candidates_from_index(
         push_icon_candidate(&mut resolved, icon, limit);
     }
 
+    log_icon_resolution(candidates, &entries_by_priority, stock_index, &resolved);
     resolved
+}
+
+/// Log counts and image data types without dumping large base64 icon contents.
+fn log_icon_resolution(
+    candidates: &[&str],
+    appstream_entries: &[Vec<String>; 2],
+    stock_index: &HashMap<String, Vec<PathBuf>>,
+    resolved: &[String],
+) {
+    if !icon_debug_enabled() {
+        return;
+    }
+
+    let aliases = stock_icon_aliases(candidates);
+    let stock_matches = aliases
+        .iter()
+        .filter(|alias| stock_index.contains_key(*alias))
+        .cloned()
+        .collect::<Vec<_>>();
+    let resolved_summary = resolved
+        .iter()
+        .map(|icon| {
+            if let Some(data) = icon.strip_prefix("data:image/png;base64,") {
+                format!("png({} chars)", data.len())
+            } else if let Some(data) = icon.strip_prefix("data:image/svg+xml;base64,") {
+                format!("svg({} chars)", data.len())
+            } else if let Some(data) = icon.strip_prefix("data:image/jpeg;base64,") {
+                format!("jpeg({} chars)", data.len())
+            } else if icon.starts_with("data:") {
+                "other-data-url".to_string()
+            } else if icon.starts_with("http://") || icon.starts_with("https://") {
+                "remote-url".to_string()
+            } else {
+                "unknown-source".to_string()
+            }
+        })
+        .collect::<Vec<_>>();
+
+    debug_icon(format!(
+        "resolve aliases={candidates:?}; appstream_cached_entries={}; appstream_stock_entries={}; stock_index_alias_hits={stock_matches:?}; resolved_count={}; resolved={resolved_summary:?}",
+        appstream_entries[0].len(),
+        appstream_entries[1].len(),
+        resolved.len(),
+    ));
 }
 
 /// Resolve and cache an AppStream icon entry while avoiding a filesystem read on cache hits.
@@ -184,10 +245,7 @@ fn direct_stock_cache_key(candidates: &[&str]) -> String {
 }
 
 /// Look for stock icons using package IDs, ID leaves, and package names even without AppStream data.
-fn direct_stock_icon_from_index(
-    candidates: &[&str],
-    index: &HashMap<String, Vec<PathBuf>>,
-) -> Option<String> {
+fn stock_icon_aliases(candidates: &[&str]) -> Vec<String> {
     let mut aliases = Vec::new();
 
     for candidate in candidates {
@@ -202,6 +260,15 @@ fn direct_stock_icon_from_index(
             }
         }
     }
+
+    aliases
+}
+
+fn direct_stock_icon_from_index(
+    candidates: &[&str],
+    index: &HashMap<String, Vec<PathBuf>>,
+) -> Option<String> {
+    let aliases = stock_icon_aliases(candidates);
 
     aliases.iter().find_map(|alias| {
         index
@@ -222,8 +289,25 @@ fn push_icon_candidate(icons: &mut Vec<String>, icon: String, limit: usize) -> b
 /// Load AppStream component aliases and retain every icon candidate for fallback resolution.
 fn load_index() -> HashMap<String, Vec<String>> {
     let mut index: HashMap<String, Vec<String>> = HashMap::new();
+    let catalogs = find_xml();
+    let catalog_count = catalogs.len();
 
-    for (xml_path, icon_root) in find_xml() {
+    debug_icon(format!(
+        "NXC_APPSTREAM_DATA={:?}; found_catalogs={}",
+        env::var("NXC_APPSTREAM_DATA").ok(),
+        catalogs.len()
+    ));
+    for (xml_path, icon_root) in &catalogs {
+        debug_icon(format!(
+            "catalog={} exists={}; icon_root={} exists={}",
+            xml_path.display(),
+            xml_path.is_file(),
+            icon_root.display(),
+            icon_root.is_dir()
+        ));
+    }
+
+    for (xml_path, icon_root) in catalogs {
         let Ok(output) = Command::new("gzip")
             .args(["-dc"])
             .arg(&xml_path)
@@ -256,6 +340,27 @@ fn load_index() -> HashMap<String, Vec<String>> {
         }
     }
 
+    let aliases = index.len();
+    let candidates = index.values().map(Vec::len).sum::<usize>();
+    let cached = index
+        .values()
+        .flatten()
+        .filter(|entry| entry.starts_with("cached|"))
+        .count();
+    let stock = index
+        .values()
+        .flatten()
+        .filter(|entry| entry.starts_with("stock|"))
+        .count();
+    let remote = index
+        .values()
+        .flatten()
+        .filter(|entry| entry.starts_with("remote|"))
+        .count();
+
+    debug_icon(format!(
+        "AppStream index loaded: catalogs={catalog_count}, aliases={aliases}, entries={candidates} (cached={cached}, stock={stock}, remote={remote})"
+    ));
     index
 }
 
@@ -307,7 +412,13 @@ fn find_xml() -> Vec<(PathBuf, PathBuf)> {
     let mut seen = HashSet::new();
     roots.retain(|root| seen.insert(root.clone()));
 
-    find_xml_from_roots(&roots)
+    let catalogs = find_xml_from_roots(&roots);
+    debug_icon(format!(
+        "catalog search roots={} (NXC_APPSTREAM_DATA first), matches={}",
+        roots.len(),
+        catalogs.len()
+    ));
+    catalogs
 }
 
 /// Discover AppStream catalogs from both the freedesktop swcatalog layout and
@@ -598,6 +709,17 @@ fn build_stock_icon_index_from_roots(roots: &[PathBuf]) -> HashMap<String, Vec<P
         paths.sort_by_key(|path| (stock_icon_path_priority(path), path.clone()));
     }
 
+    let file_count = index.values().map(Vec::len).sum::<usize>();
+    debug_icon(format!(
+        "icon theme index: roots={}, icon_names={}, files={file_count}",
+        roots.len(),
+        index.len()
+    ));
+    if icon_debug_enabled() {
+        for root in roots {
+            debug_icon(format!("icon theme root={} exists={}", root.display(), root.is_dir()));
+        }
+    }
     index
 }
 

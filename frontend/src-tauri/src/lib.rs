@@ -6,6 +6,17 @@ struct InstallResult {
     installed: bool,
 }
 
+/// Forward opt-in WebView icon diagnostics to the terminal running `tauri dev`.
+#[tauri::command]
+fn log_icon_debug(message: String) {
+    if matches!(
+        std::env::var("NXC_ICON_DEBUG").as_deref(),
+        Ok("1" | "true" | "yes")
+    ) {
+        eprintln!("[nxc-icon-debug][webview] {message}");
+    }
+}
+
 #[tauri::command]
 fn sudo_available() -> bool {
     nixos_json_controller::nixos::rebuild::sudo_cached()
@@ -67,6 +78,7 @@ async fn get_app_state(
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
+            log_icon_debug,
             sudo_available,
             install_app,
             search_catalog,

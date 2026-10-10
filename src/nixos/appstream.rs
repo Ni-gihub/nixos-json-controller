@@ -41,6 +41,7 @@ fn resolve_icon_candidates(candidates: &[&str], limit: usize) -> Vec<String> {
     resolve_icon_candidates_from_index(candidates, limit, index, stock_index, cache)
 }
 
+/// Resolve local AppStream and theme icons while excluding remote URLs that cannot be inspected for blank content.
 fn resolve_icon_candidates_from_index(
     candidates: &[&str],
     limit: usize,

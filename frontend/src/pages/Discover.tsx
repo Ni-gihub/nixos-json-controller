@@ -9,6 +9,7 @@ import { useAppState } from '@/lib/app-state'
 import { useSearchParams } from 'react-router'
 
 /** Provides the searchable Nixpkgs application catalog page. */
+/** Search the NixOS package catalog and display matching application cards. */
 function Discover() {
   const [searchParams, setSearchParams] = useSearchParams()
   const initialQuery = searchParams.get('query')?.trim() ?? ''

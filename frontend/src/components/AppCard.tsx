@@ -27,6 +27,7 @@ function AppCard({ id, name, description, category, tags, installed, icon, iconC
         <Link to={detailPath} className="row-span-3 flex size-20 shrink-0 items-center justify-center self-start rounded-2xl bg-muted/50 text-2xl font-bold text-blue-600 transition-transform duration-200 group-hover:scale-[1.03]">
           <AppIcon
             name={name}
+            packageId={id}
             icon={icon}
             iconCandidates={iconCandidates}
             imageClassName="size-[4.5rem] object-contain"

@@ -9,6 +9,7 @@ import {
   isVisuallyBlankPixels,
   nextCandidateIndex,
 } from './app-icon-logic.ts'
+import { normalizeAppIconAliases, selectExternalIconId } from './external-app-icon.ts'
 
 test('failed image candidates advance in order and end with no active image', () => {
   const candidates = collectIconCandidates('first.png', ['second.png', 'second.png', 'third.png'])
@@ -116,4 +117,32 @@ test('renders the generic Package icon when no candidate exists', async () => {
   } finally {
     await vite.close()
   }
+})
+
+
+test('external icon lookup only accepts exact matches from brand logo collections', () => {
+  const firefoxAliases = normalizeAppIconAliases('firefox', 'Firefox')
+  assert.deepEqual(firefoxAliases, ['firefox'])
+  assert.equal(
+    selectExternalIconId(['mdi:firefox', 'simple-icons:firefox', 'logos:firefox'], firefoxAliases),
+    'logos:firefox',
+  )
+
+  const chromeAliases = normalizeAppIconAliases('google-chrome', 'Google Chrome')
+  assert.deepEqual(chromeAliases, ['googlechrome'])
+  assert.equal(
+    selectExternalIconId(['logos:chrome', 'simple-icons:googlechrome'], chromeAliases),
+    'simple-icons:googlechrome',
+  )
+})
+
+test('external icon lookup rejects approximate names and non-brand icon sets', () => {
+  assert.equal(
+    selectExternalIconId(['logos:firefox-browser', 'mdi:firefox'], ['firefox']),
+    null,
+  )
+  assert.equal(
+    selectExternalIconId(['mdi:vlc', 'lucide:package'], ['vlc']),
+    null,
+  )
 })

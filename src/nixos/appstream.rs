@@ -290,6 +290,7 @@ fn push_icon_candidate(icons: &mut Vec<String>, icon: String, limit: usize) -> b
 fn load_index() -> HashMap<String, Vec<String>> {
     let mut index: HashMap<String, Vec<String>> = HashMap::new();
     let catalogs = find_xml();
+    let catalog_count = catalogs.len();
 
     debug_icon(format!(
         "NXC_APPSTREAM_DATA={:?}; found_catalogs={}",
@@ -358,8 +359,7 @@ fn load_index() -> HashMap<String, Vec<String>> {
         .count();
 
     debug_icon(format!(
-        "AppStream index loaded: catalogs={}, aliases={aliases}, entries={candidates} (cached={cached}, stock={stock}, remote={remote})",
-        catalogs.len()
+        "AppStream index loaded: catalogs={catalog_count}, aliases={aliases}, entries={candidates} (cached={cached}, stock={stock}, remote={remote})"
     ));
     index
 }

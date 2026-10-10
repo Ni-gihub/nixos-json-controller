@@ -49,6 +49,51 @@ test('blank local pixels are detected so the component can try the next icon', (
   assert.equal(isVisuallyBlankPixels(pixels), false)
 })
 
+test('rejects icon sources that cannot be inspected instead of retaining a blank overlay', async () => {
+  const vite = await createServer({
+    configFile: './vite.config.ts',
+    logLevel: 'silent',
+    server: { middlewareMode: true },
+    appType: 'custom',
+  })
+
+  const hadDocument = Object.hasOwn(globalThis, 'document')
+  const originalDocument = globalThis.document
+
+  try {
+    const { isVisuallyBlankLocalImage } = await vite.ssrLoadModule('/src/components/AppIcon.tsx')
+    const image = {
+      currentSrc: 'data:image/svg+xml;base64,PHN2Zy8+',
+      src: 'data:image/svg+xml;base64,PHN2Zy8+',
+    }
+
+    // Simulate WebKit refusing pixel reads for an SVG with external references.
+    globalThis.document = {
+      createElement: () => ({
+        getContext: () => ({
+          drawImage: () => { throw new Error('canvas is not inspectable') },
+        }),
+      }),
+    }
+    assert.equal(isVisuallyBlankLocalImage(image), true)
+
+    // Unexpected remote URLs and unavailable canvas contexts are also rejected.
+    assert.equal(isVisuallyBlankLocalImage({
+      currentSrc: 'https://example.com/blank.png',
+      src: 'https://example.com/blank.png',
+    }), true)
+    globalThis.document = { createElement: () => ({ getContext: () => null }) }
+    assert.equal(isVisuallyBlankLocalImage(image), true)
+  } finally {
+    if (hadDocument) {
+      globalThis.document = originalDocument
+    } else {
+      delete globalThis.document
+    }
+    await vite.close()
+  }
+})
+
 test('renders the generic Package icon when no candidate exists', async () => {
   const vite = await createServer({
     configFile: './vite.config.ts',

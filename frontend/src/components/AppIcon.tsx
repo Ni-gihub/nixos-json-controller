@@ -22,21 +22,26 @@ type AppIconProps = {
  * placeholder, can load successfully while looking blank in the App Store.
  * Remote images are not inspected because canvas access may be blocked by CORS.
  */
-function isVisuallyBlankLocalImage(image: HTMLImageElement): boolean {
-  if (!image.currentSrc.startsWith('data:image/')) return false
+export function isVisuallyBlankLocalImage(image: HTMLImageElement): boolean {
+  // Catalog icons must be local data URLs. An unexpected source is never trusted
+  // because it can be opaque to pixel inspection while covering the fallback.
+  const source = image.currentSrc || image.src
+  if (!source.startsWith('data:image/')) return true
 
   const canvas = document.createElement('canvas')
   canvas.width = 24
   canvas.height = 24
 
   const context = canvas.getContext('2d', { willReadFrequently: true })
-  if (!context) return false
+  if (!context) return true
 
   try {
     context.drawImage(image, 0, 0, canvas.width, canvas.height)
     return isVisuallyBlankPixels(context.getImageData(0, 0, canvas.width, canvas.height).data)
   } catch {
-    return false
+    // Fail closed: if WebKit cannot inspect the image (for example, an SVG with
+    // external references), try another candidate instead of keeping a blank overlay.
+    return true
   }
 }
 

@@ -83,6 +83,7 @@ function AppDetail() {
                   <div className="flex size-32 shrink-0 items-center justify-center rounded-3xl border border-blue-100 bg-white/80 text-6xl font-bold text-blue-600">
                     <AppIcon
                       name={app.name}
+                      packageId={app.id}
                       icon={app.icon}
                       iconCandidates={app.iconCandidates}
                       imageClassName="size-24 object-contain"

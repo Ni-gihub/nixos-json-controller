@@ -292,17 +292,17 @@ GUI 用の Flake package、Desktop Entry、静的なランチャーアイコン�
 
 | コマンド | 説明 |
 | --- | --- |
-| nxc <package> | パッケージをインストール |
-| nxc i <package> | パッケージをインストール |
-| nxc r <package> | パッケージを削除 |
-| nxc e <service> | サービスを有効化 |
-| nxc d <service> | サービスを無効化 |
+| nxc &lt;package&gt; | パッケージをインストール |
+| nxc i &lt;package&gt; | パッケージをインストール |
+| nxc r &lt;package&gt; | パッケージを削除 |
+| nxc e &lt;service&gt; | サービスを有効化 |
+| nxc d &lt;service&gt; | サービスを無効化 |
 | nxc discover | NixOS Flake を探索 |
 | nxc list | 設定に宣言された system packages を一覧表示 |
-| nxc search <query> | 宣言された system packages を検索 |
+| nxc search &lt;query&gt; | 宣言された system packages を検索 |
 | nxc status | 現在の system / Discovery 状態を表示 |
-| nxc explain package <name> | パッケージの状態・宣言元を表示 |
-| nxc explain service <name> | サービスの状態・宣言元を表示 |
+| nxc explain package &lt;name&gt; | パッケージの状態・宣言元を表示 |
+| nxc explain service &lt;name&gt; | サービスの状態・宣言元を表示 |
 | nxc --help | ヘルプを表示 |
 
 設定変更コマンドでは dry-run オプションを使えます。参照・表示用コマンドに dry-run を指定するとエラーになります。

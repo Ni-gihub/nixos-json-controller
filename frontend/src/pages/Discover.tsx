@@ -193,6 +193,7 @@ function Discover() {
                           tags={app.tags}
                           installed={states[app.id]?.active ?? false}
                           icon={app.icon}
+                          iconCandidates={app.iconCandidates}
                           searchQuery={submittedQuery}
                         />
                       ))}

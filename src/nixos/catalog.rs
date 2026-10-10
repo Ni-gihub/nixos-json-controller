@@ -55,29 +55,16 @@ pub fn find(id: &str) -> Result<Option<CatalogPackage>, String> {
         return Err(format!("invalid catalog package id: {id}"));
     }
 
-    let output = Command::new("nix")
-        .args([
-            "search",
-            "nixpkgs",
-            "--json",
-            "--no-pretty",
-            &format!("^.*\\.{}$", regex_escape_attribute(id)),
-        ])
-        .output()
-        .map_err(|error| format!("failed to start nix search: {error}"))?;
+    // Use the same search path as the discover page, then compare normalized package IDs exactly.
+    // This avoids maintaining a second, subtly different regex construction for detail lookups.
+    Ok(find_exact_result(search(id)?, id))
+}
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(if stderr.is_empty() {
-            format!("nix search exited with {}", output.status)
-        } else {
-            format!("nix search failed: {stderr}")
-        });
-    }
-
-    Ok(parse_results(&output.stdout, id)?
-        .into_iter()
-        .find(|package| package.id == id))
+fn find_exact_result(
+    packages: Vec<CatalogPackage>,
+    id: &str,
+) -> Option<CatalogPackage> {
+    packages.into_iter().find(|package| package.id == id)
 }
 
 fn parse_results(output: &[u8], query: &str) -> Result<Vec<CatalogPackage>, String> {
@@ -314,14 +301,6 @@ fn escape_regex(value: &str) -> String {
     escaped
 }
 
-fn regex_escape_attribute(value: &str) -> String {
-    value
-        .split('.')
-        .map(escape_regex)
-        .collect::<Vec<_>>()
-        .join(r#"\."#)
-}
-
 fn is_safe_attribute_path(value: &str) -> bool {
     !value.is_empty() && value.split('.').all(is_safe_attribute_segment)
 }
@@ -358,10 +337,46 @@ mod tests {
         );
     }
 
+    fn catalog_package(id: &str) -> CatalogPackage {
+        CatalogPackage {
+            id: id.to_string(),
+            name: id.rsplit('.').next().unwrap_or(id).to_string(),
+            description: String::new(),
+            version: String::new(),
+            category: "その他".to_string(),
+            tags: Vec::new(),
+            homepage: None,
+            icon: None,
+            icon_candidates: Vec::new(),
+        }
+    }
+
     #[test]
-    fn find_pattern_matches_normalized_attributes() {
-        let pattern = format!(r"^.*\.{}$", regex_escape_attribute("firefox-beta"));
-        assert_eq!(pattern, r"^.*\.firefox\-beta$");
+    fn finds_exact_hyphenated_attribute_among_similar_results() {
+        let packages = vec![
+            catalog_package("google-chrome-beta"),
+            catalog_package("google-chrome"),
+        ];
+
+        assert_eq!(
+            find_exact_result(packages, "google-chrome").unwrap().id,
+            "google-chrome"
+        );
+    }
+
+    #[test]
+    fn finds_exact_nested_attribute_path() {
+        let packages = vec![
+            catalog_package("python3Packages.requests2"),
+            catalog_package("python3Packages.requests"),
+        ];
+
+        assert_eq!(
+            find_exact_result(packages, "python3Packages.requests")
+                .unwrap()
+                .id,
+            "python3Packages.requests"
+        );
     }
 
     #[test]

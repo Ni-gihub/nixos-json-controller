@@ -122,7 +122,7 @@ function AppIcon({
     if (!activeIcon && !externalSrc) {
       reportIconDiagnostic(name + ': no local icon candidate; showing generic fallback while checking external source')
     }
-  }, [activeIcon, candidateKey, externalSrc, name])
+  }, [activeIcon, externalSrc, name])
 
   const tryNextCandidate = () => {
     setFailedCandidate((current) => ({

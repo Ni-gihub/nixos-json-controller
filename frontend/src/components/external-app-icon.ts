@@ -105,6 +105,11 @@ function writeCache(key: string, src: string | null): void {
     src,
   }
   memoryCache.set(key, entry)
+  while (memoryCache.size > MAX_CACHE_ENTRIES) {
+    const oldestKey = memoryCache.keys().next().value
+    if (oldestKey === undefined) break
+    memoryCache.delete(oldestKey)
+  }
 
   try {
     const storageKey = persistentKey(key)
@@ -140,7 +145,7 @@ function writeCache(key: string, src: string | null): void {
   }
 }
 
-async function requestText(url: string): Promise<{ kind: 'ok'; text: string } | { kind: 'miss' | 'error' }> {
+async function requestText(url: string): Promise<{ kind: 'ok'; text: string } | { kind: 'miss' } | { kind: 'error' }> {
   const controller = new AbortController()
   const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   try {

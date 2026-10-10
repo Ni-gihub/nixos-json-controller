@@ -3,6 +3,7 @@ import type { App } from './apps'
 
 const searchCache = new Map<string, App[]>()
 
+/** Search the catalog and reuse results cached for the normalized query. */
 export async function searchApps(query: string): Promise<App[]> {
   const normalized = query.trim()
   if (!normalized) return []
@@ -16,6 +17,7 @@ export async function searchApps(query: string): Promise<App[]> {
   return results
 }
 
+/** Find a package by exact ID, preferring metadata already loaded by discovery. */
 export async function findApp(id: string, query?: string): Promise<App | undefined> {
   // Search results already contain the detail metadata and resolved icon candidates.
   // Reuse that exact result when navigating from the discover page instead of searching Nixpkgs again.

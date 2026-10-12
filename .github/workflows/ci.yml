@@ -90,13 +90,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check frontend formatting
+        run: pnpm format:check
+
       - name: Test frontend
         run: pnpm test
 
       - name: Lint frontend
         run: pnpm lint
 
-      - name: Build frontend (includes TypeScript type-check)
+      - name: Build frontend (type-checks and resolves @/ aliases)
         run: pnpm build
 
   nix:

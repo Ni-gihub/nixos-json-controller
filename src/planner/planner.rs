@@ -127,7 +127,11 @@ impl Planner {
         let direct_declarations = config.package_declarations(package);
         let direct_paths: Vec<std::path::PathBuf> = direct_declarations
             .into_iter()
-            .filter(|path| provenance_paths.iter().any(|provenance| provenance == *path))
+            .filter(|path| {
+                provenance_paths
+                    .iter()
+                    .any(|provenance| provenance == *path)
+            })
             .map(std::path::Path::to_path_buf)
             .collect();
 

@@ -1,5 +1,5 @@
-pub mod appstream;
 pub mod application;
+pub mod appstream;
 pub mod catalog;
 pub mod config;
 pub mod dedicated;

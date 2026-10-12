@@ -367,13 +367,17 @@ pub fn restore_index_state(staged: &StagedFile) -> Result<(), String> {
             .map_err(|e| format!("failed to start Git index restore for {}: {}", staged.path.display(), e))?;
 
         use std::io::Write;
-        child.stdin.as_mut()
-            .ok_or_else(|| "failed to open git stdin".to_string())?
-            .write_all(format!("{index_entry}\n").as_bytes())
-            .map_err(|e| format!("failed to restore Git index for {}: {}", staged.path.display(), e))?;
+        let write_result = match child.stdin.as_mut() {
+            Some(stdin) => stdin
+                .write_all(format!("{index_entry}\n").as_bytes())
+                .map_err(|e| format!("failed to restore Git index for {}: {}", staged.path.display(), e)),
+            None => Err("failed to open git stdin".to_string()),
+        };
+        drop(child.stdin.take());
 
         let status = child.wait()
             .map_err(|e| format!("failed to restore Git index for {}: {}", staged.path.display(), e))?;
+        write_result?;
 
         if !status.success() {
             return Err(format!("failed to restore Git index for {}", staged.path.display()));
@@ -773,8 +777,8 @@ mod tests {
         fs::create_dir_all(&directory).unwrap();
         let first = directory.join("first.nix");
         let second = directory.join("second.nix");
-        fs::write(&first, "first original\\n").unwrap();
-        fs::write(&second, "second original\\n").unwrap();
+        fs::write(&first, "first original\n").unwrap();
+        fs::write(&second, "second original\n").unwrap();
 
         let paths = vec![first.clone(), second.clone()];
         let result = apply_file_changes(
@@ -782,7 +786,7 @@ mod tests {
             |_| Ok(()),
             |path| {
                 if path == first.as_path() {
-                    fs::write(path, "first modified\\n")
+                    fs::write(path, "first modified\n")
                         .map_err(|error| error.to_string())
                 } else {
                     Err("simulated failure on second file".to_string())
@@ -791,8 +795,8 @@ mod tests {
         );
 
         assert!(result.unwrap_err().contains("simulated failure on second file"));
-        assert_eq!(fs::read_to_string(&first).unwrap(), "first original\\n");
-        assert_eq!(fs::read_to_string(&second).unwrap(), "second original\\n");
+        assert_eq!(fs::read_to_string(&first).unwrap(), "first original\n");
+        assert_eq!(fs::read_to_string(&second).unwrap(), "second original\n");
         let _ = fs::remove_dir_all(directory);
     }
 
@@ -802,8 +806,8 @@ mod tests {
         fs::create_dir_all(&directory).unwrap();
         let first = directory.join("first.nix");
         let second = directory.join("second.nix");
-        fs::write(&first, "first original\\n").unwrap();
-        fs::write(&second, "second original\\n").unwrap();
+        fs::write(&first, "first original\n").unwrap();
+        fs::write(&second, "second original\n").unwrap();
 
         let paths = vec![first.clone(), second.clone()];
         let result = apply_file_changes(
@@ -819,8 +823,8 @@ mod tests {
         );
 
         assert!(result.unwrap_err().contains("simulated unsafe target"));
-        assert_eq!(fs::read_to_string(&first).unwrap(), "first original\\n");
-        assert_eq!(fs::read_to_string(&second).unwrap(), "second original\\n");
+        assert_eq!(fs::read_to_string(&first).unwrap(), "first original\n");
+        assert_eq!(fs::read_to_string(&second).unwrap(), "second original\n");
         let _ = fs::remove_dir_all(directory);
     }
 
@@ -830,10 +834,10 @@ mod tests {
         fs::create_dir_all(&directory).unwrap();
         let original = directory.join("existing.nix");
         let created = directory.join("created.nix");
-        fs::write(&original, "original\\n").unwrap();
-        fs::write(&created, "created by nxc\\n").unwrap();
+        fs::write(&original, "original\n").unwrap();
+        fs::write(&created, "created by nxc\n").unwrap();
         let backup = FileBackup::capture(&original).unwrap();
-        fs::write(&original, "modified\\n").unwrap();
+        fs::write(&original, "modified\n").unwrap();
 
         // This path is not inside a Git repository, so index restoration fails.
         let staged = StagedFile {
@@ -843,7 +847,7 @@ mod tests {
         let result = rollback_changes(&[staged], &[backup], &[created.clone()]);
 
         assert!(result.unwrap_err().contains("failed to restore Git index"));
-        assert_eq!(fs::read_to_string(&original).unwrap(), "original\\n");
+        assert_eq!(fs::read_to_string(&original).unwrap(), "original\n");
         assert!(!created.exists());
         let _ = fs::remove_dir_all(directory);
     }
@@ -856,17 +860,17 @@ mod tests {
         assert!(init.status.success(), "git init failed: {}", String::from_utf8_lossy(&init.stderr));
 
         let path = directory.join("state.nix");
-        fs::write(&path, "previous staged content\\n").unwrap();
+        fs::write(&path, "previous staged content\n").unwrap();
         let add = git_output(&directory, &["add", "--", "state.nix"]);
         assert!(add.status.success(), "initial git add failed: {}", String::from_utf8_lossy(&add.stderr));
 
-        fs::write(&path, "new worktree content\\n").unwrap();
+        fs::write(&path, "new worktree content\n").unwrap();
         let staged = stage_new_file(&directory, &path).unwrap().unwrap();
         restore_index_state(&staged).unwrap();
 
         let indexed = git_output(&directory, &["show", ":state.nix"]);
         assert!(indexed.status.success(), "git show failed: {}", String::from_utf8_lossy(&indexed.stderr));
-        assert_eq!(String::from_utf8_lossy(&indexed.stdout), "previous staged content\\n");
+        assert_eq!(String::from_utf8_lossy(&indexed.stdout), "previous staged content\n");
         let _ = fs::remove_dir_all(directory);
     }
 
@@ -878,10 +882,10 @@ mod tests {
         assert!(init.status.success(), "git init failed: {}", String::from_utf8_lossy(&init.stderr));
 
         let path = directory.join("state.nix");
-        fs::write(&path, "previous staged content\\n").unwrap();
+        fs::write(&path, "previous staged content\n").unwrap();
         let add = git_output(&directory, &["add", "--", "state.nix"]);
         assert!(add.status.success(), "initial git add failed: {}", String::from_utf8_lossy(&add.stderr));
-        fs::write(&path, "new worktree content\\n").unwrap();
+        fs::write(&path, "new worktree content\n").unwrap();
 
         fs::write(directory.join(".git/index.lock"), "locked").unwrap();
         let error = stage_new_file(&directory, &path).unwrap_err();
@@ -891,7 +895,73 @@ mod tests {
         assert!(error.contains("rollback also failed"));
         let indexed = git_output(&directory, &["show", ":state.nix"]);
         assert!(indexed.status.success(), "git show failed: {}", String::from_utf8_lossy(&indexed.stderr));
-        assert_eq!(String::from_utf8_lossy(&indexed.stdout), "previous staged content\\n");
+        assert_eq!(String::from_utf8_lossy(&indexed.stdout), "previous staged content\n");
+        let _ = fs::remove_dir_all(directory);
+    }
+
+
+    #[test]
+    fn removes_new_module_when_import_update_fails() {
+        let directory = test_directory("nxc-rollback-new-module-import");
+        fs::create_dir_all(&directory).unwrap();
+        let config_path = directory.join("configuration.nix");
+        fs::write(&config_path, "{ }\\n").unwrap();
+
+        let config = ConfigState {
+            files: vec![config_file(config_path.to_str().unwrap(), &[])],
+        };
+        let result = install_package(&directory, &config, "firefox");
+
+        assert!(result.unwrap_err().contains("imports list not found"));
+        assert!(!dedicated_package_path(&directory).exists());
+        assert_eq!(fs::read_to_string(&config_path).unwrap(), "{ }\\n");
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn restores_import_and_module_when_package_declaration_fails() {
+        let directory = test_directory("nxc-rollback-import-declaration");
+        fs::create_dir_all(&directory).unwrap();
+        let config_path = directory.join("configuration.nix");
+        fs::write(&config_path, "{ imports = [ ]; }\\n").unwrap();
+
+        let module_path = dedicated_package_path(&directory);
+        fs::create_dir_all(module_path.parent().unwrap()).unwrap();
+        let original_module = "{ pkgs, ... }:\\n\\n{\\n  environment.systemPackages = with pkgs; [\\n    firefox\\n  ];\\n}\\n";
+        fs::write(&module_path, original_module).unwrap();
+        let original_config = fs::read_to_string(&config_path).unwrap();
+        let config = ConfigState {
+            files: vec![config_file(config_path.to_str().unwrap(), &[])],
+        };
+
+        let result = install_package(&directory, &config, "firefox");
+
+        assert!(result.unwrap_err().contains("already present"));
+        assert_eq!(fs::read_to_string(&module_path).unwrap(), original_module);
+        assert_eq!(fs::read_to_string(&config_path).unwrap(), original_config);
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn restoring_a_backup_preserves_file_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let directory = test_directory("nxc-rollback-permissions");
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("config.nix");
+        fs::write(&path, "original\\n").unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o640)).unwrap();
+
+        let backup = FileBackup::capture(&path).unwrap();
+        fs::write(&path, "modified\\n").unwrap();
+        backup.restore().unwrap();
+
+        assert_eq!(fs::read_to_string(&path).unwrap(), "original\\n");
+        assert_eq!(
+            fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o640
+        );
         let _ = fs::remove_dir_all(directory);
     }
 

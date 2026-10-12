@@ -219,12 +219,10 @@ function AppIcon({
 
   useEffect(() => {
     if (!activeIcon && !externalSrc) {
-      reportIconDiagnostic(
-        name +
-          (DEBUG_FALLBACK_ONLY
-            ? ": forced generic fallback; external lookup disabled"
-            : ": no local icon candidate; showing generic fallback while checking external source"),
-      );
+      const fallbackMessage = DEBUG_FALLBACK_ONLY
+        ? ": forced generic fallback; external lookup disabled"
+        : ": no local icon candidate; showing generic fallback while checking external source";
+      reportIconDiagnostic(name + fallbackMessage);
     }
   }, [activeIcon, externalSrc, name]);
 

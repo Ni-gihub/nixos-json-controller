@@ -139,6 +139,10 @@ fn verify_package_state(action: &Action, package: &str) -> Result<(), String> {
     let system = nixos::system::SystemState::discover()?;
     let present = system.has_package(package) || system.has_command(package);
 
+    verify_package_presence(action, package, present)
+}
+
+fn verify_package_presence(action: &Action, package: &str, present: bool) -> Result<(), String> {
     match action {
         Action::InstallPackage if present => Ok(()),
         Action::RemovePackage if !present => Ok(()),
@@ -208,5 +212,31 @@ mod tests {
         let plan = plan_with_rebuild_required(true);
 
         assert!(!should_rebuild(&plan, false, false));
+    }
+
+    #[test]
+    fn accepts_package_when_install_verification_finds_it() {
+        assert!(verify_package_presence(&Action::InstallPackage, "firefox", true).is_ok());
+    }
+
+    #[test]
+    fn rejects_install_verification_when_package_is_missing() {
+        let error = verify_package_presence(&Action::InstallPackage, "firefox", false)
+            .unwrap_err();
+
+        assert!(error.contains("package 'firefox' was not found in the active system"));
+    }
+
+    #[test]
+    fn accepts_package_removal_when_package_is_absent() {
+        assert!(verify_package_presence(&Action::RemovePackage, "firefox", false).is_ok());
+    }
+
+    #[test]
+    fn rejects_removal_verification_when_package_is_still_present() {
+        let error = verify_package_presence(&Action::RemovePackage, "firefox", true)
+            .unwrap_err();
+
+        assert!(error.contains("package 'firefox' is still present in the active system"));
     }
 }

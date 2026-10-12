@@ -1,72 +1,84 @@
-import { useEffect, useState } from 'react'
-import type { FormEvent } from 'react'
-import { Search, Store, Sparkles } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import AppCard from '@/components/AppCard'
-import { searchApps, type App } from '@/catalog'
-import { useAppState } from '@/lib/app-state'
-import { useSearchParams } from 'react-router'
+import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
+import { Search, Store, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import AppCard from "@/components/AppCard";
+import { searchApps, type App } from "@/catalog";
+import { useAppState } from "@/lib/app-state";
+import { useSearchParams } from "react-router";
 
 /** Search the NixOS package catalog and display matching application cards. */
 function Discover() {
-  const [searchParams, setSearchParams] = useSearchParams()
-  const initialQuery = searchParams.get('query')?.trim() ?? ''
-  const [query, setQuery] = useState(initialQuery)
-  const [submittedQuery, setSubmittedQuery] = useState(initialQuery)
-  const [results, setResults] = useState<App[]>([])
-  const [searching, setSearching] = useState(false)
-  const [searchError, setSearchError] = useState<string | null>(null)
-  const { states, loading, error, refreshPackages } = useAppState()
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialQuery = searchParams.get("query")?.trim() ?? "";
+  const [query, setQuery] = useState(initialQuery);
+  const [submittedQuery, setSubmittedQuery] = useState(initialQuery);
+  const [results, setResults] = useState<App[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const { states, loading, error, refreshPackages } = useAppState();
 
   useEffect(() => {
-    if (!initialQuery || initialQuery === submittedQuery) return
+    if (!initialQuery || initialQuery === submittedQuery) return;
     // Keep the controlled input synchronized with browser navigation.
     // eslint-disable-next-line react-hooks/set-state-in-effect -- URL query is external navigation state
-    setQuery(initialQuery)
-    setSubmittedQuery(initialQuery)
-  }, [initialQuery, submittedQuery])
+    setQuery(initialQuery);
+    setSubmittedQuery(initialQuery);
+  }, [initialQuery, submittedQuery]);
 
   useEffect(() => {
-    if (!initialQuery || initialQuery !== submittedQuery || results.length > 0 || searching) return
+    if (
+      !initialQuery ||
+      initialQuery !== submittedQuery ||
+      results.length > 0 ||
+      searching
+    )
+      return;
 
     // Start the route-triggered lookup immediately so the UI reflects the pending request.
     // eslint-disable-next-line react-hooks/set-state-in-effect -- required loading state for the async search
-    setSearching(true)
-    setSearchError(null)
+    setSearching(true);
+    setSearchError(null);
     void searchApps(initialQuery)
       .then((nextResults) => {
-        setResults(nextResults)
-        void refreshPackages(nextResults.map((app) => app.id))
+        setResults(nextResults);
+        void refreshPackages(nextResults.map((app) => app.id));
       })
       .catch((err) => {
-        setResults([])
-        setSearchError(String(err))
+        setResults([]);
+        setSearchError(String(err));
       })
-      .finally(() => setSearching(false))
-  }, [initialQuery, refreshPackages, results.length, searching, submittedQuery])
+      .finally(() => setSearching(false));
+  }, [
+    initialQuery,
+    refreshPackages,
+    results.length,
+    searching,
+    submittedQuery,
+  ]);
 
   const handleSearch = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const normalized = query.trim()
-    if (!normalized) return
-    setSubmittedQuery(normalized)
-    setSearchParams({ query: normalized })
-    setSearching(true)
-    setSearchError(null)
+    event.preventDefault();
+    const normalized = query.trim();
+    if (!normalized) return;
+    setSubmittedQuery(normalized);
+    setSearchParams({ query: normalized });
+    setSearching(true);
+    setSearchError(null);
     try {
-      const nextResults = await searchApps(normalized)
-      setResults(nextResults)
-      void refreshPackages(nextResults.map((app) => app.id))
+      const nextResults = await searchApps(normalized);
+      setResults(nextResults);
+      void refreshPackages(nextResults.map((app) => app.id));
     } catch (err) {
-      setResults([])
-      setSearchError(String(err))
+      setResults([]);
+      setSearchError(String(err));
     } finally {
-      setSearching(false)
+      setSearching(false);
     }
-  }
+  };
 
-  const hasResults = submittedQuery.length > 0
+  const hasResults = submittedQuery.length > 0;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -79,12 +91,17 @@ function Discover() {
               </div>
               <div>
                 <p className="font-semibold tracking-tight">nxc App Store</p>
-                <p className="text-xs text-muted-foreground">NixOS向けアプリストア</p>
+                <p className="text-xs text-muted-foreground">
+                  NixOS向けアプリストア
+                </p>
               </div>
             </div>
 
             <nav aria-label="App Store" className="mt-12 space-y-2">
-              <div aria-current="page" className="flex items-center gap-3 rounded-xl bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700">
+              <div
+                aria-current="page"
+                className="flex items-center gap-3 rounded-xl bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700"
+              >
                 <Search className="size-4" />
                 アプリを探す
               </div>
@@ -120,7 +137,9 @@ function Discover() {
                   <Store className="size-4" />
                   NixOS App Store
                 </div>
-                <h1 className="mt-5 text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">アプリを探す</h1>
+                <h1 className="mt-5 text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
+                  アプリを探す
+                </h1>
                 <p className="mt-3 max-w-3xl text-base leading-7 text-muted-foreground sm:text-lg">
                   Nixpkgsにあるアプリ、言語、ライブラリ、開発ツールを検索できます。
                 </p>
@@ -146,7 +165,9 @@ function Discover() {
                       検索
                     </Button>
                   </div>
-                  <p className="mt-2 px-1 text-sm text-muted-foreground">Enterキーで検索</p>
+                  <p className="mt-2 px-1 text-sm text-muted-foreground">
+                    Enterキーで検索
+                  </p>
                 </form>
               </div>
             </section>
@@ -158,7 +179,9 @@ function Discover() {
                     <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
                       <Search className="size-6" />
                     </div>
-                    <h2 className="mt-5 text-xl font-semibold">検索してアプリを探す</h2>
+                    <h2 className="mt-5 text-xl font-semibold">
+                      検索してアプリを探す
+                    </h2>
                     <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted-foreground">
                       検索結果は関連度順に表示されます。アプリだけでなく、開発ツールやライブラリも見つけられます。
                     </p>
@@ -168,22 +191,40 @@ function Discover() {
                 <>
                   <div className="mb-6 flex items-end justify-between gap-4">
                     <div>
-                      <p className="text-sm font-semibold text-blue-600">検索結果</p>
-                      <h2 className="mt-1 text-2xl font-semibold sm:text-3xl">「{submittedQuery}」</h2>
-                      {!searching && <p className="mt-1 text-sm text-muted-foreground">{results.length}件</p>}
+                      <p className="text-sm font-semibold text-blue-600">
+                        検索結果
+                      </p>
+                      <h2 className="mt-1 text-2xl font-semibold sm:text-3xl">
+                        「{submittedQuery}」
+                      </h2>
+                      {!searching && (
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {results.length}件
+                        </p>
+                      )}
                     </div>
-                    {(searching || loading) && <span className="text-sm text-muted-foreground">検索中...</span>}
+                    {(searching || loading) && (
+                      <span className="text-sm text-muted-foreground">
+                        検索中...
+                      </span>
+                    )}
                   </div>
 
                   {searchError ? (
                     <div className="w-full rounded-2xl border border-dashed border-border bg-card/70 p-12 text-center">
                       <p className="font-medium">検索できませんでした。</p>
-                      <p className="mt-2 text-sm text-muted-foreground">{searchError}</p>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        {searchError}
+                      </p>
                     </div>
                   ) : results.length === 0 && !searching ? (
                     <div className="w-full rounded-2xl border border-dashed border-border bg-card/70 p-12 text-center">
-                      <p className="font-medium">該当するパッケージが見つかりませんでした。</p>
-                      <p className="mt-2 text-sm text-muted-foreground">別のキーワードで検索してみてください。</p>
+                      <p className="font-medium">
+                        該当するパッケージが見つかりませんでした。
+                      </p>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        別のキーワードで検索してみてください。
+                      </p>
                     </div>
                   ) : (
                     <div className="max-w-6xl space-y-2">
@@ -216,7 +257,7 @@ function Discover() {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
-export default Discover
+export default Discover;

@@ -6,7 +6,6 @@ import {
   collectIconCandidates,
   getActiveIconCandidate,
   isVisuallyBlankLocalImage,
-  isVisuallyBlankPixels,
   nextCandidateIndex,
 } from './app-icon-logic'
 

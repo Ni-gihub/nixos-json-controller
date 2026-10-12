@@ -90,9 +90,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Print Prettier formatting diff for icon diagnostics
-        run: pnpm exec prettier src/components/AppIcon.tsx | diff -u src/components/AppIcon.tsx - || true
-
       - name: Check frontend formatting
         run: pnpm format:check
 

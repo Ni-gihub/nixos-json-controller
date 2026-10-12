@@ -1,4 +1,5 @@
-use std::fs;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -143,13 +144,25 @@ pub fn install_package(
         fs::create_dir_all(parent)
             .map_err(|e| format!("failed to create {}: {}", parent.display(), e))?;
 
+        let mut file = match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&module_path)
+        {
+            Ok(file) => file,
+            Err(error) => {
+                return Err(combine_operation_and_rollback_error(
+                    format!("failed to create {}: {}", module_path.display(), error),
+                    change.rollback(),
+                ));
+            }
+        };
         change.created_files.push(module_path.clone());
-        if let Err(error) = fs::write(
-            &module_path,
-            "{ pkgs, ... }:\n\n{\n  environment.systemPackages = with pkgs; [\n  ];\n}\n",
+        if let Err(error) = file.write_all(
+            b"{ pkgs, ... }:\n\n{\n  environment.systemPackages = with pkgs; [\n  ];\n}\n",
         ) {
             return Err(combine_operation_and_rollback_error(
-                format!("failed to create {}: {}", module_path.display(), error),
+                format!("failed to write {}: {}", module_path.display(), error),
                 change.rollback(),
             ));
         }
@@ -226,10 +239,23 @@ fn write_service(
         fs::create_dir_all(parent)
             .map_err(|e| format!("failed to create {}: {}", parent.display(), e))?;
 
+        let mut file = match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&module_path)
+        {
+            Ok(file) => file,
+            Err(error) => {
+                return Err(combine_operation_and_rollback_error(
+                    format!("failed to create {}: {}", module_path.display(), error),
+                    change.rollback(),
+                ));
+            }
+        };
         change.created_files.push(module_path.clone());
-        if let Err(error) = fs::write(&module_path, "{ ... }:\n\n{\n}\n") {
+        if let Err(error) = file.write_all(b"{ ... }:\n\n{\n}\n") {
             return Err(combine_operation_and_rollback_error(
-                format!("failed to create {}: {}", module_path.display(), error),
+                format!("failed to write {}: {}", module_path.display(), error),
                 change.rollback(),
             ));
         }
@@ -345,14 +371,13 @@ pub fn stage_new_file(flake_root: &Path, path: &Path) -> Result<Option<StagedFil
         .status()
     {
         Ok(status) if status.success() => Ok(Some(staged)),
-        Ok(_) => Err(combine_operation_and_rollback_error(
-            format!("failed to stage newly created NXC file: {}", path.display()),
-            restore_index_state(&staged),
+        // git add updates the index atomically: a failed command leaves the old
+        // index in place, so do not try to restore it while index.lock may exist.
+        Ok(_) => Err(format!(
+            "failed to stage newly created NXC file: {}",
+            path.display()
         )),
-        Err(error) => Err(combine_operation_and_rollback_error(
-            format!("failed to stage {}: {}", path.display(), error),
-            restore_index_state(&staged),
-        )),
+        Err(error) => Err(format!("failed to stage {}: {}", path.display(), error)),
     }
 }
 
@@ -891,7 +916,7 @@ mod tests {
     }
 
     #[test]
-    fn stage_failure_reports_rollback_errors_without_changing_the_index() {
+    fn stage_failure_does_not_modify_the_existing_index() {
         let directory = test_directory("nxc-rollback-index-lock");
         fs::create_dir_all(&directory).unwrap();
         let init = git_output(&directory, &["init", "--quiet"]);
@@ -908,13 +933,64 @@ mod tests {
         fs::remove_file(directory.join(".git/index.lock")).unwrap();
 
         assert!(error.contains("failed to stage newly created NXC file"));
-        assert!(error.contains("rollback also failed"));
+        assert!(!error.contains("rollback also failed"));
         let indexed = git_output(&directory, &["show", ":state.nix"]);
         assert!(indexed.status.success(), "git show failed: {}", String::from_utf8_lossy(&indexed.stderr));
         assert_eq!(String::from_utf8_lossy(&indexed.stdout), "previous staged content\n");
         let _ = fs::remove_dir_all(directory);
     }
 
+
+
+    #[cfg(unix)]
+    #[test]
+    fn preserves_dangling_package_module_symlink_on_create_failure() {
+        use std::os::unix::fs::symlink;
+
+        let directory = test_directory("nxc-dangling-package-module");
+        fs::create_dir_all(directory.join("nxc")).unwrap();
+        let config_path = directory.join("configuration.nix");
+        fs::write(&config_path, "{ imports = [ ]; }\n").unwrap();
+
+        let module_path = dedicated_package_path(&directory);
+        let missing_target = directory.join("packages-target.nix");
+        symlink(&missing_target, &module_path).unwrap();
+        let config = ConfigState {
+            files: vec![config_file(config_path.to_str().unwrap(), &[])],
+        };
+
+        let error = install_package(&directory, &config, "firefox").unwrap_err();
+
+        assert!(error.contains("failed to create"));
+        assert_eq!(fs::read_link(&module_path).unwrap(), missing_target);
+        assert!(!missing_target.exists());
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn preserves_dangling_service_module_symlink_on_create_failure() {
+        use std::os::unix::fs::symlink;
+
+        let directory = test_directory("nxc-dangling-service-module");
+        fs::create_dir_all(directory.join("nxc")).unwrap();
+        let config_path = directory.join("configuration.nix");
+        fs::write(&config_path, "{ imports = [ ]; }\n").unwrap();
+
+        let module_path = dedicated_service_path(&directory);
+        let missing_target = directory.join("services-target.nix");
+        symlink(&missing_target, &module_path).unwrap();
+        let config = ConfigState {
+            files: vec![config_file(config_path.to_str().unwrap(), &[])],
+        };
+
+        let error = enable_service(&directory, &config, "openssh").unwrap_err();
+
+        assert!(error.contains("failed to create"));
+        assert_eq!(fs::read_link(&module_path).unwrap(), missing_target);
+        assert!(!missing_target.exists());
+        let _ = fs::remove_dir_all(directory);
+    }
 
     #[test]
     fn removes_new_module_when_import_update_fails() {

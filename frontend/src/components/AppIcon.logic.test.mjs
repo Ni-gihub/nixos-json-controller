@@ -6,6 +6,7 @@ import { createServer } from 'vite'
 import {
   collectIconCandidates,
   getActiveIconCandidate,
+  isVisuallyBlankLocalImage,
   isVisuallyBlankPixels,
   nextCandidateIndex,
 } from './app-icon-logic.ts'
@@ -50,19 +51,11 @@ test('blank local pixels are detected so the component can try the next icon', (
   assert.equal(isVisuallyBlankPixels(pixels), false)
 })
 
-test('rejects icon sources that cannot be inspected instead of retaining a blank overlay', async () => {
-  const vite = await createServer({
-    configFile: './vite.config.ts',
-    logLevel: 'silent',
-    server: { middlewareMode: true },
-    appType: 'custom',
-  })
-
+test('rejects icon sources that cannot be inspected instead of retaining a blank overlay', () => {
   const hadDocument = Object.hasOwn(globalThis, 'document')
   const originalDocument = globalThis.document
 
   try {
-    const { isVisuallyBlankLocalImage } = await vite.ssrLoadModule('/src/components/AppIcon.tsx')
     const image = {
       currentSrc: 'data:image/svg+xml;base64,PHN2Zy8+',
       src: 'data:image/svg+xml;base64,PHN2Zy8+',
@@ -91,7 +84,6 @@ test('rejects icon sources that cannot be inspected instead of retaining a blank
     } else {
       delete globalThis.document
     }
-    await vite.close()
   }
 })
 

@@ -221,8 +221,7 @@ mod tests {
 
     #[test]
     fn rejects_install_verification_when_package_is_missing() {
-        let error = verify_package_presence(&Action::InstallPackage, "firefox", false)
-            .unwrap_err();
+        let error = verify_package_presence(&Action::InstallPackage, "firefox", false).unwrap_err();
 
         assert!(error.contains("package 'firefox' was not found in the active system"));
     }
@@ -234,8 +233,7 @@ mod tests {
 
     #[test]
     fn rejects_removal_verification_when_package_is_still_present() {
-        let error = verify_package_presence(&Action::RemovePackage, "firefox", true)
-            .unwrap_err();
+        let error = verify_package_presence(&Action::RemovePackage, "firefox", true).unwrap_err();
 
         assert!(error.contains("package 'firefox' is still present in the active system"));
     }

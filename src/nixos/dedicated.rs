@@ -1,4 +1,5 @@
-use std::fs;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -28,9 +29,87 @@ impl FileBackup {
     }
 
     pub fn restore(&self) -> Result<(), String> {
-        fs::write(&self.path, &self.content)
+        writer::write_atomic(&self.path, &self.content)
             .map_err(|e| format!("failed to restore {}: {}", self.path.display(), e))
     }
+}
+
+pub fn combine_operation_and_rollback_error(
+    operation_error: String,
+    rollback_result: Result<(), String>,
+) -> String {
+    match rollback_result {
+        Ok(()) => operation_error,
+        Err(rollback_error) => {
+            format!("{}; rollback also failed: {}", operation_error, rollback_error)
+        }
+    }
+}
+
+/// Restore every part of a change, even when one restoration operation fails.
+pub fn rollback_changes(
+    staged_files: &[StagedFile],
+    backups: &[FileBackup],
+    created_files: &[PathBuf],
+) -> Result<(), String> {
+    let mut errors = Vec::new();
+
+    for staged in staged_files.iter().rev() {
+        if let Err(error) = restore_index_state(staged) {
+            errors.push(error);
+        }
+    }
+
+    for backup in backups.iter().rev() {
+        if let Err(error) = backup.restore() {
+            errors.push(error);
+        }
+    }
+
+    for path in created_files.iter().rev() {
+        if path.is_file() {
+            if let Err(error) = fs::remove_file(path) {
+                errors.push(format!("failed to remove {}: {}", path.display(), error));
+            }
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors.join("; "))
+    }
+}
+
+/// Validate and back up all target files before applying any mutation.
+pub fn apply_file_changes<V, M>(
+    paths: &[PathBuf],
+    mut validate: V,
+    mut mutate: M,
+) -> Result<Vec<FileBackup>, String>
+where
+    V: FnMut(&Path) -> Result<(), String>,
+    M: FnMut(&Path) -> Result<(), String>,
+{
+    for path in paths {
+        validate(path)?;
+    }
+
+    let backups = paths
+        .iter()
+        .map(|path| FileBackup::capture(path))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    for path in paths {
+        if let Err(error) = mutate(path) {
+            return Err(combine_operation_and_rollback_error(
+                error,
+                rollback_changes(&[], &backups, &[]),
+            ));
+        }
+    }
+
+    Ok(backups)
 }
 
 #[derive(Debug, Clone, Default)]
@@ -42,22 +121,7 @@ pub struct DedicatedPackageChange {
 
 impl DedicatedPackageChange {
     pub fn rollback(&self) -> Result<(), String> {
-        for staged in self.staged_files.iter().rev() {
-            restore_index_state(staged)?;
-        }
-
-        for backup in &self.backups {
-            backup.restore()?;
-        }
-
-        for path in &self.created_files {
-            if path.is_file() {
-                fs::remove_file(path)
-                    .map_err(|e| format!("failed to remove {}: {}", path.display(), e))?;
-            }
-        }
-
-        Ok(())
+        rollback_changes(&self.staged_files, &self.backups, &self.created_files)
     }
 }
 
@@ -80,35 +144,47 @@ pub fn install_package(
         fs::create_dir_all(parent)
             .map_err(|e| format!("failed to create {}: {}", parent.display(), e))?;
 
-        fs::write(
-            &module_path,
-            "{ pkgs, ... }:
-
-{
-  environment.systemPackages = with pkgs; [
-  ];
-}
-",
-        )
-        .map_err(|e| format!("failed to create {}: {}", module_path.display(), e))?;
-
+        let mut file = match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&module_path)
+        {
+            Ok(file) => file,
+            Err(error) => {
+                return Err(combine_operation_and_rollback_error(
+                    format!("failed to create {}: {}", module_path.display(), error),
+                    change.rollback(),
+                ));
+            }
+        };
         change.created_files.push(module_path.clone());
+        if let Err(error) = file.write_all(
+            b"{ pkgs, ... }:\n\n{\n  environment.systemPackages = with pkgs; [\n  ];\n}\n",
+        ) {
+            return Err(combine_operation_and_rollback_error(
+                format!("failed to write {}: {}", module_path.display(), error),
+                change.rollback(),
+            ));
+        }
     }
 
     if let Err(error) = ensure_import(flake_root, config, &module_path, &mut change.backups) {
-        let _ = change.rollback();
-        return Err(error);
+        return Err(combine_operation_and_rollback_error(error, change.rollback()));
     }
 
     if let Err(error) = writer::install_package(&module_path, package) {
-        let _ = change.rollback();
-        return Err(error);
+        return Err(combine_operation_and_rollback_error(error, change.rollback()));
     }
 
     for path in change.created_files.clone() {
-        if let Some(staged) = stage_new_file(flake_root, &path)? {
-            change.staged_files.push(staged);
-        }
+        let staged = match stage_new_file(flake_root, &path) {
+            Ok(Some(staged)) => staged,
+            Ok(None) => continue,
+            Err(error) => {
+                return Err(combine_operation_and_rollback_error(error, change.rollback()));
+            }
+        };
+        change.staged_files.push(staged);
     }
 
     Ok(change)
@@ -123,22 +199,7 @@ pub struct DedicatedServiceChange {
 
 impl DedicatedServiceChange {
     pub fn rollback(&self) -> Result<(), String> {
-        for staged in self.staged_files.iter().rev() {
-            restore_index_state(staged)?;
-        }
-
-        for backup in &self.backups {
-            backup.restore()?;
-        }
-
-        for path in &self.created_files {
-            if path.is_file() {
-                fs::remove_file(path)
-                    .map_err(|e| format!("failed to remove {}: {}", path.display(), e))?;
-            }
-        }
-
-        Ok(())
+        rollback_changes(&self.staged_files, &self.backups, &self.created_files)
     }
 }
 
@@ -178,15 +239,30 @@ fn write_service(
         fs::create_dir_all(parent)
             .map_err(|e| format!("failed to create {}: {}", parent.display(), e))?;
 
-        fs::write(&module_path, "{ ... }:\n\n{\n}\n")
-            .map_err(|e| format!("failed to create {}: {}", module_path.display(), e))?;
-
+        let mut file = match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&module_path)
+        {
+            Ok(file) => file,
+            Err(error) => {
+                return Err(combine_operation_and_rollback_error(
+                    format!("failed to create {}: {}", module_path.display(), error),
+                    change.rollback(),
+                ));
+            }
+        };
         change.created_files.push(module_path.clone());
+        if let Err(error) = file.write_all(b"{ ... }:\n\n{\n}\n") {
+            return Err(combine_operation_and_rollback_error(
+                format!("failed to write {}: {}", module_path.display(), error),
+                change.rollback(),
+            ));
+        }
     }
 
     if let Err(error) = ensure_import(flake_root, config, &module_path, &mut change.backups) {
-        let _ = change.rollback();
-        return Err(error);
+        return Err(combine_operation_and_rollback_error(error, change.rollback()));
     }
 
     if let Err(error) = if enabled {
@@ -194,14 +270,18 @@ fn write_service(
     } else {
         writer::disable_service(&module_path, service)
     } {
-        let _ = change.rollback();
-        return Err(error);
+        return Err(combine_operation_and_rollback_error(error, change.rollback()));
     }
 
     for path in change.created_files.clone() {
-        if let Some(staged) = stage_new_file(flake_root, &path)? {
-            change.staged_files.push(staged);
-        }
+        let staged = match stage_new_file(flake_root, &path) {
+            Ok(Some(staged)) => staged,
+            Ok(None) => continue,
+            Err(error) => {
+                return Err(combine_operation_and_rollback_error(error, change.rollback()));
+            }
+        };
+        change.staged_files.push(staged);
     }
 
     Ok(change)
@@ -280,17 +360,25 @@ pub fn stage_new_file(flake_root: &Path, path: &Path) -> Result<Option<StagedFil
     let previous_index = String::from_utf8_lossy(&index_state.stdout).trim().to_string();
     let previous_index = (!previous_index.is_empty()).then_some(previous_index);
 
-    let status = Command::new("git")
+    let staged = StagedFile {
+        path: path.to_path_buf(),
+        previous_index,
+    };
+
+    match Command::new("git")
         .args(["-C", flake_root.to_string_lossy().as_ref(), "add", "--"])
         .arg(relative)
         .status()
-        .map_err(|e| format!("failed to stage {}: {}", path.display(), e))?;
-
-    if !status.success() {
-        return Err(format!("failed to stage newly created NXC file: {}", path.display()));
+    {
+        Ok(status) if status.success() => Ok(Some(staged)),
+        // git add updates the index atomically: a failed command leaves the old
+        // index in place, so do not try to restore it while index.lock may exist.
+        Ok(_) => Err(format!(
+            "failed to stage newly created NXC file: {}",
+            path.display()
+        )),
+        Err(error) => Err(format!("failed to stage {}: {}", path.display(), error)),
     }
-
-    Ok(Some(StagedFile { path: path.to_path_buf(), previous_index }))
 }
 
 pub fn restore_index_state(staged: &StagedFile) -> Result<(), String> {
@@ -304,13 +392,17 @@ pub fn restore_index_state(staged: &StagedFile) -> Result<(), String> {
             .map_err(|e| format!("failed to start Git index restore for {}: {}", staged.path.display(), e))?;
 
         use std::io::Write;
-        child.stdin.as_mut()
-            .ok_or_else(|| "failed to open git stdin".to_string())?
-            .write_all(format!("{index_entry}\n").as_bytes())
-            .map_err(|e| format!("failed to restore Git index for {}: {}", staged.path.display(), e))?;
+        let write_result = match child.stdin.as_mut() {
+            Some(stdin) => stdin
+                .write_all(format!("{index_entry}\n").as_bytes())
+                .map_err(|e| format!("failed to restore Git index for {}: {}", staged.path.display(), e)),
+            None => Err("failed to open git stdin".to_string()),
+        };
+        drop(child.stdin.take());
 
         let status = child.wait()
             .map_err(|e| format!("failed to restore Git index for {}: {}", staged.path.display(), e))?;
+        write_result?;
 
         if !status.success() {
             return Err(format!("failed to restore Git index for {}", staged.path.display()));
@@ -354,10 +446,9 @@ fn ensure_import(
         return Ok(());
     }
 
-    fs::write(&target, updated)
-        .map_err(|e| format!("failed to update imports in {}: {}", target.display(), e))?;
-
     backups.push(backup);
+    writer::write_atomic(&target, &updated)
+        .map_err(|e| format!("failed to update imports in {}: {}", target.display(), e))?;
     Ok(())
 }
 
@@ -686,6 +777,285 @@ fn format_paths(paths: &[PathBuf]) -> String {
 mod tests {
     use super::*;
     use crate::nixos::config::{ConfigFile, WriteSafety};
+    use std::process::Output;
+
+    fn test_directory(prefix: &str) -> PathBuf {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("{}-{}-{}", prefix, std::process::id(), unique))
+    }
+
+    fn git_output(directory: &Path, args: &[&str]) -> Output {
+        Command::new("git")
+            .arg("-C")
+            .arg(directory)
+            .args(args)
+            .output()
+            .unwrap()
+    }
+
+    #[test]
+    fn rolls_back_earlier_files_when_a_later_mutation_fails() {
+        let directory = test_directory("nxc-rollback-multi-file");
+        fs::create_dir_all(&directory).unwrap();
+        let first = directory.join("first.nix");
+        let second = directory.join("second.nix");
+        fs::write(&first, "first original\n").unwrap();
+        fs::write(&second, "second original\n").unwrap();
+
+        let paths = vec![first.clone(), second.clone()];
+        let result = apply_file_changes(
+            &paths,
+            |_| Ok(()),
+            |path| {
+                if path == first.as_path() {
+                    fs::write(path, "first modified\n")
+                        .map_err(|error| error.to_string())
+                } else {
+                    Err("simulated failure on second file".to_string())
+                }
+            },
+        );
+
+        assert!(
+            result.unwrap_err().contains("simulated failure on second file")
+        );
+        assert_eq!(fs::read_to_string(&first).unwrap(), "first original\n");
+        assert_eq!(fs::read_to_string(&second).unwrap(), "second original\n");
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn validates_all_targets_before_mutating_any_file() {
+        let directory = test_directory("nxc-rollback-prevalidate");
+        fs::create_dir_all(&directory).unwrap();
+        let first = directory.join("first.nix");
+        let second = directory.join("second.nix");
+        fs::write(&first, "first original\n").unwrap();
+        fs::write(&second, "second original\n").unwrap();
+
+        let paths = vec![first.clone(), second.clone()];
+        let result = apply_file_changes(
+            &paths,
+            |path| {
+                if path == second.as_path() {
+                    Err("simulated unsafe target".to_string())
+                } else {
+                    Ok(())
+                }
+            },
+            |_| panic!("mutations must not start until all targets validate"),
+        );
+
+        assert!(result.unwrap_err().contains("simulated unsafe target"));
+        assert_eq!(fs::read_to_string(&first).unwrap(), "first original\n");
+        assert_eq!(fs::read_to_string(&second).unwrap(), "second original\n");
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn rollback_continues_after_git_index_restore_fails() {
+        let directory = test_directory("nxc-rollback-continue");
+        fs::create_dir_all(&directory).unwrap();
+        let original = directory.join("existing.nix");
+        let created = directory.join("created.nix");
+        fs::write(&original, "original\n").unwrap();
+        fs::write(&created, "created by nxc\n").unwrap();
+        let backup = FileBackup::capture(&original).unwrap();
+        fs::write(&original, "modified\n").unwrap();
+
+        // This path is not inside a Git repository, so index restoration fails.
+        let staged = StagedFile {
+            path: directory.join("not-a-git-repo.nix"),
+            previous_index: None,
+        };
+        let result = rollback_changes(&[staged], &[backup], &[created.clone()]);
+
+        assert!(
+            result.unwrap_err().contains("failed to restore Git index")
+        );
+        assert_eq!(fs::read_to_string(&original).unwrap(), "original\n");
+        assert!(!created.exists());
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn restoring_a_staged_file_preserves_the_previous_index_entry() {
+        let directory = test_directory("nxc-rollback-index");
+        fs::create_dir_all(&directory).unwrap();
+        let init = git_output(&directory, &["init", "--quiet"]);
+        assert!(
+            init.status.success(),
+            "git init failed: {}",
+            String::from_utf8_lossy(&init.stderr)
+        );
+
+        let path = directory.join("state.nix");
+        fs::write(&path, "previous staged content\n").unwrap();
+        let add = git_output(&directory, &["add", "--", "state.nix"]);
+        assert!(
+            add.status.success(),
+            "initial git add failed: {}",
+            String::from_utf8_lossy(&add.stderr)
+        );
+
+        fs::write(&path, "new worktree content\n").unwrap();
+        let staged = stage_new_file(&directory, &path).unwrap().unwrap();
+        restore_index_state(&staged).unwrap();
+
+        let indexed = git_output(&directory, &["show", ":state.nix"]);
+        assert!(
+            indexed.status.success(),
+            "git show failed: {}",
+            String::from_utf8_lossy(&indexed.stderr)
+        );
+        assert_eq!(String::from_utf8_lossy(&indexed.stdout), "previous staged content\n");
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn stage_failure_does_not_modify_the_existing_index() {
+        let directory = test_directory("nxc-rollback-index-lock");
+        fs::create_dir_all(&directory).unwrap();
+        let init = git_output(&directory, &["init", "--quiet"]);
+        assert!(init.status.success(), "git init failed: {}", String::from_utf8_lossy(&init.stderr));
+
+        let path = directory.join("state.nix");
+        fs::write(&path, "previous staged content\n").unwrap();
+        let add = git_output(&directory, &["add", "--", "state.nix"]);
+        assert!(add.status.success(), "initial git add failed: {}", String::from_utf8_lossy(&add.stderr));
+        fs::write(&path, "new worktree content\n").unwrap();
+
+        fs::write(directory.join(".git/index.lock"), "locked").unwrap();
+        let error = stage_new_file(&directory, &path).unwrap_err();
+        fs::remove_file(directory.join(".git/index.lock")).unwrap();
+
+        assert!(error.contains("failed to stage newly created NXC file"));
+        assert!(!error.contains("rollback also failed"));
+        let indexed = git_output(&directory, &["show", ":state.nix"]);
+        assert!(indexed.status.success(), "git show failed: {}", String::from_utf8_lossy(&indexed.stderr));
+        assert_eq!(String::from_utf8_lossy(&indexed.stdout), "previous staged content\n");
+        let _ = fs::remove_dir_all(directory);
+    }
+
+
+
+    #[cfg(unix)]
+    #[test]
+    fn preserves_dangling_package_module_symlink_on_create_failure() {
+        use std::os::unix::fs::symlink;
+
+        let directory = test_directory("nxc-dangling-package-module");
+        fs::create_dir_all(directory.join("nxc")).unwrap();
+        let config_path = directory.join("configuration.nix");
+        fs::write(&config_path, "{ imports = [ ]; }\n").unwrap();
+
+        let module_path = dedicated_package_path(&directory);
+        let missing_target = directory.join("packages-target.nix");
+        symlink(&missing_target, &module_path).unwrap();
+        let config = ConfigState {
+            files: vec![config_file(config_path.to_str().unwrap(), &[])],
+        };
+
+        let error = install_package(&directory, &config, "firefox").unwrap_err();
+
+        assert!(error.contains("failed to create"));
+        assert_eq!(fs::read_link(&module_path).unwrap(), missing_target);
+        assert!(!missing_target.exists());
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn preserves_dangling_service_module_symlink_on_create_failure() {
+        use std::os::unix::fs::symlink;
+
+        let directory = test_directory("nxc-dangling-service-module");
+        fs::create_dir_all(directory.join("nxc")).unwrap();
+        let config_path = directory.join("configuration.nix");
+        fs::write(&config_path, "{ imports = [ ]; }\n").unwrap();
+
+        let module_path = dedicated_service_path(&directory);
+        let missing_target = directory.join("services-target.nix");
+        symlink(&missing_target, &module_path).unwrap();
+        let config = ConfigState {
+            files: vec![config_file(config_path.to_str().unwrap(), &[])],
+        };
+
+        let error = enable_service(&directory, &config, "openssh").unwrap_err();
+
+        assert!(error.contains("failed to create"));
+        assert_eq!(fs::read_link(&module_path).unwrap(), missing_target);
+        assert!(!missing_target.exists());
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn removes_new_module_when_import_update_fails() {
+        let directory = test_directory("nxc-rollback-new-module-import");
+        fs::create_dir_all(&directory).unwrap();
+        let config_path = directory.join("configuration.nix");
+        fs::write(&config_path, "{ }\n").unwrap();
+
+        let config = ConfigState {
+            files: vec![config_file(config_path.to_str().unwrap(), &[])],
+        };
+        let result = install_package(&directory, &config, "firefox");
+
+        assert!(result.unwrap_err().contains("imports list not found"));
+        assert!(!dedicated_package_path(&directory).exists());
+        assert_eq!(fs::read_to_string(&config_path).unwrap(), "{ }\n");
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn restores_import_and_module_when_package_declaration_fails() {
+        let directory = test_directory("nxc-rollback-import-declaration");
+        fs::create_dir_all(&directory).unwrap();
+        let config_path = directory.join("configuration.nix");
+        fs::write(&config_path, "{ imports = [ ]; }\n").unwrap();
+
+        let module_path = dedicated_package_path(&directory);
+        fs::create_dir_all(module_path.parent().unwrap()).unwrap();
+        let original_module = "{ pkgs, ... }:\n\n{\n  environment.systemPackages = with pkgs; [\n    firefox\n  ];\n}\n";
+        fs::write(&module_path, original_module).unwrap();
+        let original_config = fs::read_to_string(&config_path).unwrap();
+        let config = ConfigState {
+            files: vec![config_file(config_path.to_str().unwrap(), &[])],
+        };
+
+        let result = install_package(&directory, &config, "firefox");
+
+        assert!(result.unwrap_err().contains("already present"));
+        assert_eq!(fs::read_to_string(&module_path).unwrap(), original_module);
+        assert_eq!(fs::read_to_string(&config_path).unwrap(), original_config);
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn restoring_a_backup_preserves_file_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let directory = test_directory("nxc-rollback-permissions");
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("config.nix");
+        fs::write(&path, "original\n").unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o640)).unwrap();
+
+        let backup = FileBackup::capture(&path).unwrap();
+        fs::write(&path, "modified\n").unwrap();
+        backup.restore().unwrap();
+
+        assert_eq!(fs::read_to_string(&path).unwrap(), "original\n");
+        assert_eq!(
+            fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o640
+        );
+        let _ = fs::remove_dir_all(directory);
+    }
 
     #[test]
     fn rejects_existing_package_file_without_nxc_shape() {

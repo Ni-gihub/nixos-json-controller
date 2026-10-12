@@ -279,8 +279,7 @@ function AppIcon({
                   JSON.stringify({
                     ...describeRenderedElement(event.currentTarget),
                     source: describeIconSource(
-                      event.currentTarget.currentSrc ||
-                        event.currentTarget.src,
+                      event.currentTarget.currentSrc || event.currentTarget.src,
                     ),
                     naturalWidth: event.currentTarget.naturalWidth,
                     naturalHeight: event.currentTarget.naturalHeight,

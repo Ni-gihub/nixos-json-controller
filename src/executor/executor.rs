@@ -26,10 +26,7 @@ impl Executor {
         Self::execute_with_rebuild_password(plan, true, password)
     }
 
-    pub fn execute_with_rebuild(
-        plan: ExecutionPlan,
-        rebuild: bool,
-    ) -> Result<(), ExecutorError> {
+    pub fn execute_with_rebuild(plan: ExecutionPlan, rebuild: bool) -> Result<(), ExecutorError> {
         Self::execute_with_rebuild_password(plan, rebuild, None)
     }
 

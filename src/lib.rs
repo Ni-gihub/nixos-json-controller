@@ -20,10 +20,7 @@ pub fn install_package(package: &str) -> Result<(), String> {
     install_package_with_password(package, None)
 }
 
-pub fn install_package_with_password(
-    package: &str,
-    password: Option<&str>,
-) -> Result<(), String> {
+pub fn install_package_with_password(package: &str, password: Option<&str>) -> Result<(), String> {
     let command = Command {
         action: Action::InstallPackage,
         target: Target {

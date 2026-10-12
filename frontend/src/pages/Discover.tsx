@@ -21,6 +21,8 @@ function Discover() {
 
   useEffect(() => {
     if (!initialQuery || initialQuery === submittedQuery) return
+    // Keep the controlled input synchronized with browser navigation.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- URL query is external navigation state
     setQuery(initialQuery)
     setSubmittedQuery(initialQuery)
   }, [initialQuery, submittedQuery])
@@ -28,6 +30,8 @@ function Discover() {
   useEffect(() => {
     if (!initialQuery || initialQuery !== submittedQuery || results.length > 0 || searching) return
 
+    // Start the route-triggered lookup immediately so the UI reflects the pending request.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- required loading state for the async search
     setSearching(true)
     setSearchError(null)
     void searchApps(initialQuery)

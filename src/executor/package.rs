@@ -1,4 +1,3 @@
-use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::command::Action;
@@ -26,11 +25,7 @@ impl PackageChange {
     }
 
     pub fn rollback(&self) -> Result<(), String> {
-        nixos::dedicated::rollback_changes(
-            &self.staged_files,
-            &self.backups,
-            &self.created_files,
-        )
+        nixos::dedicated::rollback_changes(&self.staged_files, &self.backups, &self.created_files)
     }
 }
 

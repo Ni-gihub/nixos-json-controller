@@ -25,6 +25,8 @@ function AppDetail() {
   useEffect(() => {
     if (!id) return
     let cancelled = false
+    // Clear stale route data before the async lookup for the new package starts.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- route changes intentionally reset the loading state
     setLoadingApp(true)
     setApp(undefined)
     setError(null)

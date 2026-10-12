@@ -29,8 +29,10 @@ jobs:
 
       - name: Check formatting
         shell: bash
-        run: |
-          rustfmt --edition 2024 --check             frontend/src-tauri/src/lib.rs             src/nixos/catalog.rs             src/resolver/resolver.rs
+        run: cargo fmt --all -- --check
+
+      - name: Check Tauri Rust formatting
+        run: cargo fmt --manifest-path frontend/src-tauri/Cargo.toml --all -- --check
 
   check:
     name: Check
@@ -58,7 +60,7 @@ jobs:
         uses: dtolnay/rust-toolchain@1.98.1
 
       - name: Test
-        run: cargo test
+        run: cargo test --all-targets
 
   frontend-build:
     name: Frontend build
@@ -88,10 +90,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Test frontend icon fallback
+      - name: Test frontend
         run: pnpm test
 
-      - name: Build frontend
+      - name: Lint frontend
+        run: pnpm lint
+
+      - name: Build frontend (includes TypeScript type-check)
         run: pnpm build
 
   nix:
@@ -110,6 +115,36 @@ jobs:
       - name: Run Nix-dependent smoke test
         run: cargo test nix_command_is_available -- --ignored
 
+  tauri-check:
+    name: Tauri Rust check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.98.1
+
+      - name: Install Tauri Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            libxdo-dev \
+            librsvg2-dev \
+            libayatana-appindicator3-dev
+
+      - name: Check Tauri crate
+        run: cargo check --manifest-path frontend/src-tauri/Cargo.toml
+
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -123,6 +158,24 @@ jobs:
 
       - name: Build
         run: cargo build
+
+  nix-package:
+    name: CLI Nix package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Build CLI Flake package
+        run: nix build .#default --no-link --print-out-paths
 
   clippy:
     name: Clippy

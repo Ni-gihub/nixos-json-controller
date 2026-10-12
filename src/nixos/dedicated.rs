@@ -41,7 +41,10 @@ pub fn combine_operation_and_rollback_error(
     match rollback_result {
         Ok(()) => operation_error,
         Err(rollback_error) => {
-            format!("{}; rollback also failed: {}", operation_error, rollback_error)
+            format!(
+                "{}; rollback also failed: {}",
+                operation_error, rollback_error
+            )
         }
     }
 }
@@ -169,11 +172,17 @@ pub fn install_package(
     }
 
     if let Err(error) = ensure_import(flake_root, config, &module_path, &mut change.backups) {
-        return Err(combine_operation_and_rollback_error(error, change.rollback()));
+        return Err(combine_operation_and_rollback_error(
+            error,
+            change.rollback(),
+        ));
     }
 
     if let Err(error) = writer::install_package(&module_path, package) {
-        return Err(combine_operation_and_rollback_error(error, change.rollback()));
+        return Err(combine_operation_and_rollback_error(
+            error,
+            change.rollback(),
+        ));
     }
 
     for path in change.created_files.clone() {
@@ -181,7 +190,10 @@ pub fn install_package(
             Ok(Some(staged)) => staged,
             Ok(None) => continue,
             Err(error) => {
-                return Err(combine_operation_and_rollback_error(error, change.rollback()));
+                return Err(combine_operation_and_rollback_error(
+                    error,
+                    change.rollback(),
+                ));
             }
         };
         change.staged_files.push(staged);
@@ -262,7 +274,10 @@ fn write_service(
     }
 
     if let Err(error) = ensure_import(flake_root, config, &module_path, &mut change.backups) {
-        return Err(combine_operation_and_rollback_error(error, change.rollback()));
+        return Err(combine_operation_and_rollback_error(
+            error,
+            change.rollback(),
+        ));
     }
 
     if let Err(error) = if enabled {
@@ -270,7 +285,10 @@ fn write_service(
     } else {
         writer::disable_service(&module_path, service)
     } {
-        return Err(combine_operation_and_rollback_error(error, change.rollback()));
+        return Err(combine_operation_and_rollback_error(
+            error,
+            change.rollback(),
+        ));
     }
 
     for path in change.created_files.clone() {
@@ -278,7 +296,10 @@ fn write_service(
             Ok(Some(staged)) => staged,
             Ok(None) => continue,
             Err(error) => {
-                return Err(combine_operation_and_rollback_error(error, change.rollback()));
+                return Err(combine_operation_and_rollback_error(
+                    error,
+                    change.rollback(),
+                ));
             }
         };
         change.staged_files.push(staged);
@@ -332,7 +353,12 @@ pub struct StagedFile {
 /// Stage only files newly created by NXC so Git-backed flakes can see them during evaluation.
 pub fn stage_new_file(flake_root: &Path, path: &Path) -> Result<Option<StagedFile>, String> {
     let output = match Command::new("git")
-        .args(["-C", flake_root.to_string_lossy().as_ref(), "rev-parse", "--is-inside-work-tree"])
+        .args([
+            "-C",
+            flake_root.to_string_lossy().as_ref(),
+            "rev-parse",
+            "--is-inside-work-tree",
+        ])
         .output()
     {
         Ok(output) => output,
@@ -343,21 +369,32 @@ pub fn stage_new_file(flake_root: &Path, path: &Path) -> Result<Option<StagedFil
         return Ok(None);
     }
 
-    let relative = path.strip_prefix(flake_root).map_err(|e| {
-        format!("failed to determine Git path for {}: {}", path.display(), e)
-    })?;
+    let relative = path
+        .strip_prefix(flake_root)
+        .map_err(|e| format!("failed to determine Git path for {}: {}", path.display(), e))?;
 
     let index_state = Command::new("git")
-        .args(["-C", flake_root.to_string_lossy().as_ref(), "ls-files", "--stage", "--"])
+        .args([
+            "-C",
+            flake_root.to_string_lossy().as_ref(),
+            "ls-files",
+            "--stage",
+            "--",
+        ])
         .arg(relative)
         .output()
         .map_err(|e| format!("failed to inspect Git index for {}: {}", path.display(), e))?;
 
     if !index_state.status.success() {
-        return Err(format!("failed to inspect Git index for {}", path.display()));
+        return Err(format!(
+            "failed to inspect Git index for {}",
+            path.display()
+        ));
     }
 
-    let previous_index = String::from_utf8_lossy(&index_state.stdout).trim().to_string();
+    let previous_index = String::from_utf8_lossy(&index_state.stdout)
+        .trim()
+        .to_string();
     let previous_index = (!previous_index.is_empty()).then_some(previous_index);
 
     let staged = StagedFile {
@@ -382,43 +419,89 @@ pub fn stage_new_file(flake_root: &Path, path: &Path) -> Result<Option<StagedFil
 }
 
 pub fn restore_index_state(staged: &StagedFile) -> Result<(), String> {
-    let parent = staged.path.parent().ok_or_else(|| format!("invalid file path: {}", staged.path.display()))?;
+    let parent = staged
+        .path
+        .parent()
+        .ok_or_else(|| format!("invalid file path: {}", staged.path.display()))?;
 
     if let Some(index_entry) = &staged.previous_index {
         let mut child = Command::new("git")
-            .args(["-C", parent.to_string_lossy().as_ref(), "update-index", "--index-info"])
+            .args([
+                "-C",
+                parent.to_string_lossy().as_ref(),
+                "update-index",
+                "--index-info",
+            ])
             .stdin(std::process::Stdio::piped())
             .spawn()
-            .map_err(|e| format!("failed to start Git index restore for {}: {}", staged.path.display(), e))?;
+            .map_err(|e| {
+                format!(
+                    "failed to start Git index restore for {}: {}",
+                    staged.path.display(),
+                    e
+                )
+            })?;
 
         use std::io::Write;
         let write_result = match child.stdin.as_mut() {
             Some(stdin) => stdin
                 .write_all(format!("{index_entry}\n").as_bytes())
-                .map_err(|e| format!("failed to restore Git index for {}: {}", staged.path.display(), e)),
+                .map_err(|e| {
+                    format!(
+                        "failed to restore Git index for {}: {}",
+                        staged.path.display(),
+                        e
+                    )
+                }),
             None => Err("failed to open git stdin".to_string()),
         };
         drop(child.stdin.take());
 
-        let status = child.wait()
-            .map_err(|e| format!("failed to restore Git index for {}: {}", staged.path.display(), e))?;
+        let status = child.wait().map_err(|e| {
+            format!(
+                "failed to restore Git index for {}: {}",
+                staged.path.display(),
+                e
+            )
+        })?;
         write_result?;
 
         if !status.success() {
-            return Err(format!("failed to restore Git index for {}", staged.path.display()));
+            return Err(format!(
+                "failed to restore Git index for {}",
+                staged.path.display()
+            ));
         }
     } else {
-        let file_name = staged.path.file_name()
+        let file_name = staged
+            .path
+            .file_name()
             .ok_or_else(|| format!("invalid file path: {}", staged.path.display()))?;
 
         let status = Command::new("git")
-            .args(["-C", parent.to_string_lossy().as_ref(), "rm", "--cached", "--ignore-unmatch", "--"])
+            .args([
+                "-C",
+                parent.to_string_lossy().as_ref(),
+                "rm",
+                "--cached",
+                "--ignore-unmatch",
+                "--",
+            ])
             .arg(file_name)
             .status()
-            .map_err(|e| format!("failed to remove {} from Git index: {}", staged.path.display(), e))?;
+            .map_err(|e| {
+                format!(
+                    "failed to remove {} from Git index: {}",
+                    staged.path.display(),
+                    e
+                )
+            })?;
 
         if !status.success() {
-            return Err(format!("failed to restore Git index for {}", staged.path.display()));
+            return Err(format!(
+                "failed to restore Git index for {}",
+                staged.path.display()
+            ));
         }
     }
 
@@ -525,7 +608,9 @@ fn find_import_target(config: &ConfigState) -> Result<PathBuf, String> {
     roots.sort();
 
     if roots.is_empty() {
-        return Err("cannot connect NXC dedicated module: no NixOS module graph root was found".to_string());
+        return Err(
+            "cannot connect NXC dedicated module: no NixOS module graph root was found".to_string(),
+        );
     }
 
     let ranked = roots
@@ -811,8 +896,7 @@ mod tests {
             |_| Ok(()),
             |path| {
                 if path == first.as_path() {
-                    fs::write(path, "first modified\n")
-                        .map_err(|error| error.to_string())
+                    fs::write(path, "first modified\n").map_err(|error| error.to_string())
                 } else {
                     Err("simulated failure on second file".to_string())
                 }
@@ -820,7 +904,9 @@ mod tests {
         );
 
         assert!(
-            result.unwrap_err().contains("simulated failure on second file")
+            result
+                .unwrap_err()
+                .contains("simulated failure on second file")
         );
         assert_eq!(fs::read_to_string(&first).unwrap(), "first original\n");
         assert_eq!(fs::read_to_string(&second).unwrap(), "second original\n");
@@ -873,9 +959,7 @@ mod tests {
         };
         let result = rollback_changes(&[staged], &[backup], &[created.clone()]);
 
-        assert!(
-            result.unwrap_err().contains("failed to restore Git index")
-        );
+        assert!(result.unwrap_err().contains("failed to restore Git index"));
         assert_eq!(fs::read_to_string(&original).unwrap(), "original\n");
         assert!(!created.exists());
         let _ = fs::remove_dir_all(directory);
@@ -911,7 +995,10 @@ mod tests {
             "git show failed: {}",
             String::from_utf8_lossy(&indexed.stderr)
         );
-        assert_eq!(String::from_utf8_lossy(&indexed.stdout), "previous staged content\n");
+        assert_eq!(
+            String::from_utf8_lossy(&indexed.stdout),
+            "previous staged content\n"
+        );
         let _ = fs::remove_dir_all(directory);
     }
 
@@ -920,12 +1007,20 @@ mod tests {
         let directory = test_directory("nxc-rollback-index-lock");
         fs::create_dir_all(&directory).unwrap();
         let init = git_output(&directory, &["init", "--quiet"]);
-        assert!(init.status.success(), "git init failed: {}", String::from_utf8_lossy(&init.stderr));
+        assert!(
+            init.status.success(),
+            "git init failed: {}",
+            String::from_utf8_lossy(&init.stderr)
+        );
 
         let path = directory.join("state.nix");
         fs::write(&path, "previous staged content\n").unwrap();
         let add = git_output(&directory, &["add", "--", "state.nix"]);
-        assert!(add.status.success(), "initial git add failed: {}", String::from_utf8_lossy(&add.stderr));
+        assert!(
+            add.status.success(),
+            "initial git add failed: {}",
+            String::from_utf8_lossy(&add.stderr)
+        );
         fs::write(&path, "new worktree content\n").unwrap();
 
         fs::write(directory.join(".git/index.lock"), "locked").unwrap();
@@ -935,12 +1030,17 @@ mod tests {
         assert!(error.contains("failed to stage newly created NXC file"));
         assert!(!error.contains("rollback also failed"));
         let indexed = git_output(&directory, &["show", ":state.nix"]);
-        assert!(indexed.status.success(), "git show failed: {}", String::from_utf8_lossy(&indexed.stderr));
-        assert_eq!(String::from_utf8_lossy(&indexed.stdout), "previous staged content\n");
+        assert!(
+            indexed.status.success(),
+            "git show failed: {}",
+            String::from_utf8_lossy(&indexed.stderr)
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&indexed.stdout),
+            "previous staged content\n"
+        );
         let _ = fs::remove_dir_all(directory);
     }
-
-
 
     #[cfg(unix)]
     #[test]

@@ -119,9 +119,7 @@ fn resolve_icon_candidates_from_index(
                 appstream_stock_count += 1;
             }
         }
-        if appstream_stock_count >= MAX_APPSTREAM_STOCK_ICON_CANDIDATES
-            || resolved.len() >= limit
-        {
+        if appstream_stock_count >= MAX_APPSTREAM_STOCK_ICON_CANDIDATES || resolved.len() >= limit {
             break;
         }
     }
@@ -216,10 +214,7 @@ fn resolve_direct_stock_icon(
     cache: &Mutex<HashMap<String, Option<String>>>,
 ) -> Option<String> {
     let key = direct_stock_cache_key(candidates);
-    let cached = cache
-        .lock()
-        .ok()
-        .and_then(|icons| icons.get(&key).cloned());
+    let cached = cache.lock().ok().and_then(|icons| icons.get(&key).cloned());
 
     if let Some(icon) = cached {
         return icon;
@@ -308,12 +303,11 @@ fn load_index() -> HashMap<String, Vec<String>> {
     }
 
     for (xml_path, icon_root) in catalogs {
-        let Ok(output) = Command::new("gzip")
-            .args(["-dc"])
-            .arg(&xml_path)
-            .output()
-        else {
-            eprintln!("failed to start gzip for AppStream data {}", xml_path.display());
+        let Ok(output) = Command::new("gzip").args(["-dc"]).arg(&xml_path).output() else {
+            eprintln!(
+                "failed to start gzip for AppStream data {}",
+                xml_path.display()
+            );
             continue;
         };
 
@@ -437,9 +431,7 @@ fn find_xml_from_roots(roots: &[PathBuf]) -> Vec<(PathBuf, PathBuf)> {
                 ["nixos-unstable", "nixos-unstable-unfree"]
                     .into_iter()
                     .filter_map(move |section| {
-                        let xml = root
-                            .join(xml_dir)
-                            .join(format!("{section}.xml.gz"));
+                        let xml = root.join(xml_dir).join(format!("{section}.xml.gz"));
                         let icons = root.join(icon_dir).join(section);
                         xml.is_file().then_some((xml, icons))
                     })
@@ -717,7 +709,11 @@ fn build_stock_icon_index_from_roots(roots: &[PathBuf]) -> HashMap<String, Vec<P
     ));
     if icon_debug_enabled() {
         for root in roots {
-            debug_icon(format!("icon theme root={} exists={}", root.display(), root.is_dir()));
+            debug_icon(format!(
+                "icon theme root={} exists={}",
+                root.display(),
+                root.is_dir()
+            ));
         }
     }
     index
@@ -802,7 +798,10 @@ fn index_stock_icon_dir(
         let Some(extension) = path.extension().and_then(|value| value.to_str()) else {
             continue;
         };
-        if !matches!(extension.to_ascii_lowercase().as_str(), "png" | "svg" | "jpg" | "jpeg") {
+        if !matches!(
+            extension.to_ascii_lowercase().as_str(),
+            "png" | "svg" | "jpg" | "jpeg"
+        ) {
             continue;
         }
 
@@ -856,8 +855,7 @@ fn read_icon(path: &Path) -> Option<String> {
 }
 
 fn base64_encode(bytes: &[u8]) -> String {
-    const TABLE: &[u8; 64] =
-        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
     let mut output = String::with_capacity(bytes.len().div_ceil(3) * 4);
     for chunk in bytes.chunks(3) {
@@ -891,10 +889,8 @@ mod tests {
     /// Verifies each supported AppStream catalog layout is detected.
     #[test]
     fn discovers_swcatalog_and_app_info_layouts() {
-        let temp = std::env::temp_dir().join(format!(
-            "nxc-appstream-path-test-{}",
-            std::process::id()
-        ));
+        let temp =
+            std::env::temp_dir().join(format!("nxc-appstream-path-test-{}", std::process::id()));
         let _ = fs::remove_dir_all(&temp);
 
         let expected = [
@@ -922,10 +918,7 @@ mod tests {
         assert_eq!(found.len(), expected.len());
 
         for (xml, icons) in expected {
-            assert!(found.contains(&(
-                temp.join(xml),
-                temp.join(icons),
-            )));
+            assert!(found.contains(&(temp.join(xml), temp.join(icons),)));
         }
 
         let _ = fs::remove_dir_all(&temp);
@@ -950,9 +943,7 @@ mod tests {
 
         let empty_index = HashMap::new();
         let cache = Mutex::new(HashMap::new());
-        assert!(
-            resolve_direct_stock_icon(&["firefox"], &empty_index, &cache).is_none()
-        );
+        assert!(resolve_direct_stock_icon(&["firefox"], &empty_index, &cache).is_none());
 
         // Repeated searches reuse a cached miss instead of scanning the index again.
         let icon_path = temp.join("hicolor/scalable/apps/firefox.svg");
@@ -963,9 +954,7 @@ mod tests {
         )
         .unwrap();
         let populated_index = build_stock_icon_index_from_roots(std::slice::from_ref(&temp));
-        assert!(
-            resolve_direct_stock_icon(&["firefox"], &populated_index, &cache).is_none()
-        );
+        assert!(resolve_direct_stock_icon(&["firefox"], &populated_index, &cache).is_none());
 
         let cached_key = direct_stock_cache_key(&["firefox"]);
         assert!(
@@ -977,10 +966,8 @@ mod tests {
 
     #[test]
     fn resolves_stock_icon_by_package_alias_without_appstream_metadata() {
-        let temp = std::env::temp_dir().join(format!(
-            "nxc-direct-stock-icon-test-{}",
-            std::process::id()
-        ));
+        let temp =
+            std::env::temp_dir().join(format!("nxc-direct-stock-icon-test-{}", std::process::id()));
         let _ = fs::remove_dir_all(&temp);
         let icon_path = temp.join("hicolor/scalable/apps/firefox.svg");
         fs::create_dir_all(icon_path.parent().unwrap()).unwrap();
@@ -991,8 +978,7 @@ mod tests {
         .unwrap();
 
         let index = build_stock_icon_index_from_roots(std::slice::from_ref(&temp));
-        let resolved =
-            direct_stock_icon_from_index(&["org.mozilla.firefox", "firefox"], &index);
+        let resolved = direct_stock_icon_from_index(&["org.mozilla.firefox", "firefox"], &index);
 
         assert!(resolved.unwrap().starts_with("data:image/svg+xml;base64,"));
         let _ = fs::remove_dir_all(&temp);
@@ -1056,9 +1042,7 @@ mod tests {
 
     #[test]
     fn merge_icon_candidate_keeps_cached_first() {
-        let mut entries = vec![
-            "remote|https://example.com/remote.png".to_string(),
-        ];
+        let mut entries = vec!["remote|https://example.com/remote.png".to_string()];
 
         merge_icon_candidate(&mut entries, "cached|/icons|example.png".to_string());
 
@@ -1137,14 +1121,15 @@ mod tests {
 
     #[test]
     fn resolves_stock_icons_from_icon_theme_roots() {
-        let temp = std::env::temp_dir().join(format!(
-            "nxc-stock-icon-test-{}",
-            std::process::id()
-        ));
+        let temp = std::env::temp_dir().join(format!("nxc-stock-icon-test-{}", std::process::id()));
         let _ = fs::remove_dir_all(&temp);
         let icon_path = temp.join("hicolor/scalable/apps/example-stock.svg");
         fs::create_dir_all(icon_path.parent().unwrap()).unwrap();
-        fs::write(&icon_path, "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>").unwrap();
+        fs::write(
+            &icon_path,
+            "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>",
+        )
+        .unwrap();
 
         let index = build_stock_icon_index_from_roots(std::slice::from_ref(&temp));
         let resolved = index
@@ -1226,7 +1211,10 @@ mod tests {
             load_icon(&cached).is_none(),
             "missing cached icon must fall back to the next source"
         );
-        assert_eq!(load_icon(remote), Some("https://example.com/icon.png".to_string()));
+        assert_eq!(
+            load_icon(remote),
+            Some("https://example.com/icon.png".to_string())
+        );
 
         let _ = fs::remove_dir_all(&temp);
     }
@@ -1263,10 +1251,7 @@ mod tests {
 
     #[test]
     fn resolves_unusual_cached_icon_size() {
-        let temp = std::env::temp_dir().join(format!(
-            "nxc-appstream-test-{}",
-            std::process::id()
-        ));
+        let temp = std::env::temp_dir().join(format!("nxc-appstream-test-{}", std::process::id()));
         let _ = fs::remove_dir_all(&temp);
         fs::create_dir_all(temp.join("72x72")).unwrap();
         fs::write(temp.join("72x72").join("example.png"), b"png").unwrap();

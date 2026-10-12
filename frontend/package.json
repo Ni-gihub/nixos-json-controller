@@ -9,7 +9,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types --test src/components/AppIcon.logic.test.mjs"
+    "test": "node --experimental-strip-types --test"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

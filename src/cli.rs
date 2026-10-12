@@ -59,7 +59,12 @@ pub fn run() -> Result<(), String> {
         [command, query] if command == "search" => return run_search(query),
         [command] if command == "status" => return run_status(),
         [command, kind, target] if command == "explain" => return run_explain(kind, target),
-        [command, ..] if matches!(command.as_str(), "discover" | "list" | "search" | "status" | "explain") => {
+        [command, ..]
+            if matches!(
+                command.as_str(),
+                "discover" | "list" | "search" | "status" | "explain"
+            ) =>
+        {
             return Err("invalid command arguments. use nxc --help for usage".to_string());
         }
         _ => {}
@@ -135,7 +140,6 @@ fn run_list() -> Result<(), String> {
     Ok(())
 }
 
-
 fn run_search(query: &str) -> Result<(), String> {
     let query = query.trim();
 
@@ -171,7 +175,13 @@ fn run_search(query: &str) -> Result<(), String> {
         );
 
         let declarations = config.package_declarations(package);
-        print_locations("  Declared in", &declarations.iter().map(|path| (*path).to_path_buf()).collect::<Vec<_>>());
+        print_locations(
+            "  Declared in",
+            &declarations
+                .iter()
+                .map(|path| (*path).to_path_buf())
+                .collect::<Vec<_>>(),
+        );
 
         println!("  System environment: /run/current-system/sw");
         if let Some(path) = system.command_path(package) {
@@ -283,7 +293,6 @@ fn run_explain(kind: &str, target: &str) -> Result<(), String> {
 
     Ok(())
 }
-
 
 fn search_matches(packages: &[String], query: &str) -> Vec<String> {
     let query = query.trim().to_ascii_lowercase();
@@ -488,7 +497,7 @@ fn selection_method_name(
 
 #[cfg(test)]
 mod tests {
-    use super::{search_matches, CliArgs};
+    use super::{CliArgs, search_matches};
     use clap::Parser;
 
     #[test]
@@ -503,7 +512,11 @@ mod tests {
 
     #[test]
     fn search_matches_substrings() {
-        let packages = ["firefox".to_string(), "firefox-bin".to_string(), "vscode".to_string()];
+        let packages = [
+            "firefox".to_string(),
+            "firefox-bin".to_string(),
+            "vscode".to_string(),
+        ];
 
         assert_eq!(
             search_matches(&packages, "firefox"),

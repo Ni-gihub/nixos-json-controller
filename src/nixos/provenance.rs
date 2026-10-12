@@ -254,9 +254,7 @@ mod tests {
             option: "environment.systemPackages".to_string(),
             definitions: vec![OptionDefinition {
                 file: PathBuf::from("/nix/store/nixpkgs-source/nixos/modules/foo.nix"),
-                value: serde_json::json!([
-                    "/nix/store/example-vlc-3.0"
-                ]),
+                value: serde_json::json!(["/nix/store/example-vlc-3.0"]),
             }],
         };
 
@@ -279,10 +277,7 @@ mod tests {
         std::fs::create_dir_all(&root).unwrap();
         std::fs::write(&local, "{}").unwrap();
 
-        assert_eq!(
-            resolve_definition_file(&root, &local),
-            Some(local.clone())
-        );
+        assert_eq!(resolve_definition_file(&root, &local), Some(local.clone()));
 
         let _ = std::fs::remove_dir_all(root);
     }
@@ -328,10 +323,8 @@ mod tests {
 
     #[test]
     fn excludes_unrelated_store_definition() {
-        let root = std::env::temp_dir().join(format!(
-            "nxc-provenance-unrelated-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("nxc-provenance-unrelated-{}", std::process::id()));
         let local = root.join("configuration.nix");
 
         std::fs::create_dir_all(&root).unwrap();

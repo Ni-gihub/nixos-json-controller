@@ -34,6 +34,35 @@ function describeIconSource(source: string): string {
     : "unknown source";
 }
 
+const DEBUG_FALLBACK_ONLY =
+  import.meta.env.VITE_ICON_DEBUG_FALLBACK_ONLY === "1";
+
+function describeRenderedElement(element: Element) {
+  const rect = element.getBoundingClientRect();
+  const style = window.getComputedStyle(element);
+
+  return {
+    tag: element.tagName.toLowerCase(),
+    className: element.getAttribute("class"),
+    bounds: {
+      x: Number(rect.x.toFixed(1)),
+      y: Number(rect.y.toFixed(1)),
+      width: Number(rect.width.toFixed(1)),
+      height: Number(rect.height.toFixed(1)),
+    },
+    display: style.display,
+    visibility: style.visibility,
+    opacity: style.opacity,
+    color: style.color,
+    stroke: style.stroke,
+    fill: style.fill,
+    backgroundColor: style.backgroundColor,
+    overflow: style.overflow,
+    position: style.position,
+    zIndex: style.zIndex,
+  };
+}
+
 type AppIconProps = {
   name: string;
   packageId?: string;
@@ -52,7 +81,10 @@ function AppIcon({
   imageClassName,
   fallbackClassName,
 }: AppIconProps) {
-  const candidates = collectIconCandidates(icon, iconCandidates);
+  // This opt-in mode isolates Lucide/WebView rendering from package and external image sources.
+  const candidates = DEBUG_FALLBACK_ONLY
+    ? []
+    : collectIconCandidates(icon, iconCandidates);
   const candidateKey = JSON.stringify(candidates);
   const [failedCandidate, setFailedCandidate] = useState<{
     key: string;
@@ -64,6 +96,8 @@ function AppIcon({
     done: boolean;
   } | null>(null);
   const containerRef = useRef<HTMLSpanElement>(null);
+  const packageIconRef = useRef<SVGSVGElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
 
   // Reset the effective index when the package/candidate list changes.
   const candidateIndex =
@@ -71,13 +105,17 @@ function AppIcon({
   const activeIcon = getActiveIconCandidate(candidates, candidateIndex);
   const lookupKey = packageId + "|" + name;
   const externalSrc =
-    externalResult?.key === lookupKey ? externalResult.src : null;
+    !DEBUG_FALLBACK_ONLY && externalResult?.key === lookupKey
+      ? externalResult.src
+      : null;
   const externalComplete =
-    externalResult?.key === lookupKey && externalResult.done;
+    !DEBUG_FALLBACK_ONLY &&
+    externalResult?.key === lookupKey &&
+    externalResult.done;
   const displayedIcon = activeIcon ?? externalSrc;
 
   useEffect(() => {
-    if (activeIcon || externalComplete) return;
+    if (DEBUG_FALLBACK_ONLY || activeIcon || externalComplete) return;
     const container = containerRef.current;
     if (!container) return;
 
@@ -114,7 +152,63 @@ function AppIcon({
     return () => {
       cancelled = true;
     };
-  }, [activeIcon, externalComplete, lookupKey, name, packageId]);
+  }, [DEBUG_FALLBACK_ONLY, activeIcon, externalComplete, lookupKey, name, packageId]);
+
+  useEffect(() => {
+    if (import.meta.env.VITE_ICON_DEBUG !== "1") return;
+
+    const container = containerRef.current;
+    const svg = packageIconRef.current;
+    if (!container || !svg) return;
+
+    const parent = container.parentElement;
+    const ancestors = parent
+      ? [parent, parent.parentElement].filter(
+          (element): element is HTMLElement => element !== null,
+        )
+      : [];
+    const pathStyles = Array.from(svg.querySelectorAll("path"))
+      .slice(0, 3)
+      .map((path) => {
+        const style = window.getComputedStyle(path);
+        return {
+          stroke: style.stroke,
+          fill: style.fill,
+          opacity: style.opacity,
+          pathLength: path.getAttribute("d")?.length ?? 0,
+        };
+      });
+    const image = imageRef.current;
+
+    reportIconDiagnostic(
+      name +
+        ": rendered DOM " +
+        JSON.stringify({
+          fallbackOnly: DEBUG_FALLBACK_ONLY,
+          devicePixelRatio: window.devicePixelRatio,
+          container: describeRenderedElement(container),
+          packageSvg: {
+            ...describeRenderedElement(svg),
+            widthAttribute: svg.getAttribute("width"),
+            heightAttribute: svg.getAttribute("height"),
+            viewBox: svg.getAttribute("viewBox"),
+            strokeAttribute: svg.getAttribute("stroke"),
+            fillAttribute: svg.getAttribute("fill"),
+            pathCount: svg.querySelectorAll("path").length,
+            samplePaths: pathStyles,
+          },
+          ancestors: ancestors.map(describeRenderedElement),
+          image: image
+            ? {
+                ...describeRenderedElement(image),
+                source: describeIconSource(image.currentSrc || image.src),
+                naturalWidth: image.naturalWidth,
+                naturalHeight: image.naturalHeight,
+              }
+            : null,
+        }),
+    );
+  }, [candidateIndex, candidateKey, displayedIcon, name]);
 
   useEffect(() => {
     if (!activeIcon && !externalSrc) {
@@ -141,11 +235,12 @@ function AppIcon({
       className="relative inline-grid place-items-center"
     >
       {!displayedIcon ? (
-        <Package aria-hidden="true" className={fallbackClassName} />
+        <Package ref={packageIconRef} aria-hidden="true" className={fallbackClassName} />
       ) : (
         <>
           {/* Keep a visible generic icon underneath images that fail or are nearly blank. */}
           <Package
+            ref={packageIconRef}
             aria-hidden="true"
             className={
               "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 " +
@@ -153,6 +248,7 @@ function AppIcon({
             }
           />
           <img
+            ref={imageRef}
             src={displayedIcon}
             alt=""
             aria-label={name + " icon"}
@@ -167,7 +263,17 @@ function AppIcon({
                   "; source=" +
                   describeIconSource(displayedIcon) +
                   "; visuallyBlank=" +
-                  blank,
+                  blank +
+                  "; image=" +
+                  JSON.stringify({
+                    ...describeRenderedElement(event.currentTarget),
+                    source: describeIconSource(
+                      event.currentTarget.currentSrc ||
+                        event.currentTarget.src,
+                    ),
+                    naturalWidth: event.currentTarget.naturalWidth,
+                    naturalHeight: event.currentTarget.naturalHeight,
+                  }),
               );
               if (blank) {
                 if (activeIcon) tryNextCandidate();

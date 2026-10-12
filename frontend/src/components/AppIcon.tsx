@@ -152,7 +152,14 @@ function AppIcon({
     return () => {
       cancelled = true;
     };
-  }, [DEBUG_FALLBACK_ONLY, activeIcon, externalComplete, lookupKey, name, packageId]);
+  }, [
+    DEBUG_FALLBACK_ONLY,
+    activeIcon,
+    externalComplete,
+    lookupKey,
+    name,
+    packageId,
+  ]);
 
   useEffect(() => {
     if (import.meta.env.VITE_ICON_DEBUG !== "1") return;
@@ -214,7 +221,9 @@ function AppIcon({
     if (!activeIcon && !externalSrc) {
       reportIconDiagnostic(
         name +
-          ": no local icon candidate; showing generic fallback while checking external source",
+          (DEBUG_FALLBACK_ONLY
+            ? ": forced generic fallback; external lookup disabled"
+            : ": no local icon candidate; showing generic fallback while checking external source"),
       );
     }
   }, [activeIcon, externalSrc, name]);
@@ -235,7 +244,11 @@ function AppIcon({
       className="relative inline-grid place-items-center"
     >
       {!displayedIcon ? (
-        <Package ref={packageIconRef} aria-hidden="true" className={fallbackClassName} />
+        <Package
+          ref={packageIconRef}
+          aria-hidden="true"
+          className={fallbackClassName}
+        />
       ) : (
         <>
           {/* Keep a visible generic icon underneath images that fail or are nearly blank. */}

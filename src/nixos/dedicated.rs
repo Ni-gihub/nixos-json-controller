@@ -794,7 +794,9 @@ mod tests {
             },
         );
 
-        assert!(result.unwrap_err().contains("simulated failure on second file"));
+        assert!(
+            result.unwrap_err().contains("simulated failure on second file")
+        );
         assert_eq!(fs::read_to_string(&first).unwrap(), "first original\n");
         assert_eq!(fs::read_to_string(&second).unwrap(), "second original\n");
         let _ = fs::remove_dir_all(directory);
@@ -846,7 +848,9 @@ mod tests {
         };
         let result = rollback_changes(&[staged], &[backup], &[created.clone()]);
 
-        assert!(result.unwrap_err().contains("failed to restore Git index"));
+        assert!(
+            result.unwrap_err().contains("failed to restore Git index")
+        );
         assert_eq!(fs::read_to_string(&original).unwrap(), "original\n");
         assert!(!created.exists());
         let _ = fs::remove_dir_all(directory);
@@ -857,19 +861,31 @@ mod tests {
         let directory = test_directory("nxc-rollback-index");
         fs::create_dir_all(&directory).unwrap();
         let init = git_output(&directory, &["init", "--quiet"]);
-        assert!(init.status.success(), "git init failed: {}", String::from_utf8_lossy(&init.stderr));
+        assert!(
+            init.status.success(),
+            "git init failed: {}",
+            String::from_utf8_lossy(&init.stderr)
+        );
 
         let path = directory.join("state.nix");
         fs::write(&path, "previous staged content\n").unwrap();
         let add = git_output(&directory, &["add", "--", "state.nix"]);
-        assert!(add.status.success(), "initial git add failed: {}", String::from_utf8_lossy(&add.stderr));
+        assert!(
+            add.status.success(),
+            "initial git add failed: {}",
+            String::from_utf8_lossy(&add.stderr)
+        );
 
         fs::write(&path, "new worktree content\n").unwrap();
         let staged = stage_new_file(&directory, &path).unwrap().unwrap();
         restore_index_state(&staged).unwrap();
 
         let indexed = git_output(&directory, &["show", ":state.nix"]);
-        assert!(indexed.status.success(), "git show failed: {}", String::from_utf8_lossy(&indexed.stderr));
+        assert!(
+            indexed.status.success(),
+            "git show failed: {}",
+            String::from_utf8_lossy(&indexed.stderr)
+        );
         assert_eq!(String::from_utf8_lossy(&indexed.stdout), "previous staged content\n");
         let _ = fs::remove_dir_all(directory);
     }
@@ -905,7 +921,7 @@ mod tests {
         let directory = test_directory("nxc-rollback-new-module-import");
         fs::create_dir_all(&directory).unwrap();
         let config_path = directory.join("configuration.nix");
-        fs::write(&config_path, "{ }\\n").unwrap();
+        fs::write(&config_path, "{ }\n").unwrap();
 
         let config = ConfigState {
             files: vec![config_file(config_path.to_str().unwrap(), &[])],
@@ -914,7 +930,7 @@ mod tests {
 
         assert!(result.unwrap_err().contains("imports list not found"));
         assert!(!dedicated_package_path(&directory).exists());
-        assert_eq!(fs::read_to_string(&config_path).unwrap(), "{ }\\n");
+        assert_eq!(fs::read_to_string(&config_path).unwrap(), "{ }\n");
         let _ = fs::remove_dir_all(directory);
     }
 
@@ -923,11 +939,11 @@ mod tests {
         let directory = test_directory("nxc-rollback-import-declaration");
         fs::create_dir_all(&directory).unwrap();
         let config_path = directory.join("configuration.nix");
-        fs::write(&config_path, "{ imports = [ ]; }\\n").unwrap();
+        fs::write(&config_path, "{ imports = [ ]; }\n").unwrap();
 
         let module_path = dedicated_package_path(&directory);
         fs::create_dir_all(module_path.parent().unwrap()).unwrap();
-        let original_module = "{ pkgs, ... }:\\n\\n{\\n  environment.systemPackages = with pkgs; [\\n    firefox\\n  ];\\n}\\n";
+        let original_module = "{ pkgs, ... }:\n\n{\n  environment.systemPackages = with pkgs; [\n    firefox\n  ];\n}\n";
         fs::write(&module_path, original_module).unwrap();
         let original_config = fs::read_to_string(&config_path).unwrap();
         let config = ConfigState {
@@ -950,14 +966,14 @@ mod tests {
         let directory = test_directory("nxc-rollback-permissions");
         fs::create_dir_all(&directory).unwrap();
         let path = directory.join("config.nix");
-        fs::write(&path, "original\\n").unwrap();
+        fs::write(&path, "original\n").unwrap();
         fs::set_permissions(&path, fs::Permissions::from_mode(0o640)).unwrap();
 
         let backup = FileBackup::capture(&path).unwrap();
-        fs::write(&path, "modified\\n").unwrap();
+        fs::write(&path, "modified\n").unwrap();
         backup.restore().unwrap();
 
-        assert_eq!(fs::read_to_string(&path).unwrap(), "original\\n");
+        assert_eq!(fs::read_to_string(&path).unwrap(), "original\n");
         assert_eq!(
             fs::metadata(&path).unwrap().permissions().mode() & 0o777,
             0o640

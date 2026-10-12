@@ -21,22 +21,11 @@ impl ServiceChange {
     }
 
     pub fn rollback(&self) -> Result<(), String> {
-        for staged in self.staged_files.iter().rev() {
-            nixos::dedicated::restore_index_state(staged)?;
-        }
-
-        for backup in self.backups.iter().rev() {
-            backup.restore()?;
-        }
-
-        for path in self.created_files.iter().rev() {
-            if path.is_file() {
-                std::fs::remove_file(path)
-                    .map_err(|e| format!("failed to remove {}: {}", path.display(), e))?;
-            }
-        }
-
-        Ok(())
+        nixos::dedicated::rollback_changes(
+            &self.staged_files,
+            &self.backups,
+            &self.created_files,
+        )
     }
 }
 
@@ -140,22 +129,27 @@ pub fn execute(plan: ExecutionPlan) -> Result<ServiceChange, ExecutorError> {
 
             match disable_service_strategy(&config, &system, &plan.target.name) {
                 ServiceDisableStrategy::Declared { paths } => {
-                    let mut change = ServiceChange::default();
+                    let backups = nixos::dedicated::apply_file_changes(
+                        &paths,
+                        |path| {
+                            if config.is_safe_write_target(path) {
+                                Ok(())
+                            } else {
+                                Err(format!(
+                                    "service '{}' is declared in a configuration file outside the safe write boundary: {}",
+                                    plan.target.name,
+                                    path.display(),
+                                ))
+                            }
+                        },
+                        |path| nixos::writer::disable_service(path, &plan.target.name),
+                    )
+                    .map_err(ExecutorError::NixosError)?;
 
-                    for path in paths {
-                        let backup = nixos::dedicated::FileBackup::capture(&path)
-                            .map_err(ExecutorError::NixosError)?;
-
-                        if let Err(error) = nixos::writer::disable_service(&path, &plan.target.name)
-                        {
-                            let _ = change.rollback();
-                            return Err(ExecutorError::NixosError(error));
-                        }
-
-                        change.backups.push(backup);
-                    }
-
-                    Ok(change)
+                    Ok(ServiceChange {
+                        backups,
+                        ..ServiceChange::default()
+                    })
                 }
                 ServiceDisableStrategy::ExistingFile { path } => {
                     write_service_file(&path, &plan.target.name, false)

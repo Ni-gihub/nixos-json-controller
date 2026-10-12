@@ -32,7 +32,7 @@ fn read(path: &Path) -> Result<String, String> {
     fs::read_to_string(path).map_err(|e| format!("failed to read {}: {}", path.display(), e))
 }
 
-fn write_atomic(path: &Path, content: &str) -> Result<(), String> {
+pub(crate) fn write_atomic(path: &Path, content: &str) -> Result<(), String> {
     let parent = path.parent().unwrap_or_else(|| Path::new("."));
     let file_name = path
         .file_name()
@@ -49,23 +49,25 @@ fn write_atomic(path: &Path, content: &str) -> Result<(), String> {
 
     let temporary = parent.join(format!(".{}.nxc-{}", file_name, timestamp));
 
-    fs::write(&temporary, content).map_err(|e| {
-        format!(
+    if let Err(error) = fs::write(&temporary, content) {
+        let _ = fs::remove_file(&temporary);
+        return Err(format!(
             "failed to write temporary file {}: {}",
             temporary.display(),
-            e
-        )
-    })?;
+            error
+        ));
+    }
 
     #[cfg(unix)]
     {
-        fs::set_permissions(&temporary, metadata.permissions()).map_err(|e| {
-            format!(
+        if let Err(error) = fs::set_permissions(&temporary, metadata.permissions()) {
+            let _ = fs::remove_file(&temporary);
+            return Err(format!(
                 "failed to preserve permissions on {}: {}",
                 temporary.display(),
-                e
-            )
-        })?;
+                error
+            ));
+        }
     }
 
     if let Err(error) = fs::rename(&temporary, path) {

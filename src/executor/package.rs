@@ -26,22 +26,11 @@ impl PackageChange {
     }
 
     pub fn rollback(&self) -> Result<(), String> {
-        for staged in self.staged_files.iter().rev() {
-            nixos::dedicated::restore_index_state(staged)?;
-        }
-
-        for backup in self.backups.iter().rev() {
-            backup.restore()?;
-        }
-
-        for path in self.created_files.iter().rev() {
-            if path.is_file() {
-                fs::remove_file(path)
-                    .map_err(|e| format!("failed to remove {}: {}", path.display(), e))?;
-            }
-        }
-
-        Ok(())
+        nixos::dedicated::rollback_changes(
+            &self.staged_files,
+            &self.backups,
+            &self.created_files,
+        )
     }
 }
 
@@ -129,47 +118,51 @@ pub fn execute_with_change(plan: ExecutionPlan) -> Result<PackageChange, Executo
                 .unwrap_or_default();
 
             if !paths.is_empty() {
-                let mut change = PackageChange::default();
+                let backups = nixos::dedicated::apply_file_changes(
+                    &paths,
+                    |path| {
+                        if config.is_safe_write_target(path) {
+                            Ok(())
+                        } else {
+                            Err(format!(
+                                "package '{}' is declared in a configuration file outside the safe write boundary: {}",
+                                plan.target.name,
+                                path.display(),
+                            ))
+                        }
+                    },
+                    |path| nixos::writer::remove_package(path, &plan.target.name),
+                )
+                .map_err(ExecutorError::NixosError)?;
 
-                for path in paths {
-                    if !config.is_safe_write_target(&path) {
-                        return Err(ExecutorError::NixosError(format!(
-                            "package '{}' is declared in a configuration file outside the safe write boundary: {}",
-                            plan.target.name,
-                            path.display(),
-                        )));
-                    }
-
-                    change
-                        .backups
-                        .push(FileBackup::capture(&path).map_err(ExecutorError::NixosError)?);
-                    nixos::writer::remove_package(&path, &plan.target.name)
-                        .map_err(ExecutorError::NixosError)?;
-                }
-
-                Ok(change)
+                Ok(PackageChange {
+                    backups,
+                    ..PackageChange::default()
+                })
             } else {
                 match remove_package_strategy(&config, &system, &plan.target.name) {
                     PackageRemoveStrategy::Declared { paths } => {
-                        let mut change = PackageChange::default();
+                        let backups = nixos::dedicated::apply_file_changes(
+                            &paths,
+                            |path| {
+                                if config.is_safe_write_target(path) {
+                                    Ok(())
+                                } else {
+                                    Err(format!(
+                                        "package '{}' is declared in a configuration file outside the safe write boundary: {}",
+                                        plan.target.name,
+                                        path.display(),
+                                    ))
+                                }
+                            },
+                            |path| nixos::writer::remove_package(path, &plan.target.name),
+                        )
+                        .map_err(ExecutorError::NixosError)?;
 
-                        for path in paths {
-                            if !config.is_safe_write_target(&path) {
-                                return Err(ExecutorError::NixosError(format!(
-                                    "package '{}' is declared in a configuration file outside the safe write boundary: {}",
-                                    plan.target.name,
-                                    path.display(),
-                                )));
-                            }
-
-                            change.backups.push(
-                                FileBackup::capture(&path).map_err(ExecutorError::NixosError)?,
-                            );
-                            nixos::writer::remove_package(&path, &plan.target.name)
-                                .map_err(ExecutorError::NixosError)?;
-                        }
-
-                        Ok(change)
+                        Ok(PackageChange {
+                            backups,
+                            ..PackageChange::default()
+                        })
                     }
                     PackageRemoveStrategy::NotDeclared | PackageRemoveStrategy::SystemOnly => {
                         Ok(PackageChange::default())

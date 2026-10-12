@@ -31,6 +31,8 @@
             lockFile = ./Cargo.lock;
           };
 
+          # Cargo tests run in the dedicated CI test job. Keep this derivation
+          # focused on validating the distributable CLI and its wrapper.
           doCheck = false;
 
           nativeBuildInputs = [ pkgs.makeWrapper ];

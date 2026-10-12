@@ -64,7 +64,6 @@ impl Executor {
                     error,
                     package_change.as_ref(),
                     service_change.as_ref(),
-                    password,
                 );
             }
 
@@ -88,7 +87,6 @@ fn rollback_after_rebuild_failure(
     error: String,
     package_change: Option<&super::package::PackageChange>,
     service_change: Option<&super::service::ServiceChange>,
-    password: Option<&str>,
 ) -> Result<(), ExecutorError> {
     let rollback_result = rollback_change(package_change, service_change);
     if let Err(rollback_error) = rollback_result {

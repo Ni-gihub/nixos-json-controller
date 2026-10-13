@@ -9,13 +9,24 @@ import {
   nextCandidateIndex,
 } from "./app-icon-logic";
 
+/** Sends an icon diagnostic when enabled and accepted by the optional package filter. */
 function reportIconDiagnostic(message: string) {
   if (import.meta.env.VITE_ICON_DEBUG !== "1") return;
+
+  const packageFilter =
+    import.meta.env.VITE_ICON_DEBUG_PACKAGE?.trim().toLowerCase();
+  if (packageFilter) {
+    const separator = message.indexOf(":");
+    const subject = separator === -1 ? message : message.slice(0, separator);
+    if (!subject.toLowerCase().includes(packageFilter)) return;
+  }
+
   void invoke("log_icon_debug", { message }).catch(() => {
     // The component can also be rendered outside Tauri during frontend development.
   });
 }
 
+/** Describes an icon source without logging its full URL or data payload. */
 function describeIconSource(source: string): string {
   if (source.startsWith("data:image/png;base64,"))
     return "PNG (" + source.length + " chars)";
@@ -37,18 +48,53 @@ function describeIconSource(source: string): string {
 const DEBUG_FALLBACK_ONLY =
   import.meta.env.VITE_ICON_DEBUG_FALLBACK_ONLY === "1";
 
+/** Captures computed CSS and layout metrics for a rendered element. */
 function describeRenderedElement(element: Element) {
   const rect = element.getBoundingClientRect();
   const style = window.getComputedStyle(element);
+  const htmlElement = element as HTMLElement;
 
   return {
     tag: element.tagName.toLowerCase(),
     className: element.getAttribute("class"),
     bounds: {
-      x: Number(rect.x.toFixed(1)),
-      y: Number(rect.y.toFixed(1)),
-      width: Number(rect.width.toFixed(1)),
-      height: Number(rect.height.toFixed(1)),
+      x: Number(rect.x.toFixed(2)),
+      y: Number(rect.y.toFixed(2)),
+      left: Number(rect.left.toFixed(2)),
+      top: Number(rect.top.toFixed(2)),
+      right: Number(rect.right.toFixed(2)),
+      bottom: Number(rect.bottom.toFixed(2)),
+      width: Number(rect.width.toFixed(2)),
+      height: Number(rect.height.toFixed(2)),
+    },
+    cssSize: {
+      width: style.width,
+      height: style.height,
+      minWidth: style.minWidth,
+      maxWidth: style.maxWidth,
+      minHeight: style.minHeight,
+      maxHeight: style.maxHeight,
+      boxSizing: style.boxSizing,
+      fontSize: style.fontSize,
+      zoom: style.zoom,
+      transform: style.transform,
+      translate: style.translate,
+      scale: style.scale,
+      rotate: style.rotate,
+    },
+    layoutSize: {
+      offsetWidth: Number.isFinite(htmlElement.offsetWidth)
+        ? htmlElement.offsetWidth
+        : null,
+      offsetHeight: Number.isFinite(htmlElement.offsetHeight)
+        ? htmlElement.offsetHeight
+        : null,
+      clientWidth: Number.isFinite(htmlElement.clientWidth)
+        ? htmlElement.clientWidth
+        : null,
+      clientHeight: Number.isFinite(htmlElement.clientHeight)
+        ? htmlElement.clientHeight
+        : null,
     },
     display: style.display,
     visibility: style.visibility,
@@ -61,6 +107,20 @@ function describeRenderedElement(element: Element) {
     position: style.position,
     zIndex: style.zIndex,
   };
+}
+
+/** Collects rendering diagnostics from an element up to the document root. */
+function describeAncestors(element: Element) {
+  const ancestors: ReturnType<typeof describeRenderedElement>[] = [];
+  let current: Element | null = element;
+
+  while (current) {
+    ancestors.push(describeRenderedElement(current));
+    if (current === document.documentElement) break;
+    current = current.parentElement;
+  }
+
+  return ancestors;
 }
 
 type AppIconProps = {
@@ -168,12 +228,7 @@ function AppIcon({
     const svg = packageIconRef.current;
     if (!container || !svg) return;
 
-    const parent = container.parentElement;
-    const ancestors = parent
-      ? [parent, parent.parentElement].filter(
-          (element): element is HTMLElement => element !== null,
-        )
-      : [];
+    const ancestors = describeAncestors(svg);
     const pathStyles = Array.from(svg.querySelectorAll("path"))
       .slice(0, 3)
       .map((path) => {
@@ -192,7 +247,26 @@ function AppIcon({
         ": rendered DOM " +
         JSON.stringify({
           fallbackOnly: DEBUG_FALLBACK_ONLY,
-          devicePixelRatio: window.devicePixelRatio,
+          viewport: {
+            devicePixelRatio: window.devicePixelRatio,
+            innerWidth: window.innerWidth,
+            innerHeight: window.innerHeight,
+            outerWidth: window.outerWidth,
+            outerHeight: window.outerHeight,
+            screenWidth: window.screen.width,
+            screenHeight: window.screen.height,
+            documentWidth: document.documentElement.clientWidth,
+            documentHeight: document.documentElement.clientHeight,
+            visualViewport: window.visualViewport
+              ? {
+                  width: window.visualViewport.width,
+                  height: window.visualViewport.height,
+                  scale: window.visualViewport.scale,
+                  offsetLeft: window.visualViewport.offsetLeft,
+                  offsetTop: window.visualViewport.offsetTop,
+                }
+              : null,
+          },
           container: describeRenderedElement(container),
           packageSvg: {
             ...describeRenderedElement(svg),
@@ -204,7 +278,7 @@ function AppIcon({
             pathCount: svg.querySelectorAll("path").length,
             samplePaths: pathStyles,
           },
-          ancestors: ancestors.map(describeRenderedElement),
+          ancestors,
           image: image
             ? {
                 ...describeRenderedElement(image),

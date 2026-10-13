@@ -226,21 +226,24 @@ function AppIcon({
 
     const container = containerRef.current;
     const svg = packageIconRef.current;
-    if (!container || !svg) return;
-
-    const ancestors = describeAncestors(svg);
-    const pathStyles = Array.from(svg.querySelectorAll("path"))
-      .slice(0, 3)
-      .map((path) => {
-        const style = window.getComputedStyle(path);
-        return {
-          stroke: style.stroke,
-          fill: style.fill,
-          opacity: style.opacity,
-          pathLength: path.getAttribute("d")?.length ?? 0,
-        };
-      });
     const image = imageRef.current;
+    const renderedElement = image ?? svg;
+    if (!container || !renderedElement) return;
+
+    const ancestors = describeAncestors(renderedElement);
+    const pathStyles = svg
+      ? Array.from(svg.querySelectorAll("path"))
+          .slice(0, 3)
+          .map((path) => {
+            const style = window.getComputedStyle(path);
+            return {
+              stroke: style.stroke,
+              fill: style.fill,
+              opacity: style.opacity,
+              pathLength: path.getAttribute("d")?.length ?? 0,
+            };
+          })
+      : [];
 
     reportIconDiagnostic(
       name +
@@ -268,16 +271,18 @@ function AppIcon({
               : null,
           },
           container: describeRenderedElement(container),
-          packageSvg: {
-            ...describeRenderedElement(svg),
-            widthAttribute: svg.getAttribute("width"),
-            heightAttribute: svg.getAttribute("height"),
-            viewBox: svg.getAttribute("viewBox"),
-            strokeAttribute: svg.getAttribute("stroke"),
-            fillAttribute: svg.getAttribute("fill"),
-            pathCount: svg.querySelectorAll("path").length,
-            samplePaths: pathStyles,
-          },
+          packageSvg: svg
+            ? {
+                ...describeRenderedElement(svg),
+                widthAttribute: svg.getAttribute("width"),
+                heightAttribute: svg.getAttribute("height"),
+                viewBox: svg.getAttribute("viewBox"),
+                strokeAttribute: svg.getAttribute("stroke"),
+                fillAttribute: svg.getAttribute("fill"),
+                pathCount: svg.querySelectorAll("path").length,
+                samplePaths: pathStyles,
+              }
+            : null,
           ancestors,
           image: image
             ? {
@@ -322,62 +327,50 @@ function AppIcon({
           className={fallbackClassName}
         />
       ) : (
-        <>
-          {/* Keep a visible generic icon underneath images that fail or are nearly blank. */}
-          <Package
-            ref={packageIconRef}
-            aria-hidden="true"
-            className={
-              "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 " +
-              fallbackClassName
-            }
-          />
-          <img
-            ref={imageRef}
-            src={displayedIcon}
-            alt=""
-            aria-label={name + " icon"}
-            className={imageClassName}
-            loading="lazy"
-            onLoad={(event) => {
-              const blank = isVisuallyBlankLocalImage(event.currentTarget);
-              reportIconDiagnostic(
-                name +
-                  ": loaded candidate " +
-                  (activeIcon ? candidateIndex + 1 : "external") +
-                  "; source=" +
-                  describeIconSource(displayedIcon) +
-                  "; visuallyBlank=" +
-                  blank +
-                  "; image=" +
-                  JSON.stringify({
-                    ...describeRenderedElement(event.currentTarget),
-                    source: describeIconSource(
-                      event.currentTarget.currentSrc || event.currentTarget.src,
-                    ),
-                    naturalWidth: event.currentTarget.naturalWidth,
-                    naturalHeight: event.currentTarget.naturalHeight,
-                  }),
-              );
-              if (blank) {
-                if (activeIcon) tryNextCandidate();
-                else
-                  setExternalResult({ key: lookupKey, src: null, done: true });
-              }
-            }}
-            onError={() => {
-              reportIconDiagnostic(
-                name +
-                  ": failed candidate " +
-                  (activeIcon ? candidateIndex + 1 : "external") +
-                  "; source=" +
-                  describeIconSource(displayedIcon),
-              );
+        <img
+          ref={imageRef}
+          src={displayedIcon}
+          alt=""
+          aria-label={name + " icon"}
+          className={imageClassName}
+          loading="lazy"
+          onLoad={(event) => {
+            const blank = isVisuallyBlankLocalImage(event.currentTarget);
+            reportIconDiagnostic(
+              name +
+                ": loaded candidate " +
+                (activeIcon ? candidateIndex + 1 : "external") +
+                "; source=" +
+                describeIconSource(displayedIcon) +
+                "; visuallyBlank=" +
+                blank +
+                "; image=" +
+                JSON.stringify({
+                  ...describeRenderedElement(event.currentTarget),
+                  source: describeIconSource(
+                    event.currentTarget.currentSrc || event.currentTarget.src,
+                  ),
+                  naturalWidth: event.currentTarget.naturalWidth,
+                  naturalHeight: event.currentTarget.naturalHeight,
+                }),
+            );
+            if (blank) {
               if (activeIcon) tryNextCandidate();
               else setExternalResult({ key: lookupKey, src: null, done: true });
-            }}
-          />
-        </>
+            }
+          }}
+          onError={() => {
+            reportIconDiagnostic(
+              name +
+                ": failed candidate " +
+                (activeIcon ? candidateIndex + 1 : "external") +
+                "; source=" +
+                describeIconSource(displayedIcon),
+            );
+            if (activeIcon) tryNextCandidate();
+            else setExternalResult({ key: lookupKey, src: null, done: true });
+          }}
+        />
       )}
     </span>
   );

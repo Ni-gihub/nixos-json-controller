@@ -9,19 +9,17 @@ import {
   nextCandidateIndex,
 } from "./app-icon-logic";
 
+/** Sends an icon diagnostic when enabled and accepted by the optional package filter. */
 function reportIconDiagnostic(message: string) {
   if (import.meta.env.VITE_ICON_DEBUG !== "1") return;
 
   const packageFilter =
     import.meta.env.VITE_ICON_DEBUG_PACKAGE?.trim().toLowerCase();
-  if (
-    packageFilter &&
-    !message
-      .slice(0, message.indexOf(":"))
-      .toLowerCase()
-      .includes(packageFilter)
-  ) {
-    return;
+  if (packageFilter) {
+    const separator = message.indexOf(":");
+    const subject =
+      separator === -1 ? message : message.slice(0, separator);
+    if (!subject.toLowerCase().includes(packageFilter)) return;
   }
 
   void invoke("log_icon_debug", { message }).catch(() => {
@@ -29,6 +27,7 @@ function reportIconDiagnostic(message: string) {
   });
 }
 
+/** Describes an icon source without logging its full URL or data payload. */
 function describeIconSource(source: string): string {
   if (source.startsWith("data:image/png;base64,"))
     return "PNG (" + source.length + " chars)";
@@ -50,6 +49,7 @@ function describeIconSource(source: string): string {
 const DEBUG_FALLBACK_ONLY =
   import.meta.env.VITE_ICON_DEBUG_FALLBACK_ONLY === "1";
 
+/** Captures computed CSS and layout metrics for a rendered element. */
 function describeRenderedElement(element: Element) {
   const rect = element.getBoundingClientRect();
   const style = window.getComputedStyle(element);
@@ -110,6 +110,7 @@ function describeRenderedElement(element: Element) {
   };
 }
 
+/** Collects rendering diagnostics from an element up to the document root. */
 function describeAncestors(element: Element) {
   const ancestors: ReturnType<typeof describeRenderedElement>[] = [];
   let current: Element | null = element;

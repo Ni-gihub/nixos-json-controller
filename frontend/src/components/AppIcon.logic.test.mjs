@@ -138,3 +138,37 @@ test('external icon lookup rejects approximate names and non-brand icon sets', (
     null,
   )
 })
+
+test('debug fallback-only mode bypasses provided icon candidates', async () => {
+  const previousValue = process.env.VITE_ICON_DEBUG_FALLBACK_ONLY;
+  process.env.VITE_ICON_DEBUG_FALLBACK_ONLY = '1';
+
+  const vite = await createServer({
+    configFile: './vite.config.ts',
+    logLevel: 'silent',
+    server: { middlewareMode: true },
+    appType: 'custom',
+  });
+
+  try {
+    const { default: AppIcon } = await vite.ssrLoadModule('/src/components/AppIcon.tsx');
+    const markup = renderToStaticMarkup(React.createElement(AppIcon, {
+      name: 'Firefox',
+      icon: 'data:image/png;base64,not-a-real-image',
+      iconCandidates: ['data:image/svg+xml;base64,PHN2Zy8+'],
+      imageClassName: 'size-8',
+      fallbackClassName: 'size-6',
+    }));
+
+    assert.match(markup, /<svg/);
+    assert.doesNotMatch(markup, /<img/);
+  } finally {
+    await vite.close();
+    if (previousValue === undefined) {
+      delete process.env.VITE_ICON_DEBUG_FALLBACK_ONLY;
+    } else {
+      process.env.VITE_ICON_DEBUG_FALLBACK_ONLY = previousValue;
+    }
+  }
+});
+

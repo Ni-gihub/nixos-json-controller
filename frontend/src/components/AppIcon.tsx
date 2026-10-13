@@ -17,8 +17,7 @@ function reportIconDiagnostic(message: string) {
     import.meta.env.VITE_ICON_DEBUG_PACKAGE?.trim().toLowerCase();
   if (packageFilter) {
     const separator = message.indexOf(":");
-    const subject =
-      separator === -1 ? message : message.slice(0, separator);
+    const subject = separator === -1 ? message : message.slice(0, separator);
     if (!subject.toLowerCase().includes(packageFilter)) return;
   }
 

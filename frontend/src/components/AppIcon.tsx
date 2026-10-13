@@ -12,12 +12,14 @@ import {
 function reportIconDiagnostic(message: string) {
   if (import.meta.env.VITE_ICON_DEBUG !== "1") return;
 
-  const packageFilter = import.meta.env.VITE_ICON_DEBUG_PACKAGE
-    ?.trim()
-    .toLowerCase();
+  const packageFilter =
+    import.meta.env.VITE_ICON_DEBUG_PACKAGE?.trim().toLowerCase();
   if (
     packageFilter &&
-    !message.slice(0, message.indexOf(":")).toLowerCase().includes(packageFilter)
+    !message
+      .slice(0, message.indexOf(":"))
+      .toLowerCase()
+      .includes(packageFilter)
   ) {
     return;
   }

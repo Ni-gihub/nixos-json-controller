@@ -111,6 +111,30 @@ test('renders the generic Package icon when no candidate exists', async () => {
   }
 })
 
+test('does not render the generic Package icon behind a retrieved icon image', async () => {
+  const vite = await createServer({
+    configFile: './vite.config.ts',
+    logLevel: 'silent',
+    server: { middlewareMode: true },
+    appType: 'custom',
+  })
+
+  try {
+    const { default: AppIcon } = await vite.ssrLoadModule('/src/components/AppIcon.tsx')
+    const markup = renderToStaticMarkup(React.createElement(AppIcon, {
+      name: 'Firefox',
+      iconCandidates: ['data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%2F%3E'],
+      imageClassName: 'size-8',
+      fallbackClassName: 'size-6',
+    }))
+
+    assert.match(markup, /<img/)
+    assert.doesNotMatch(markup, /<svg/)
+  } finally {
+    await vite.close()
+  }
+})
+
 
 test('external icon lookup only accepts exact matches from brand logo collections', () => {
   const firefoxAliases = normalizeAppIconAliases('firefox', 'Firefox')

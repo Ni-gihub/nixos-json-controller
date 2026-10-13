@@ -16,8 +16,40 @@
         inherit system;
       };
       appstreamData = nixos-appstream-data.packages.${system}.appstream-data-all;
+      gsettingsSchemasPath = builtins.concatStringsSep ":" [
+        "${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}"
+        "${pkgs.gtk3}/share/gsettings-schemas/${pkgs.gtk3.name}"
+      ];
     in
     {
+      devShells.${system}.default = pkgs.mkShell {
+        nativeBuildInputs = with pkgs; [
+          cargo
+          nodejs
+          pkg-config
+          pnpm
+          rustc
+          wrapGAppsHook4
+        ];
+
+        buildInputs = with pkgs; [
+          dbus
+          glib
+          gsettings-desktop-schemas
+          gtk3
+          librsvg
+          libsoup_3
+          openssl
+          webkitgtk_4_1
+        ];
+
+        # WebKitGTK on Wayland needs these schemas to detect the display scale.
+        GSETTINGS_SCHEMAS_PATH = gsettingsSchemasPath;
+        shellHook = ''
+          export XDG_DATA_DIRS="$GSETTINGS_SCHEMAS_PATH:''${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+        '';
+      };
+
       packages.${system} = {
         appstream-data = appstreamData;
 

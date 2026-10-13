@@ -240,6 +240,8 @@ NixOS の宣言的な設定変更と rebuild を伴うため、変更操作で�
 
 GUI は React / TypeScript、Vite、Tailwind CSS、Tauri 2 を利用しています。現在の GUI は開発環境での実行が中心です。
 
+Nix Flake の開発シェルを用意しています。**Wayland では WebKitGTK が正しい画面倍率を取得できるよう、GTK / GSettings のスキーマパスを設定するため、GUI の開発起動前に必ず `nix develop` を実行してください。** システムの通常のシェルから直接 `pnpm tauri dev` を実行すると、この環境設定が不足する場合があります。
+
 ## 必要なもの
 
 - Nix が利用できる NixOS / Linux 環境
@@ -248,19 +250,28 @@ GUI は React / TypeScript、Vite、Tailwind CSS、Tauri 2 を利用していま
 - pnpm（CI では pnpm 11.9.0 を利用）
 - Tauri 2 の Linux ビルド・実行に必要なライブラリ
 
+`nix develop` の実行時に `nix-command` または `flakes` が無効というエラーが出る場合は、ユーザー設定ファイル `~/.config/nix/nix.conf` に次の設定を追加してから再実行してください。ディレクトリやファイルが存在しない場合は作成します。
+
+    experimental-features = nix-command flakes
+
 ## 起動する
 
 リポジトリを取得し、Frontend のディレクトリで依存関係をインストールします。
 
     git clone https://github.com/Ni-gihub/nixos-json-controller.git
-    cd nixos-json-controller/frontend
+    cd nixos-json-controller
+    nix develop
+
+開発シェルに入ったら、別のコマンド入力行で Frontend に移動し、依存関係をインストールします。
+
+    cd frontend
     pnpm install --frozen-lockfile
 
 その後、リポジトリの Flake を使って AppStream データを用意し、Tauri の開発環境を起動します。
 
     pnpm tauri dev
 
-frontend/package.json の tauri スクリプトは、リポジトリルートの Nix Flake から appstream-data 出力をビルドし、そのパスを NXC_APPSTREAM_DATA として渡して Tauri CLI を実行します。したがって、GUI の開発起動にはリポジトリの Nix Flake と Nix が必要です。
+frontend/package.json の tauri スクリプトは、リポジトリルートの Nix Flake から appstream-data 出力をビルドし、そのパスを NXC_APPSTREAM_DATA として渡して Tauri CLI を実行します。開発シェルは GTK / GSettings のスキーマを XDG_DATA_DIRS に追加し、Wayland 上で WebKitGTK の表示倍率が異常な値になる問題を避けます。したがって、GUI の開発起動にはリポジトリの Nix Flake と Nix が必要です。
 
 ## Frontend の確認コマンド
 

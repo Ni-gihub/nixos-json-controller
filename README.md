@@ -250,6 +250,10 @@ Nix Flake の開発シェルを用意しています。**Wayland では WebKitGT
 - pnpm（CI では pnpm 11.9.0 を利用）
 - Tauri 2 の Linux ビルド・実行に必要なライブラリ
 
+`nix develop` の実行時に `nix-command` または `flakes` が無効というエラーが出る場合は、ユーザー設定ファイル `~/.config/nix/nix.conf` に次の設定を追加してから再実行してください。ディレクトリやファイルが存在しない場合は作成します。
+
+    experimental-features = nix-command flakes
+
 ## 起動する
 
 リポジトリを取得し、Frontend のディレクトリで依存関係をインストールします。

@@ -46,7 +46,7 @@
         # WebKitGTK on Wayland needs these schemas to detect the display scale.
         GSETTINGS_SCHEMAS_PATH = gsettingsSchemasPath;
         shellHook = ''
-          export XDG_DATA_DIRS="$GSETTINGS_SCHEMAS_PATH''${XDG_DATA_DIRS:+:$XDG_DATA_DIRS}"
+          export XDG_DATA_DIRS="$GSETTINGS_SCHEMAS_PATH:''${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
         '';
       };
 

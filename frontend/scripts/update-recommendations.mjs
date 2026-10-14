@@ -49,15 +49,9 @@ async function fetchPage(offset, period) {
     !payload ||
     !Array.isArray(payload.packagePopularities) ||
     !Number.isInteger(payload.total) ||
-    !Number.isInteger(payload.count) ||
-    !Number.isInteger(payload.startMonth) ||
-    !Number.isInteger(payload.endMonth)
+    !Number.isInteger(payload.count)
   ) {
     throw new Error(`pkgstats API response has an unexpected shape at offset ${offset}`);
-  }
-
-  if (payload.startMonth !== period.startMonth || payload.endMonth !== period.endMonth) {
-    throw new Error("pkgstats API returned data for an unexpected period");
   }
 
   for (const item of payload.packagePopularities) {
@@ -68,9 +62,13 @@ async function fetchPage(offset, period) {
       item.popularity < 0 ||
       item.popularity > 100 ||
       !Number.isInteger(item.count) ||
-      !Number.isInteger(item.samples)
+      !Number.isInteger(item.samples) ||
+      !Number.isInteger(item.startMonth) ||
+      !Number.isInteger(item.endMonth) ||
+      item.startMonth !== period.startMonth ||
+      item.endMonth !== period.endMonth
     ) {
-      throw new Error("pkgstats API returned an invalid package popularity record");
+      throw new Error("pkgstats API returned an invalid package popularity record or period");
     }
   }
 

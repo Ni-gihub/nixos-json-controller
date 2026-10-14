@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import type { FormEvent } from "react";
 import { Search, Store, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -280,7 +279,7 @@ function Discover() {
                     </div>
 
                     <div className="max-w-5xl space-y-2">
-                      {recommendedApps.map(({ recommendation, ...app }) => (
+                      {recommendedApps.map((app) => (
                         <AppCard
                           key={app.id}
                           id={app.id}

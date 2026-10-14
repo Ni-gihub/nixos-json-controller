@@ -58,7 +58,7 @@ export default function DiscoverPreSearch({
           <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
             <Search className="size-5" />
           </div>
-          <h2 className="mt-5 text-xl font-semibold">人気のアプリを読み込み中</h2>
+          <h2 className="mt-5 text-xl font-semibold">\n            人気のアプリを読み込み中\n          </h2>
           <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted-foreground">
             Nixpkgsからアプリ情報を取得しています。初回のパッケージ評価には時間がかかることがあります。
           </p>
@@ -74,7 +74,7 @@ export default function DiscoverPreSearch({
           <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
             <Search className="size-5" />
           </div>
-          <h2 className="mt-5 text-xl font-semibold">おすすめアプリを表示できませんでした</h2>
+          <h2 className="mt-5 text-xl font-semibold">\n            おすすめアプリを表示できませんでした\n          </h2>
           <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted-foreground">
             同梱のおすすめデータを読み込めなかったか、表示できるパッケージ情報がありません。
           </p>
@@ -141,7 +141,7 @@ export default function DiscoverPreSearch({
               : "一部のアプリ情報をNixpkgsから取得できませんでした。"}
           </p>
           {recommendationMessage && (
-            <p className="mt-1 break-words text-amber-900">{recommendationMessage}</p>
+            <p className="mt-1 break-words text-amber-900">\n              {recommendationMessage}\n            </p>
           )}
           <Button
             className="mt-3"

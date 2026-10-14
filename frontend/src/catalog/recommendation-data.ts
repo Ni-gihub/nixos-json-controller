@@ -146,14 +146,14 @@ async function readRecommendationData(
   }
 }
 
-/** Read the copy packaged with the app first so initial UI does not depend on network. */
+/** Read the packaged copy first so initial UI does not depend on the network. */
 export async function loadBundledRecommendations(
   fetcher: typeof fetch = fetch,
 ): Promise<RecommendationData> {
   return (await readRecommendationData(BUNDLED_DATA_URL, fetcher)) ?? EMPTY_DATA;
 }
 
-/** Refresh from the repository's generated JSON; callers retain bundled data on failure. */
+/** Refresh from the repository's generated JSON, retaining bundled data on failure. */
 export async function loadLatestRecommendations(
   fetcher: typeof fetch = fetch,
 ): Promise<RecommendationData | undefined> {

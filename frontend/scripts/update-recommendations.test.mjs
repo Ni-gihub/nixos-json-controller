@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildRecommendations, hasSameRecommendationContent } from "./update-recommendations.mjs";
+import {
+  buildRecommendations,
+  hasSameRecommendationContent,
+} from "./update-recommendations.mjs";
 
 test("ranks only explicitly mapped GUI candidates by pkgstats popularity", () => {
   const stats = [

@@ -90,15 +90,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Print formatter output for recommendation UI
-        run: |
-          pnpm exec prettier --write src/catalog/recommendation-data.ts src/pages/Discover.tsx
-          echo "=== FORMATTED_RECOMMENDATION_DATA_START ==="
-          cat src/catalog/recommendation-data.ts
-          echo "=== FORMATTED_DISCOVER_START ==="
-          cat src/pages/Discover.tsx
-          echo "=== FORMATTED_DISCOVER_END ==="
-
       - name: Check frontend formatting
         run: pnpm format:check
 

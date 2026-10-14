@@ -66,6 +66,7 @@ function Discover() {
   useEffect(() => {
     const ids = recommendationIds.split("\n").filter(Boolean);
     if (ids.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear derived results when recommendation data is unavailable
       setRecommendedCatalogApps([]);
       return;
     }

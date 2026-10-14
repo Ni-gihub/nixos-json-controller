@@ -387,7 +387,181 @@ fn contains_any(text: &str, keywords: &[&str]) -> bool {
 fn escape_regex(value: &str) -> String {
     let mut escaped = String::with_capacity(value.len() * 2);
     for character in value.chars() {
-        if r#".$^*+?()[]{}|\\-"#.contains(character) {
+        // A hyphen is literal outside a character class; escaping it is rejected by Nix regexes.
+        if matches!(
+            character,
+            '.' | '
+
+fn is_safe_attribute_path(value: &str) -> bool {
+    !value.is_empty() && value.split('.').all(is_safe_attribute_segment)
+}
+
+fn is_safe_attribute_segment(segment: &str) -> bool {
+    let mut characters = segment.chars();
+    let Some(first) = characters.next() else {
+        return false;
+    };
+
+    (first.is_ascii_alphabetic() || first == '_')
+        && characters.all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '_' | '-') || character == '\''
+        })
+        && !matches!(
+            segment,
+            "assert" | "else" | "if" | "in" | "inherit" | "let" | "or" | "rec" | "then" | "with"
+        )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn escape_regex_leaves_hyphens_unescaped_for_nix() {
+        assert_eq!(escape_regex("obs-studio"), "obs-studio");
+        assert_eq!(escape_regex("telegram-desktop"), "telegram-desktop");
+        assert_eq!(escape_regex("kdePackages.okular"), r"kdePackages\.okular");
+        assert_eq!(escape_regex("a+b"), r"a\+b");
+    }
+
+    #[test]
+    fn normalizes_nix_search_attribute() {
+        assert_eq!(
+            normalize_attribute("legacyPackages.x86_64-linux.firefox"),
+            Some("firefox".to_string())
+        );
+        assert_eq!(
+            normalize_attribute("legacyPackages.x86_64-linux.python3Packages.requests"),
+            Some("python3Packages.requests".to_string())
+        );
+    }
+
+    fn nix_search_output(entries: &[(&str, &str)]) -> Vec<u8> {
+        let mut output = serde_json::Map::new();
+        for (id, name) in entries {
+            output.insert(
+                format!("legacyPackages.x86_64-linux.{id}"),
+                serde_json::json!({
+                    "pname": name,
+                    "description": "",
+                    "version": "1.0"
+                }),
+            );
+        }
+        serde_json::to_vec(&output).unwrap()
+    }
+
+    #[test]
+    fn find_checks_exact_id_before_the_ordinary_search_limit() {
+        let ids = (0..45)
+            .map(|index| format!("a{index:02}.foo"))
+            .chain(std::iter::once("foo".to_string()))
+            .collect::<Vec<_>>();
+        let entries = ids
+            .iter()
+            .map(|id| (id.as_str(), "foo"))
+            .collect::<Vec<_>>();
+        let output = nix_search_output(&entries);
+
+        let limited = parse_results(&output, "foo", Some(MAX_RESULTS)).unwrap();
+        assert_eq!(limited.len(), MAX_RESULTS);
+        assert!(!limited.iter().any(|package| package.id == "foo"));
+
+        let found = parse_find_result(&output, "foo").unwrap().unwrap();
+        assert_eq!(found.id, "foo");
+    }
+
+    #[test]
+    fn finds_exact_hyphenated_and_nested_attribute_ids() {
+        let hyphenated = nix_search_output(&[
+            ("google-chrome-beta", "chrome"),
+            ("google-chrome", "chrome"),
+        ]);
+        assert_eq!(
+            parse_find_result(&hyphenated, "google-chrome")
+                .unwrap()
+                .unwrap()
+                .id,
+            "google-chrome"
+        );
+
+        let nested = nix_search_output(&[
+            ("python3Packages.requests2", "requests"),
+            ("python3Packages.requests", "requests"),
+        ]);
+        assert_eq!(
+            parse_find_result(&nested, "python3Packages.requests")
+                .unwrap()
+                .unwrap()
+                .id,
+            "python3Packages.requests"
+        );
+    }
+
+    #[test]
+    fn ranks_exact_name_above_description_match() {
+        let exact = relevance_score("rust", "rust", "rust", "Programming language");
+        let description = relevance_score("rust", "foo", "foo", "Rust development tool");
+
+        assert!(exact > description);
+    }
+
+    #[test]
+    fn accepts_nested_nix_attribute_paths() {
+        assert!(is_safe_attribute_path("python3Packages.requests"));
+        assert!(is_safe_attribute_path("llvmPackages_20.clang"));
+    }
+
+    #[test]
+    fn rejects_expression_injection() {
+        assert!(!is_safe_attribute_path("firefox;builtins.abort"));
+        assert!(!is_safe_attribute_path("firefox $(touch /tmp/pwned)"));
+    }
+
+    #[test]
+    fn finds_only_exact_ids_from_a_multi_package_search() {
+        let output = nix_search_output(&[
+            ("firefox", "firefox"),
+            ("firefox-esr", "firefox"),
+            ("chromium", "chromium"),
+            ("epiphany", "epiphany"),
+        ]);
+        let ids = vec!["firefox".to_string(), "chromium".to_string()];
+        let found = parse_find_results(&output, &ids).unwrap();
+        let found_ids = found
+            .iter()
+            .map(|package| package.id.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(found_ids, vec!["chromium", "firefox"]);
+    }
+
+    #[test]
+    fn generates_coarse_metadata_without_manual_catalog_entries() {
+        assert_eq!(
+            category_for("rust-analyzer", "Language server for Rust"),
+            "開発"
+        );
+        assert!(
+            tags_for("rust-analyzer", "Language server for Rust", "開発")
+                .contains(&"Rust".to_string())
+        );
+    }
+}
+
+                | '^'
+                | '*'
+                | '+'
+                | '?'
+                | '('
+                | ')'
+                | '['
+                | ']'
+                | '{'
+                | '}'
+                | '|'
+                | '\\'
+        ) {
             escaped.push('\\');
         }
         escaped.push(character);

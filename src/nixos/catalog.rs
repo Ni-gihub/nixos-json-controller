@@ -387,14 +387,14 @@ fn contains_any(text: &str, keywords: &[&str]) -> bool {
 fn escape_regex(value: &str) -> String {
     let mut escaped = String::with_capacity(value.len() * 2);
     for character in value.chars() {
-        if r#".$^*+?()[]{}|\\-"#.contains(character) {
+        // Hyphens are literal outside regex character classes; \- is invalid in Nix regexes.
+        if r#".$^*+?()[]{}|\\"#.contains(character) {
             escaped.push('\\');
         }
         escaped.push(character);
     }
     escaped
 }
-
 fn is_safe_attribute_path(value: &str) -> bool {
     !value.is_empty() && value.split('.').all(is_safe_attribute_segment)
 }
@@ -418,6 +418,14 @@ fn is_safe_attribute_segment(segment: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn escape_regex_leaves_hyphens_unescaped_for_nix() {
+        assert_eq!(escape_regex("obs-studio"), "obs-studio");
+        assert_eq!(escape_regex("telegram-desktop"), "telegram-desktop");
+        assert_eq!(escape_regex("kdePackages.okular"), "kdePackages\\.okular");
+        assert_eq!(escape_regex("a+b"), "a\\+b");
+    }
 
     #[test]
     fn normalizes_nix_search_attribute() {

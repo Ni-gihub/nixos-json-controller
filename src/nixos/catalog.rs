@@ -70,8 +70,17 @@ fn run_nix_search(query: &str) -> Result<Vec<u8>, String> {
         .collect::<Vec<_>>();
 
     let pattern = terms.join("|");
+    // Do not rely on the user's global nix.conf to enable the CLI features this command needs.
     let output = Command::new("nix")
-        .args(["search", "nixpkgs", "--json", "--no-pretty", &pattern])
+        .args([
+            "--extra-experimental-features",
+            "nix-command flakes",
+            "search",
+            "nixpkgs",
+            "--json",
+            "--no-pretty",
+            &pattern,
+        ])
         .output()
         .map_err(|error| format!("failed to start nix search: {error}"))?;
 

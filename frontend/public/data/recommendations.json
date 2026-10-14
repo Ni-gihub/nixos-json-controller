@@ -1,0 +1,36 @@
+{
+  "source": "Arch Linux pkgstats",
+  "sourceUrl": "https://pkgstats.archlinux.de/api/doc",
+  "generatedAt": null,
+  "period": null,
+  "recommendations": [
+    {
+      "id": "firefox",
+      "archPackage": "firefox",
+      "popularity": 63.53,
+      "count": null,
+      "samples": null
+    },
+    {
+      "id": "chromium",
+      "archPackage": "chromium",
+      "popularity": 48.8,
+      "count": null,
+      "samples": null
+    },
+    {
+      "id": "epiphany",
+      "archPackage": "epiphany",
+      "popularity": 16.33,
+      "count": null,
+      "samples": null
+    },
+    {
+      "id": "kdePackages.konqueror",
+      "archPackage": "konqueror",
+      "popularity": 10.33,
+      "count": null,
+      "samples": null
+    }
+  ]
+}

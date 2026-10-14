@@ -18,7 +18,7 @@ test("Discover pre-search UI shows, hides, and restores recommendations as the q
     );
 
     /** Render the pre-search component with one recommendation card fixture. */
-    const render = (query) =>
+    const render = (query, props = {}) =>
       renderToStaticMarkup(
         React.createElement(
           DiscoverPreSearch,
@@ -27,6 +27,9 @@ test("Discover pre-search UI shows, hides, and restores recommendations as the q
             hasRecommendations: true,
             generatedAt: "2026-10-15T00:00:00.000Z",
             loading: false,
+            recommendationStatus: props.recommendationStatus ?? "ready",
+            recommendationMessage: props.recommendationMessage ?? null,
+            onRetry: props.onRetry ?? (() => {}),
           },
           React.createElement(
             "article",
@@ -50,6 +53,30 @@ test("Discover pre-search UI shows, hides, and restores recommendations as the q
     assert.match(clearedQuery, /人気のアプリ/);
     assert.match(clearedQuery, /Firefox/);
     assert.match(clearedQuery, /data-recommendation-card/);
+
+    const loadingState = render("", {
+      hasRecommendations: false,
+      recommendationStatus: "loading",
+    });
+    assert.match(loadingState, /人気のアプリを読み込み中/);
+    assert.match(loadingState, /初回のパッケージ評価/);
+
+    const unavailableState = render("", {
+      hasRecommendations: false,
+      recommendationStatus: "unavailable",
+      recommendationMessage: "nix search failed: flakes are disabled",
+    });
+    assert.match(unavailableState, /おすすめアプリを表示できませんでした/);
+    assert.match(unavailableState, /flakes are disabled/);
+    assert.match(unavailableState, /再試行/);
+
+    const fallbackState = render("", {
+      recommendationStatus: "fallback",
+      recommendationMessage: "catalog lookup timed out",
+    });
+    assert.match(fallbackState, /同梱の基本情報でおすすめを表示/);
+    assert.match(fallbackState, /catalog lookup timed out/);
+    assert.match(fallbackState, /Firefox/);
   } finally {
     await vite.close();
   }

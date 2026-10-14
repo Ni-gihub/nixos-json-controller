@@ -88,7 +88,7 @@ function AppDetail() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-30 border-b border-blue-100/80 bg-white/90 backdrop-blur">
-        <div className="flex h-16 items-center px-6 sm:px-8">
+        <div className="flex h-14 items-center px-5 sm:px-6">
           <Link
             to={
               returnQuery
@@ -106,21 +106,21 @@ function AppDetail() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-none px-6 py-8 sm:px-8 lg:px-12 lg:py-12">
-        <div className="mx-auto max-w-6xl">
-          <section className="min-w-0 space-y-7">
+      <main className="mx-auto w-full max-w-none px-5 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <div className="mx-auto max-w-5xl">
+          <section className="min-w-0 space-y-6">
             <Card className="overflow-hidden rounded-3xl border-blue-100 bg-gradient-to-br from-white via-blue-50/50 to-indigo-100/70">
-              <CardContent className="relative p-7 sm:p-9 lg:p-10">
-                <div className="pointer-events-none absolute -right-20 -top-24 size-64 rounded-full bg-blue-400/15 blur-3xl" />
-                <div className="relative flex flex-col items-start gap-7 sm:flex-row">
-                  <div className="flex size-32 shrink-0 items-center justify-center rounded-3xl border border-blue-100 bg-white/80 text-6xl font-bold text-blue-600">
+              <CardContent className="relative p-5 sm:p-6 lg:p-8">
+                <div className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full bg-blue-400/15 blur-3xl" />
+                <div className="relative flex flex-col items-start gap-5 sm:flex-row">
+                  <div className="flex size-24 shrink-0 items-center justify-center rounded-3xl border border-blue-100 bg-white/80 text-4xl font-bold text-blue-600">
                     <AppIcon
                       name={app.name}
                       packageId={app.id}
                       icon={app.icon}
                       iconCandidates={app.iconCandidates}
-                      imageClassName="size-24 object-contain"
-                      fallbackClassName="size-16 text-foreground/70"
+                      imageClassName="size-18 object-contain"
+                      fallbackClassName="size-12 text-foreground/70"
                     />
                   </div>
                   <div className="min-w-0 flex-1 pt-1">
@@ -151,7 +151,7 @@ function AppDetail() {
                         size="sm"
                       />
                     </div>
-                    <h1 className="mt-4 text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
+                    <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl lg:text-4xl">
                       {app.name}
                     </h1>
                     {app.version && (
@@ -159,7 +159,7 @@ function AppDetail() {
                         バージョン {app.version}
                       </p>
                     )}
-                    <p className="mt-5 max-w-3xl text-base leading-7 text-muted-foreground sm:text-lg lg:text-xl">
+                    <p className="mt-4 max-w-3xl text-base leading-6 text-muted-foreground sm:text-base lg:text-lg">
                       {app.description}
                     </p>
                   </div>
@@ -168,9 +168,9 @@ function AppDetail() {
             </Card>
 
             <Card className="rounded-3xl border-blue-100 bg-white/90">
-              <CardContent className="p-7 sm:p-9 lg:p-10">
+              <CardContent className="p-5 sm:p-6 lg:p-8">
                 <h2 className="text-xl font-semibold">説明・詳細情報</h2>
-                <div className="mt-7 grid gap-7 md:grid-cols-2">
+                <div className="mt-5 grid gap-5 md:grid-cols-2">
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm font-medium">
                       <Package className="size-4 text-blue-600" />
@@ -196,7 +196,7 @@ function AppDetail() {
                   </div>
                 </div>
                 {app.homepage && (
-                  <div className="mt-8 border-t border-blue-100 pt-7">
+                  <div className="mt-6 border-t border-blue-100 pt-5">
                     <p className="text-sm font-medium">Homepage</p>
                     <a
                       href={app.homepage}

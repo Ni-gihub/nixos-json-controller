@@ -14,10 +14,12 @@ const pageSize = 10_000;
 const maxOffset = 100_000;
 const recommendationLimit = 12;
 
+/** Convert a UTC Date into the API's numeric YYYYMM representation. */
 function formatMonth(date) {
   return date.getUTCFullYear() * 100 + date.getUTCMonth() + 1;
 }
 
+/** Select the latest twelve complete months for a consistent statistics window. */
 function defaultPeriod(now = new Date()) {
   // The API's defaults are the most recent 12 complete months. Pin the range
   // across paginated requests so the result is consistent during the run.
@@ -28,6 +30,7 @@ function defaultPeriod(now = new Date()) {
   return { startMonth: formatMonth(start), endMonth: formatMonth(end) };
 }
 
+/** Fetch and validate one page of popularity statistics for the requested period. */
 async function fetchPage(offset, period) {
   const url = new URL(apiUrl);
   url.searchParams.set("limit", String(pageSize));
@@ -75,6 +78,7 @@ async function fetchPage(offset, period) {
   return payload;
 }
 
+/** Fetch all available result pages while detecting inconsistent or incomplete responses. */
 async function fetchAllPopularities(period) {
   const firstPage = await fetchPage(0, period);
   if (firstPage.total <= 0 || firstPage.packagePopularities.length === 0) {
@@ -103,6 +107,7 @@ async function fetchAllPopularities(period) {
   return results;
 }
 
+/** Rank only explicitly mapped GUI candidates by their reported pkgstats popularity. */
 export function buildRecommendations(popularities, packageMap) {
   const popularityByName = new Map(
     popularities.map((record) => [record.name, record]),
@@ -145,6 +150,7 @@ export function buildRecommendations(popularities, packageMap) {
   return recommendations.slice(0, recommendationLimit);
 }
 
+/** Generate a new JSON file only after statistics and candidate validation succeed. */
 async function main() {
   const packageMap = JSON.parse(await readFile(mapPath, "utf8"));
   if (!Array.isArray(packageMap) || packageMap.length === 0) {

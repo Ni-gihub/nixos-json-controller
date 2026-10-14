@@ -27,10 +27,13 @@ function Discover() {
   const [recommendationData, setRecommendationData] =
     useState<RecommendationData | null>(null);
   const [recommendedCatalogApps, setRecommendedCatalogApps] = useState<App[]>([]);
-  const recommendationIds = recommendationData?.recommendations
-    .map((recommendation) => recommendation.id)
-    .join("\n") ?? "";
-  const appById = new Map(recommendedCatalogApps.map((app) => [app.id, app]));
+  const recommendationIds =
+    recommendationData?.recommendations
+      .map((recommendation) => recommendation.id)
+      .join("\n") ?? "";
+  const appById = new Map(
+    recommendedCatalogApps.map((app) => [app.id, app]),
+  );
   const recommendedApps = (recommendationData?.recommendations ?? []).flatMap(
     (recommendation) => {
       const app = appById.get(recommendation.id);
@@ -249,7 +252,9 @@ function Discover() {
                       <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
                         <Search className="size-5" />
                       </div>
-                      <h2 className="mt-5 text-xl font-semibold">検索してアプリを探す</h2>
+                      <h2 className="mt-5 text-xl font-semibold">
+                        検索してアプリを探す
+                      </h2>
                       <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted-foreground">
                         入力したキーワードで検索するには、Enter キーまたは検索ボタンを押してください。
                       </p>

@@ -105,10 +105,7 @@ fn parse_find_result(output: &[u8], id: &str) -> Result<Option<CatalogPackage>, 
 }
 
 /// Keep only exact IDs from a multi-package search; substring matches are not recommendations.
-fn parse_find_results(
-    output: &[u8],
-    ids: &[String],
-) -> Result<Vec<CatalogPackage>, String> {
+fn parse_find_results(output: &[u8], ids: &[String]) -> Result<Vec<CatalogPackage>, String> {
     let requested = ids.iter().map(String::as_str).collect::<HashSet<_>>();
     let query = ids.join(" ");
     let results = parse_unlimited_results(output, &query)?
@@ -517,7 +514,10 @@ mod tests {
         ]);
         let ids = vec!["firefox".to_string(), "chromium".to_string()];
         let found = parse_find_results(&output, &ids).unwrap();
-        let found_ids = found.iter().map(|package| package.id.as_str()).collect::<Vec<_>>();
+        let found_ids = found
+            .iter()
+            .map(|package| package.id.as_str())
+            .collect::<Vec<_>>();
 
         assert_eq!(found_ids, vec!["chromium", "firefox"]);
     }

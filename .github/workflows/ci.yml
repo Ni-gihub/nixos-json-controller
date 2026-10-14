@@ -90,13 +90,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Print formatter output for pre-search component
-        run: |
-          pnpm exec prettier --write src/pages/DiscoverPreSearch.tsx
-          echo "=== DISCOVER_PRESEARCH_FORMATTED_START ==="
-          cat src/pages/DiscoverPreSearch.tsx
-          echo "=== DISCOVER_PRESEARCH_FORMATTED_END ==="
-
       - name: Check frontend formatting
         run: pnpm format:check
 

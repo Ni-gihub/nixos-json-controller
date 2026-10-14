@@ -26,7 +26,8 @@ export default function DiscoverPreSearch({
           </div>
           <h2 className="mt-5 text-xl font-semibold">検索してアプリを探す</h2>
           <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted-foreground">
-            入力したキーワードで検索するには、Enter キーまたは検索ボタンを押してください。
+            入力したキーワードで検索するには、Enter
+            キーまたは検索ボタンを押してください。
           </p>
         </div>
       </div>
@@ -54,7 +55,9 @@ export default function DiscoverPreSearch({
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-blue-600">おすすめ</p>
-          <h2 className="mt-1 text-xl font-semibold sm:text-2xl">人気のアプリ</h2>
+          <h2 className="mt-1 text-xl font-semibold sm:text-2xl">
+            人気のアプリ
+          </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Arch Linux の公開パッケージ統計を参考にしています。
             {generatedAt

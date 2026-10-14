@@ -149,7 +149,7 @@ function Discover() {
                     <div className="relative min-w-0 flex-1">
                       <Search className="absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-blue-500" />
                       <Input
-                        className="h-10 rounded-xl border-blue-200 bg-white/95 pl-10 pr-3 text-sm ring-offset-background placeholder:text-muted-foreground/70 focus-visible:border-blue-400 focus-visible:ring-blue-200 sm:h-12 sm:rounded-xl sm:text-base"
+                        className="h-10 rounded-xl border-blue-200 bg-white/95 pl-10 pr-3 text-sm ring-offset-background placeholder:text-muted-foreground/70 focus-visible:border-blue-400 focus-visible:ring-blue-200 sm:h-12 sm:rounded-xl sm:text-base md:text-base!"
                         placeholder="アプリ、言語、ライブラリ、ツールを検索..."
                         value={query}
                         onChange={(event) => setQuery(event.target.value)}

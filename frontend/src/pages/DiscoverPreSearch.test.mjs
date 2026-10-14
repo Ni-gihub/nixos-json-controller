@@ -24,7 +24,7 @@ test("Discover pre-search UI shows, hides, and restores recommendations as the q
           DiscoverPreSearch,
           {
             query,
-            hasRecommendations: true,
+            hasRecommendations: props.hasRecommendations ?? true,
             generatedAt: "2026-10-15T00:00:00.000Z",
             loading: false,
             recommendationStatus: props.recommendationStatus ?? "ready",

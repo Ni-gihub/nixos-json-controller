@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Search } from "lucide-react";
 
 type DiscoverPreSearchProps = {
   query: string;
@@ -21,17 +22,7 @@ export default function DiscoverPreSearch({
       <div className="flex min-h-[220px] w-full items-center justify-center rounded-3xl border border-dashed border-blue-200 bg-white/65 px-6 py-12 text-center">
         <div>
           <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 24 24"
-              className="size-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <circle cx="11" cy="11" r="7" />
-              <path d="m20 20-4-4" />
-            </svg>
+            <Search className="size-5" />
           </div>
           <h2 className="mt-5 text-xl font-semibold">検索してアプリを探す</h2>
           <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted-foreground">
@@ -47,17 +38,7 @@ export default function DiscoverPreSearch({
       <div className="flex min-h-[260px] w-full items-center justify-center rounded-3xl border border-dashed border-blue-200 bg-white/65 px-6 py-12 text-center">
         <div>
           <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 24 24"
-              className="size-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <circle cx="11" cy="11" r="7" />
-              <path d="m20 20-4-4" />
-            </svg>
+            <Search className="size-5" />
           </div>
           <h2 className="mt-5 text-xl font-semibold">検索してアプリを探す</h2>
           <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted-foreground">

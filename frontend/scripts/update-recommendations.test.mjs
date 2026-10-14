@@ -46,3 +46,81 @@ test("rejects invalid package mappings", () => {
     /invalid entry/,
   );
 });
+
+test("keeps unchanged recommendation data even when generatedAt differs", () => {
+  const existing = {
+    source: "Arch Linux pkgstats",
+    sourceUrl: "https://pkgstats.archlinux.de/api/doc",
+    generatedAt: "2026-10-12T08:17:00.000Z",
+    period: { startMonth: 202510, endMonth: 202609 },
+    recommendations: [
+      {
+        id: "firefox",
+        archPackage: "firefox",
+        popularity: 66.79,
+        count: 203545,
+        samples: 304746,
+      },
+    ],
+  };
+  const next = {
+    ...existing,
+    generatedAt: "2026-10-19T08:17:00.000Z",
+  };
+
+  assert.equal(hasSameRecommendationContent(existing, next), true);
+});
+
+test("detects recommendation, period, and source changes", () => {
+  const existing = {
+    source: "Arch Linux pkgstats",
+    sourceUrl: "https://pkgstats.archlinux.de/api/doc",
+    generatedAt: "2026-10-12T08:17:00.000Z",
+    period: { startMonth: 202510, endMonth: 202609 },
+    recommendations: [
+      {
+        id: "firefox",
+        archPackage: "firefox",
+        popularity: 66.79,
+        count: 203545,
+        samples: 304746,
+      },
+    ],
+  };
+
+  assert.equal(
+    hasSameRecommendationContent(existing, {
+      ...existing,
+      recommendations: [
+        { ...existing.recommendations[0], popularity: 66.8 },
+      ],
+    }),
+    false,
+  );
+  assert.equal(
+    hasSameRecommendationContent(existing, {
+      ...existing,
+      period: { startMonth: 202511, endMonth: 202609 },
+    }),
+    false,
+  );
+  assert.equal(
+    hasSameRecommendationContent(existing, {
+      ...existing,
+      sourceUrl: "https://example.com/api",
+    }),
+    false,
+  );
+});
+
+test("treats malformed existing recommendation data as changed", () => {
+  assert.equal(hasSameRecommendationContent(null, {}), false);
+  assert.equal(
+    hasSameRecommendationContent(
+      { source: "Arch Linux pkgstats", recommendations: [] },
+      {},
+    ),
+    false,
+  );
+});
+

@@ -387,11 +387,14 @@ fn contains_any(text: &str, keywords: &[&str]) -> bool {
 fn escape_regex(value: &str) -> String {
     let mut escaped = String::with_capacity(value.len() * 2);
     for character in value.chars() {
-        // A hyphen is literal outside a character class; escaping it is rejected by Nix regexes.
-        if matches!(
-            character,
-            '.' | '
-
+        // Hyphens are literal outside regex character classes; \- is invalid in Nix regexes.
+        if r#".$^*+?()[]{}|\\"#.contains(character) {
+            escaped.push('\\');
+        }
+        escaped.push(character);
+    }
+    escaped
+}
 fn is_safe_attribute_path(value: &str) -> bool {
     !value.is_empty() && value.split('.').all(is_safe_attribute_segment)
 }

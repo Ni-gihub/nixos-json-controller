@@ -4,7 +4,7 @@ import { Search, Store, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import AppCard from "@/components/AppCard";
-import DiscoverPreSearch, { type RecommendationStatus } from "./DiscoverPreSearch";
+import DiscoverPreSearch, {\n  type RecommendationStatus,\n} from "./DiscoverPreSearch";
 import { searchApps, type App } from "@/catalog";
 import {
   loadBundledRecommendations,
@@ -33,7 +33,7 @@ function Discover() {
   );
   const [recommendationStatus, setRecommendationStatus] =
     useState<RecommendationStatus>("loading");
-  const [recommendationMessage, setRecommendationMessage] = useState<string | null>(null);
+  const [recommendationMessage, setRecommendationMessage] = useState<\n    string | null\n  >(null);
   const [recommendationReloadKey, setRecommendationReloadKey] = useState(0);
   const retryRecommendations = () =>
     setRecommendationReloadKey((current) => current + 1);

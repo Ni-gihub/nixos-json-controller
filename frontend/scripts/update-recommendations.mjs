@@ -2,7 +2,7 @@
 
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const frontendDirectory = path.resolve(scriptDirectory, "..");
@@ -105,7 +105,7 @@ async function fetchAllPopularities(period) {
   return results;
 }
 
-function buildRecommendations(popularities, packageMap) {
+export function buildRecommendations(popularities, packageMap) {
   const popularityByName = new Map(
     popularities.map((record) => [record.name, record]),
   );
@@ -174,7 +174,12 @@ async function main() {
   );
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error);
-  process.exitCode = 1;
-});
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
+) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exitCode = 1;
+  });
+}

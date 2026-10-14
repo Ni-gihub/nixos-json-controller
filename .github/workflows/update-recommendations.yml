@@ -7,6 +7,7 @@ on:
   push:
     branches:
       - main
+      - feat/117-arch-pkgstats-recommendations
     paths:
       - ".github/workflows/update-recommendations.yml"
       - "frontend/scripts/update-recommendations.mjs"

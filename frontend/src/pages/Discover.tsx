@@ -4,7 +4,7 @@ import { Search, Store, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import AppCard from "@/components/AppCard";
-import DiscoverPreSearch from "./DiscoverPreSearch";
+import DiscoverPreSearch, { type RecommendationStatus } from "./DiscoverPreSearch";
 import { searchApps, type App } from "@/catalog";
 import {
   loadBundledRecommendations,
@@ -12,6 +12,7 @@ import {
   type RecommendationData,
 } from "@/catalog/recommendation-data";
 import { getRecommendedCatalogApps } from "@/catalog/recommendations";
+import { buildRecommendationFallbackApps } from "@/catalog/recommendation-fallback";
 import { useAppState } from "@/lib/app-state";
 import { useSearchParams } from "react-router";
 
@@ -30,6 +31,12 @@ function Discover() {
   const [recommendedCatalogApps, setRecommendedCatalogApps] = useState<App[]>(
     [],
   );
+  const [recommendationStatus, setRecommendationStatus] =
+    useState<RecommendationStatus>("loading");
+  const [recommendationMessage, setRecommendationMessage] = useState<string | null>(null);
+  const [recommendationReloadKey, setRecommendationReloadKey] = useState(0);
+  const retryRecommendations = () =>
+    setRecommendationReloadKey((current) => current + 1);
   const recommendationIds =
     recommendationData?.recommendations
       .map((recommendation) => recommendation.id)
@@ -53,19 +60,36 @@ function Discover() {
   useEffect(() => {
     let cancelled = false;
 
+    // Retry reloads the bundled file and the optional online update together.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- expose the current loading state before asynchronous reads
+    setRecommendationStatus("loading");
+    setRecommendationMessage(null);
+
     void (async () => {
       const bundled = await loadBundledRecommendations();
       if (cancelled) return;
       setRecommendationData(bundled);
 
+      if (bundled.recommendations.length === 0) {
+        setRecommendationStatus("unavailable");
+        setRecommendationMessage(
+          "frontend/public/data/recommendations.json から有効なおすすめデータを読み込めませんでした。",
+        );
+        return;
+      }
+
       const latest = await loadLatestRecommendations();
       if (!cancelled && latest) setRecommendationData(latest);
-    })();
+    })().catch((err: unknown) => {
+      if (cancelled) return;
+      setRecommendationStatus("unavailable");
+      setRecommendationMessage(String(err));
+    });
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [recommendationReloadKey]);
 
   useEffect(() => {
     const ids = recommendationIds.split("\n").filter(Boolean);
@@ -76,20 +100,70 @@ function Discover() {
     }
 
     let cancelled = false;
+    // Nixpkgs evaluation may take time on a cold cache; avoid showing the empty state as success.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reflect the pending catalog request
+    setRecommendationStatus("loading");
+    setRecommendationMessage(null);
+
     void getRecommendedCatalogApps(ids)
       .then((apps) => {
         if (cancelled) return;
-        setRecommendedCatalogApps(apps);
-        void refreshPackages(apps.map((app) => app.id));
+
+        const foundIds = new Set(apps.map((app) => app.id));
+        const missingIds = ids.filter((id) => !foundIds.has(id));
+        if (apps.length > 0) {
+          setRecommendedCatalogApps(apps);
+          if (missingIds.length > 0) {
+            setRecommendationStatus("partial");
+            setRecommendationMessage(
+              `${missingIds.length}件のおすすめアプリは、このNixpkgs環境で詳細情報を解決できませんでした: ${missingIds.join(", ")}`,
+            );
+          } else {
+            setRecommendationStatus("ready");
+            setRecommendationMessage(null);
+          }
+          void refreshPackages(apps.map((app) => app.id));
+          return;
+        }
+
+        const fallbackApps = buildRecommendationFallbackApps(ids);
+        setRecommendedCatalogApps(fallbackApps);
+        if (fallbackApps.length > 0) {
+          setRecommendationStatus("fallback");
+          setRecommendationMessage(
+            "Nix検索は正常終了しましたが、おすすめIDと一致する詳細情報が0件でした。パッケージ属性名や現在のシステム向けの評価結果を確認してください。",
+          );
+          void refreshPackages(fallbackApps.map((app) => app.id));
+        } else {
+          setRecommendationStatus("unavailable");
+          setRecommendationMessage(
+            "取得したおすすめIDがフォールバック対象にも含まれていません。おすすめJSONとパッケージ対応表を確認してください。",
+          );
+        }
       })
-      .catch(() => {
-        if (!cancelled) setRecommendedCatalogApps([]);
+      .catch((err: unknown) => {
+        if (cancelled) return;
+
+        const fallbackApps = buildRecommendationFallbackApps(ids);
+        setRecommendedCatalogApps(fallbackApps);
+        if (fallbackApps.length > 0) {
+          setRecommendationStatus("fallback");
+          setRecommendationMessage(
+            `Nixpkgsの詳細情報取得に失敗しました: ${String(err)}`,
+          );
+          void refreshPackages(fallbackApps.map((app) => app.id));
+        } else {
+          setRecommendationStatus("unavailable");
+          setRecommendationMessage(
+            `Nixpkgsの詳細情報取得に失敗し、表示用メタデータもありません: ${String(err)}`,
+          );
+        }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [recommendationIds, refreshPackages]);
+  }, [recommendationIds, refreshPackages, recommendationReloadKey]);
 
   useEffect(() => {
     if (
@@ -252,6 +326,9 @@ function Discover() {
                   hasRecommendations={recommendedApps.length > 0}
                   generatedAt={recommendationData?.generatedAt ?? null}
                   loading={loading}
+                  recommendationStatus={recommendationStatus}
+                  recommendationMessage={recommendationMessage}
+                  onRetry={retryRecommendations}
                 >
                   {recommendedApps.map((app) => (
                     <AppCard

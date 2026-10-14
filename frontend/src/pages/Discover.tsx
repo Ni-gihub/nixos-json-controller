@@ -1,10 +1,17 @@
 import { useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import type { FormEvent } from "react";
 import { Search, Store, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import AppCard from "@/components/AppCard";
 import { searchApps, type App } from "@/catalog";
+import {
+  loadBundledRecommendations,
+  loadLatestRecommendations,
+  type RecommendationData,
+} from "@/catalog/recommendation-data";
+import { getRecommendedCatalogApps } from "@/catalog/recommendations";
 import { useAppState } from "@/lib/app-state";
 import { useSearchParams } from "react-router";
 
@@ -18,6 +25,19 @@ function Discover() {
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const { states, loading, error, refreshPackages } = useAppState();
+  const [recommendationData, setRecommendationData] =
+    useState<RecommendationData | null>(null);
+  const [recommendedCatalogApps, setRecommendedCatalogApps] = useState<App[]>([]);
+  const recommendationIds = recommendationData?.recommendations
+    .map((recommendation) => recommendation.id)
+    .join("\n") ?? "";
+  const appById = new Map(recommendedCatalogApps.map((app) => [app.id, app]));
+  const recommendedApps = (recommendationData?.recommendations ?? []).flatMap(
+    (recommendation) => {
+      const app = appById.get(recommendation.id);
+      return app ? [{ ...app, recommendation }] : [];
+    },
+  );
 
   useEffect(() => {
     if (!initialQuery || initialQuery === submittedQuery) return;
@@ -26,6 +46,46 @@ function Discover() {
     setQuery(initialQuery);
     setSubmittedQuery(initialQuery);
   }, [initialQuery, submittedQuery]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      const bundled = await loadBundledRecommendations();
+      if (cancelled) return;
+      setRecommendationData(bundled);
+
+      const latest = await loadLatestRecommendations();
+      if (!cancelled && latest) setRecommendationData(latest);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const ids = recommendationIds.split("\n").filter(Boolean);
+    if (ids.length === 0) {
+      setRecommendedCatalogApps([]);
+      return;
+    }
+
+    let cancelled = false;
+    void getRecommendedCatalogApps(ids)
+      .then((apps) => {
+        if (cancelled) return;
+        setRecommendedCatalogApps(apps);
+        void refreshPackages(apps.map((app) => app.id));
+      })
+      .catch(() => {
+        if (!cancelled) setRecommendedCatalogApps([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [recommendationIds, refreshPackages]);
 
   useEffect(() => {
     if (
@@ -152,7 +212,16 @@ function Discover() {
                         className="h-10 rounded-lg border-blue-200 bg-white/95 pl-10 pr-3 text-sm ring-offset-background placeholder:text-muted-foreground/70 focus-visible:border-blue-400 focus-visible:ring-blue-200 sm:h-11 sm:text-base md:text-base!"
                         placeholder="アプリ、言語、ライブラリ、ツールを検索..."
                         value={query}
-                        onChange={(event) => setQuery(event.target.value)}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setQuery(value);
+                          if (!value.trim()) {
+                            setSubmittedQuery("");
+                            setResults([]);
+                            setSearchError(null);
+                            setSearchParams({});
+                          }
+                        }}
                         autoFocus
                       />
                     </div>
@@ -174,19 +243,73 @@ function Discover() {
 
             <section className="mt-8 lg:mt-10">
               {!hasResults ? (
-                <div className="flex min-h-[260px] w-full items-center justify-center rounded-3xl border border-dashed border-blue-200 bg-white/65 px-6 py-12 text-center">
-                  <div>
-                    <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-                      <Search className="size-5" />
+                query.trim().length > 0 ? (
+                  <div className="flex min-h-[220px] w-full items-center justify-center rounded-3xl border border-dashed border-blue-200 bg-white/65 px-6 py-12 text-center">
+                    <div>
+                      <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                        <Search className="size-5" />
+                      </div>
+                      <h2 className="mt-5 text-xl font-semibold">検索してアプリを探す</h2>
+                      <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted-foreground">
+                        入力したキーワードで検索するには、Enter キーまたは検索ボタンを押してください。
+                      </p>
                     </div>
-                    <h2 className="mt-5 text-xl font-semibold">
-                      検索してアプリを探す
-                    </h2>
-                    <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted-foreground">
-                      検索結果は関連度順に表示されます。アプリだけでなく、開発ツールやライブラリも見つけられます。
-                    </p>
                   </div>
-                </div>
+                ) : recommendedApps.length > 0 ? (
+                  <>
+                    <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-blue-600">
+                          おすすめ
+                        </p>
+                        <h2 className="mt-1 text-xl font-semibold sm:text-2xl">
+                          人気のアプリ
+                        </h2>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Arch Linux の公開パッケージ統計を参考にしています。
+                          {recommendationData?.generatedAt
+                            ? ` 更新日: ${new Date(recommendationData.generatedAt).toLocaleDateString("ja-JP")}`
+                            : ""}
+                        </p>
+                      </div>
+                      {loading && (
+                        <span className="text-sm text-muted-foreground">
+                          インストール状態を確認中...
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="max-w-5xl space-y-2">
+                      {recommendedApps.map(({ recommendation, ...app }) => (
+                        <AppCard
+                          key={app.id}
+                          id={app.id}
+                          name={app.name}
+                          description={app.description}
+                          category={app.category}
+                          tags={app.tags}
+                          installed={states[app.id]?.active ?? false}
+                          icon={app.icon}
+                          iconCandidates={app.iconCandidates}
+                        />
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex min-h-[260px] w-full items-center justify-center rounded-3xl border border-dashed border-blue-200 bg-white/65 px-6 py-12 text-center">
+                    <div>
+                      <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                        <Search className="size-5" />
+                      </div>
+                      <h2 className="mt-5 text-xl font-semibold">
+                        検索してアプリを探す
+                      </h2>
+                      <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted-foreground">
+                        検索結果は関連度順に表示されます。アプリだけでなく、開発ツールやライブラリも見つけられます。
+                      </p>
+                    </div>
+                  </div>
+                )
               ) : (
                 <>
                   <div className="mb-6 flex items-end justify-between gap-4">

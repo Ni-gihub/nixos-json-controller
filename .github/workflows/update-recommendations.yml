@@ -12,11 +12,16 @@ on:
       - "frontend/scripts/update-recommendations.mjs"
       - "frontend/scripts/recommendation-package-map.json"
 
-permissions:
-  contents: write
+# Serialize scheduled, manual, and push-triggered updates to avoid conflicting git pushes.
+concurrency:
+  group: update-recommendations
+  cancel-in-progress: false
 
 jobs:
   update-recommendations:
+    # This job must commit refreshed recommendation data to the repository.
+    permissions:
+      contents: write
     name: Refresh Arch pkgstats recommendations
     runs-on: ubuntu-latest
 

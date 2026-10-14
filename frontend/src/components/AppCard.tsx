@@ -34,37 +34,37 @@ function AppCard({
     : `/apps/${id}`;
 
   return (
-    <div className="group py-4">
-      <div className="grid grid-cols-[5.5rem_minmax(0,1fr)_auto] gap-x-6">
+    <div className="group py-3">
+      <div className="grid grid-cols-[4.5rem_minmax(0,1fr)_auto] gap-x-4">
         <Link
           to={detailPath}
-          className="row-span-3 flex size-20 shrink-0 items-center justify-center self-start rounded-2xl bg-muted/50 text-2xl font-bold text-blue-600 transition-transform duration-200 group-hover:scale-[1.03]"
+          className="row-span-3 flex size-16 shrink-0 items-center justify-center self-start rounded-2xl bg-muted/50 text-xl font-bold text-blue-600 transition-transform duration-200 group-hover:scale-[1.03]"
         >
           <AppIcon
             name={name}
             packageId={id}
             icon={icon}
             iconCandidates={iconCandidates}
-            imageClassName="size-[4.5rem] object-contain"
-            fallbackClassName="size-10 text-foreground/70"
+            imageClassName="size-12 object-contain"
+            fallbackClassName="size-8 text-foreground/70"
           />
         </Link>
 
         <Link to={detailPath} className="min-w-0">
           <div className="flex items-start gap-2">
-            <h3 className="line-clamp-1 text-2xl font-semibold leading-8 tracking-tight">
+            <h3 className="line-clamp-1 text-xl font-semibold leading-7 tracking-tight">
               {name}
             </h3>
             {installed && (
               <Badge
                 variant="secondary"
-                className="shrink-0 rounded-full px-3 py-1 text-sm font-medium"
+                className="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium"
               >
                 インストール済み
               </Badge>
             )}
           </div>
-          <p className="mt-1 line-clamp-2 text-lg leading-7 text-muted-foreground">
+          <p className="mt-1 line-clamp-2 text-base leading-6 text-muted-foreground">
             {description}
           </p>
         </Link>
@@ -74,7 +74,7 @@ function AppCard({
           appName={name}
           installed={installed}
           onInstalled={() => refreshPackage(id)}
-          className="h-10 min-w-24 shrink-0 rounded-full px-4 text-base"
+          className="h-9 min-w-20 shrink-0 rounded-full px-3 text-sm"
           size="sm"
         />
 
@@ -84,7 +84,7 @@ function AppCard({
         >
           <Badge
             variant="outline"
-            className="shrink-0 rounded-full border-border px-3 py-1 text-base font-medium"
+            className="shrink-0 rounded-full border-border px-2.5 py-0.5 text-sm font-medium"
           >
             {category}
           </Badge>
@@ -92,7 +92,7 @@ function AppCard({
             <Badge
               key={tag}
               variant="secondary"
-              className="shrink-0 rounded-full px-2.5 py-1 text-sm font-medium"
+              className="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium"
             >
               {tag}
             </Badge>

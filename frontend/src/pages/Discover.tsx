@@ -83,8 +83,8 @@ function Discover() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="flex min-h-screen">
-        <aside className="hidden w-80 shrink-0 border-r border-blue-100/80 bg-white/90 lg:block">
-          <div className="sticky top-0 flex h-screen flex-col p-7">
+        <aside className="hidden w-64 shrink-0 border-r border-blue-100/80 bg-white/90 lg:block">
+          <div className="sticky top-0 flex h-screen flex-col p-6">
             <div className="flex items-center gap-3">
               <div className="flex size-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white">
                 <Store className="size-5" />
@@ -97,7 +97,7 @@ function Discover() {
               </div>
             </div>
 
-            <nav aria-label="App Store" className="mt-12 space-y-2">
+            <nav aria-label="App Store" className="mt-8 space-y-2">
               <div
                 aria-current="page"
                 className="flex items-center gap-3 rounded-xl bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700"
@@ -107,7 +107,7 @@ function Discover() {
               </div>
             </nav>
 
-            <div className="mt-auto rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-50 p-5">
+            <div className="mt-auto rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-50 p-4">
               <div className="flex items-center gap-2 text-sm font-semibold text-blue-900">
                 <Sparkles className="size-4 text-blue-600" />
                 Nixpkgs
@@ -129,27 +129,27 @@ function Discover() {
             </div>
           </header>
 
-          <main className="w-full px-6 py-8 sm:px-8 lg:px-12 lg:py-12">
-            <section className="relative overflow-hidden rounded-3xl border border-blue-100 bg-gradient-to-br from-white via-blue-50/70 to-indigo-100/70 px-7 py-9 sm:px-10 sm:py-11">
-              <div className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full bg-blue-400/15 blur-3xl" />
+          <main className="w-full px-5 py-6 sm:px-6 lg:px-8 lg:py-8">
+            <section className="relative overflow-hidden rounded-3xl border border-blue-100 bg-gradient-to-br from-white via-blue-50/70 to-indigo-100/70 px-6 py-7 sm:px-8 sm:py-8">
+              <div className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full bg-blue-400/15 blur-3xl" />
               <div className="relative">
                 <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white/75 px-3 py-1.5 text-sm font-semibold text-blue-700">
                   <Store className="size-4" />
                   NixOS App Store
                 </div>
-                <h1 className="mt-5 text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
+                <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
                   アプリを探す
                 </h1>
-                <p className="mt-3 max-w-3xl text-base leading-7 text-muted-foreground sm:text-lg">
+                <p className="mt-2 max-w-3xl text-base leading-6 text-muted-foreground sm:text-base">
                   Nixpkgsにあるアプリ、言語、ライブラリ、開発ツールを検索できます。
                 </p>
 
-                <form onSubmit={handleSearch} className="mt-8">
+                <form onSubmit={handleSearch} className="mt-6">
                   <div className="flex w-full gap-3">
                     <div className="relative min-w-0 flex-1">
-                      <Search className="absolute left-5 top-1/2 size-5 -translate-y-1/2 text-blue-500" />
+                      <Search className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-blue-500" />
                       <Input
-                        className="h-14 rounded-2xl border-blue-200 bg-white/95 pl-14 pr-5 text-base ring-offset-background placeholder:text-muted-foreground/70 focus-visible:border-blue-400 focus-visible:ring-blue-200 sm:text-lg lg:h-16"
+                        className="h-12 rounded-xl border-blue-200 bg-white/95 pl-11 pr-4 text-sm ring-offset-background placeholder:text-muted-foreground/70 focus-visible:border-blue-400 focus-visible:ring-blue-200 sm:h-14 sm:rounded-2xl sm:text-base"
                         placeholder="アプリ、言語、ライブラリ、ツールを検索..."
                         value={query}
                         onChange={(event) => setQuery(event.target.value)}
@@ -158,7 +158,7 @@ function Discover() {
                     </div>
                     <Button
                       type="submit"
-                      className="h-14 rounded-2xl bg-blue-600 px-6 text-white hover:bg-blue-700 sm:px-8 lg:h-16"
+                      className="h-12 rounded-xl bg-blue-600 px-4 text-white hover:bg-blue-700 sm:h-14 sm:rounded-2xl sm:px-6"
                       disabled={!query.trim() || searching}
                     >
                       <Search className="mr-2 size-4" />
@@ -172,12 +172,12 @@ function Discover() {
               </div>
             </section>
 
-            <section className="mt-10 lg:mt-12">
+            <section className="mt-8 lg:mt-10">
               {!hasResults ? (
-                <div className="flex min-h-[330px] w-full items-center justify-center rounded-3xl border border-dashed border-blue-200 bg-white/65 px-8 py-16 text-center">
+                <div className="flex min-h-[260px] w-full items-center justify-center rounded-3xl border border-dashed border-blue-200 bg-white/65 px-6 py-12 text-center">
                   <div>
-                    <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-                      <Search className="size-6" />
+                    <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                      <Search className="size-5" />
                     </div>
                     <h2 className="mt-5 text-xl font-semibold">
                       検索してアプリを探す
@@ -194,7 +194,7 @@ function Discover() {
                       <p className="text-sm font-semibold text-blue-600">
                         検索結果
                       </p>
-                      <h2 className="mt-1 text-2xl font-semibold sm:text-3xl">
+                      <h2 className="mt-1 text-xl font-semibold sm:text-2xl">
                         「{submittedQuery}」
                       </h2>
                       {!searching && (
@@ -211,14 +211,14 @@ function Discover() {
                   </div>
 
                   {searchError ? (
-                    <div className="w-full rounded-2xl border border-dashed border-border bg-card/70 p-12 text-center">
+                    <div className="w-full rounded-2xl border border-dashed border-border bg-card/70 p-8 text-center">
                       <p className="font-medium">検索できませんでした。</p>
                       <p className="mt-2 text-sm text-muted-foreground">
                         {searchError}
                       </p>
                     </div>
                   ) : results.length === 0 && !searching ? (
-                    <div className="w-full rounded-2xl border border-dashed border-border bg-card/70 p-12 text-center">
+                    <div className="w-full rounded-2xl border border-dashed border-border bg-card/70 p-8 text-center">
                       <p className="font-medium">
                         該当するパッケージが見つかりませんでした。
                       </p>
@@ -227,7 +227,7 @@ function Discover() {
                       </p>
                     </div>
                   ) : (
-                    <div className="max-w-6xl space-y-2">
+                    <div className="max-w-5xl space-y-2">
                       {results.map((app) => (
                         <AppCard
                           key={app.id}

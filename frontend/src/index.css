@@ -126,8 +126,8 @@
   }
   html {
     @apply font-sans;
-    /* Keep the App Store readable on desktop Linux/WebKit views. */
-    font-size: 20px;
+    /* Use the browser's default size (normally 16px) and respect user preferences. */
+    font-size: 100%;
   }
   body {
     background-image:

@@ -1,6 +1,6 @@
 use serde::Serialize;
 use serde_json::Value;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::process::Command;
 
 use super::appstream;
@@ -40,6 +40,26 @@ pub fn find(id: &str) -> Result<Option<CatalogPackage>, String> {
 
     let output = run_nix_search(id)?;
     parse_find_result(&output, id)
+}
+
+/// Resolve several exact package IDs with one Nix search for the recommendation screen.
+pub fn find_many(ids: &[String]) -> Result<Vec<CatalogPackage>, String> {
+    let mut requested = Vec::new();
+    let mut seen = HashSet::new();
+
+    // Bound work even if an unexpected data file contains an excessive number of IDs.
+    for id in ids.iter().take(50) {
+        if is_safe_attribute_path(id) && seen.insert(id.as_str()) {
+            requested.push(id.clone());
+        }
+    }
+
+    if requested.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let output = run_nix_search(&requested.join(" "))?;
+    parse_find_results(&output, &requested)
 }
 
 /// Run the common Nix search command used by discovery and exact package lookup.
@@ -82,6 +102,24 @@ fn parse_find_result(output: &[u8], id: &str) -> Result<Option<CatalogPackage>, 
             .expect("one package was supplied")
             .1
     }))
+}
+
+/// Keep only exact IDs from a multi-package search; substring matches are not recommendations.
+fn parse_find_results(
+    output: &[u8],
+    ids: &[String],
+) -> Result<Vec<CatalogPackage>, String> {
+    let requested = ids.iter().map(String::as_str).collect::<HashSet<_>>();
+    let query = ids.join(" ");
+    let results = parse_unlimited_results(output, &query)?
+        .into_iter()
+        .filter(|(_, package)| requested.contains(package.id.as_str()))
+        .collect::<Vec<_>>();
+
+    Ok(attach_icon_candidates(results)
+        .into_iter()
+        .map(|(_, package)| package)
+        .collect())
 }
 
 /// Parse, rank, limit, and enrich search results for the discover page.
@@ -467,6 +505,21 @@ mod tests {
     fn rejects_expression_injection() {
         assert!(!is_safe_attribute_path("firefox;builtins.abort"));
         assert!(!is_safe_attribute_path("firefox $(touch /tmp/pwned)"));
+    }
+
+    #[test]
+    fn finds_only_exact_ids_from_a_multi_package_search() {
+        let output = nix_search_output(&[
+            ("firefox", "firefox"),
+            ("firefox-esr", "firefox"),
+            ("chromium", "chromium"),
+            ("epiphany", "epiphany"),
+        ]);
+        let ids = vec!["firefox".to_string(), "chromium".to_string()];
+        let found = parse_find_results(&output, &ids).unwrap();
+        let found_ids = found.iter().map(|package| package.id.as_str()).collect::<Vec<_>>();
+
+        assert_eq!(found_ids, vec!["chromium", "firefox"]);
     }
 
     #[test]

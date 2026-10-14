@@ -130,26 +130,26 @@ function Discover() {
           </header>
 
           <main className="w-full px-5 py-6 sm:px-6 lg:px-8 lg:py-8">
-            <section className="relative overflow-hidden rounded-3xl border border-blue-100 bg-gradient-to-br from-white via-blue-50/70 to-indigo-100/70 px-6 py-7 sm:px-8 sm:py-8">
-              <div className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full bg-blue-400/15 blur-3xl" />
+            <section className="relative overflow-hidden rounded-3xl border border-blue-100 bg-gradient-to-br from-white via-blue-50/70 to-indigo-100/70 px-5 py-5 sm:px-7 sm:py-6">
+              <div className="pointer-events-none absolute -right-12 -top-14 size-48 rounded-full bg-blue-400/15 blur-3xl" />
               <div className="relative">
                 <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white/75 px-3 py-1.5 text-sm font-semibold text-blue-700">
                   <Store className="size-4" />
                   NixOS App Store
                 </div>
-                <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
+                <h1 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl lg:text-4xl">
                   アプリを探す
                 </h1>
-                <p className="mt-2 max-w-3xl text-base leading-6 text-muted-foreground sm:text-base">
+                <p className="mt-2 max-w-3xl text-sm leading-5 text-muted-foreground sm:text-base">
                   Nixpkgsにあるアプリ、言語、ライブラリ、開発ツールを検索できます。
                 </p>
 
-                <form onSubmit={handleSearch} className="mt-6">
-                  <div className="flex w-full gap-3">
+                <form onSubmit={handleSearch} className="mt-4">
+                  <div className="flex w-full gap-2">
                     <div className="relative min-w-0 flex-1">
-                      <Search className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-blue-500" />
+                      <Search className="absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-blue-500" />
                       <Input
-                        className="h-12 rounded-xl border-blue-200 bg-white/95 pl-11 pr-4 text-sm ring-offset-background placeholder:text-muted-foreground/70 focus-visible:border-blue-400 focus-visible:ring-blue-200 sm:h-14 sm:rounded-2xl sm:text-base"
+                        className="h-10 rounded-xl border-blue-200 bg-white/95 pl-10 pr-3 text-sm ring-offset-background placeholder:text-muted-foreground/70 focus-visible:border-blue-400 focus-visible:ring-blue-200 sm:h-12 sm:rounded-xl sm:text-base"
                         placeholder="アプリ、言語、ライブラリ、ツールを検索..."
                         value={query}
                         onChange={(event) => setQuery(event.target.value)}
@@ -158,14 +158,14 @@ function Discover() {
                     </div>
                     <Button
                       type="submit"
-                      className="h-12 rounded-xl bg-blue-600 px-4 text-white hover:bg-blue-700 sm:h-14 sm:rounded-2xl sm:px-6"
+                      className="h-10 rounded-xl bg-blue-600 px-3 text-white hover:bg-blue-700 sm:h-12 sm:px-5"
                       disabled={!query.trim() || searching}
                     >
                       <Search className="mr-2 size-4" />
                       検索
                     </Button>
                   </div>
-                  <p className="mt-2 px-1 text-sm text-muted-foreground">
+                  <p className="mt-1 px-1 text-xs text-muted-foreground">
                     Enterキーで検索
                   </p>
                 </form>

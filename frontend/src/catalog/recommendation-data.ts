@@ -30,10 +30,12 @@ const EMPTY_DATA: RecommendationData = {
   recommendations: [],
 };
 
+/** Check whether an unknown JSON value is a non-array object. */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** Check whether a numeric month uses the pkgstats YYYYMM format. */
 function isValidMonth(value: unknown): value is number {
   return (
     typeof value === "number" &&
@@ -128,6 +130,7 @@ export function parseRecommendationData(
   };
 }
 
+/** Fetch and validate one recommendation document, treating network errors as unavailable data. */
 async function readRecommendationData(
   url: string,
   fetcher: typeof fetch,

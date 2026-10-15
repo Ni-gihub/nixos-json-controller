@@ -1004,12 +1004,7 @@ const FALLBACK_METADATA: Record<string, FallbackMetadata> = {
     category: "ユーティリティ",
     tags: ["音声", "設定"],
   },
-  "gnome-extensions-app": {
-    name: "GNOME Extensions",
-    description: "GNOME Shell拡張機能を管理するアプリ",
-    category: "ユーティリティ",
-    tags: ["GNOME", "拡張機能"],
-  },
+
 };
 
 /** Build display-only cards for curated IDs when Nix cannot resolve catalog metadata. */

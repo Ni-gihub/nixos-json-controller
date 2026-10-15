@@ -82,7 +82,10 @@ export default function RecommendationAppCard({
               {app.description || "Nixpkgsからインストールできるアプリです。"}
             </p>
             <div className="mt-4 flex flex-wrap items-center gap-2">
-              <Badge variant="outline" className="rounded-full border-blue-200/90 bg-white/60">
+              <Badge
+                variant="outline"
+                className="rounded-full border-blue-200/90 bg-white/60"
+              >
                 {app.category}
               </Badge>
               {app.tags.slice(0, 2).map((tag) => (
@@ -110,7 +113,9 @@ export default function RecommendationAppCard({
             >
               <div
                 className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500"
-                style={{ width: `${Math.min(100, Math.max(0, recommendation.popularity))}%` }}
+                style={{
+                  width: `${Math.min(100, Math.max(0, recommendation.popularity))}%`,
+                }}
               />
             </div>
             <p className="mt-2 text-xs leading-5 text-muted-foreground">
@@ -150,7 +155,10 @@ export default function RecommendationAppCard({
           </span>
           人気ランキング
         </span>
-        <Badge variant="secondary" className="shrink-0 rounded-full px-2.5 tabular-nums">
+        <Badge
+          variant="secondary"
+          className="shrink-0 rounded-full px-2.5 tabular-nums"
+        >
           {popularity}%
         </Badge>
       </div>
@@ -194,7 +202,9 @@ export default function RecommendationAppCard({
         <div
           aria-hidden="true"
           className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500"
-          style={{ width: `${Math.min(100, Math.max(0, recommendation.popularity))}%` }}
+          style={{
+            width: `${Math.min(100, Math.max(0, recommendation.popularity))}%`,
+          }}
         />
       </div>
 
@@ -203,7 +213,11 @@ export default function RecommendationAppCard({
           {app.category}
         </Badge>
         {app.tags.slice(0, 1).map((tag) => (
-          <Badge key={tag} variant="secondary" className="min-w-0 truncate rounded-full text-xs">
+          <Badge
+            key={tag}
+            variant="secondary"
+            className="min-w-0 truncate rounded-full text-xs"
+          >
             {tag}
           </Badge>
         ))}

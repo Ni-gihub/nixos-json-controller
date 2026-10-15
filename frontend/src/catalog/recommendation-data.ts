@@ -227,6 +227,19 @@ export function isRecommendationCacheFresh(
   return age >= 0 && age < RECOMMENDATION_CACHE_TTL_MS;
 }
 
+/**
+ * Prefer a usable candidate, but preserve existing usable data when the candidate is empty.
+ * This keeps the UI populated when persistent storage and the bundled document are unavailable.
+ */
+export function retainUsableRecommendationData(
+  candidate: RecommendationDocument,
+  existing: RecommendationDocument | null | undefined,
+): RecommendationDocument {
+  if (candidate.recommendations.length > 0) return candidate;
+  if (existing?.recommendations.length) return existing;
+  return candidate;
+}
+
 /** Fetch and validate one recommendation document, treating network errors as unavailable data. */
 async function readRecommendationData(
   url: string,

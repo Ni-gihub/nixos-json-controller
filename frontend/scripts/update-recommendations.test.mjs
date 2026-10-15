@@ -95,6 +95,7 @@ test("detects recommendation, period, and source changes", () => {
       {
         id: "firefox",
         archPackage: "firefox",
+        genre: "ブラウザ",
         popularity: 66.79,
         count: 203545,
         samples: 304746,
@@ -107,6 +108,15 @@ test("detects recommendation, period, and source changes", () => {
       ...existing,
       recommendations: [
         { ...existing.recommendations[0], popularity: 66.8 },
+      ],
+    }),
+    false,
+  );
+  assert.equal(
+    hasSameRecommendationContent(existing, {
+      ...existing,
+      recommendations: [
+        { ...existing.recommendations[0], genre: "メディア" },
       ],
     }),
     false,
@@ -137,6 +147,7 @@ test("treats malformed existing recommendation data as changed", () => {
       {
         id: "firefox",
         archPackage: "firefox",
+        genre: "ブラウザ",
         popularity: 66.79,
         count: 203545,
         samples: 304746,

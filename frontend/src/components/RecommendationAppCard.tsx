@@ -124,14 +124,16 @@ export default function RecommendationAppCard({
                 詳細を見る
                 <ArrowUpRight className="size-4" />
               </Link>
-              <InstallButton
-                packageId={app.id}
-                appName={app.name}
-                installed={installed}
-                onInstalled={() => refreshPackage(app.id)}
-                className="h-9 min-w-24 rounded-full px-4 text-sm"
-                size="sm"
-              />
+              <div className="min-w-24 shrink-0">
+                <InstallButton
+                  packageId={app.id}
+                  appName={app.name}
+                  installed={installed}
+                  onInstalled={() => refreshPackage(app.id)}
+                  className="h-9 w-full rounded-full px-4 text-sm"
+                  size="sm"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -215,14 +217,16 @@ export default function RecommendationAppCard({
           詳細
           <ArrowUpRight className="size-4" />
         </Link>
-        <InstallButton
-          packageId={app.id}
-          appName={app.name}
-          installed={installed}
-          onInstalled={() => refreshPackage(app.id)}
-          className="h-9 min-w-24 rounded-full px-3 text-sm"
-          size="sm"
-        />
+        <div className="min-w-24 shrink-0">
+          <InstallButton
+            packageId={app.id}
+            appName={app.name}
+            installed={installed}
+            onInstalled={() => refreshPackage(app.id)}
+            className="h-9 w-full rounded-full px-3 text-sm"
+            size="sm"
+          />
+        </div>
       </div>
       <p className="mt-2 text-[11px] leading-4 text-muted-foreground">
         Arch Linux pkgstatsに基づく人気指標

@@ -42,9 +42,8 @@ function Discover() {
   const [recommendedCatalogApps, setRecommendedCatalogApps] = useState<App[]>(
     [],
   );
-  const [expandedRecommendationGenres, setExpandedRecommendationGenres] = useState<
-    Set<string>
-  >(new Set());
+  const [expandedRecommendationGenres, setExpandedRecommendationGenres] =
+    useState<Set<string>>(new Set());
   const [recommendationStatus, setRecommendationStatus] =
     useState<RecommendationStatus>("loading");
   const [recommendationMessage, setRecommendationMessage] = useState<
@@ -449,7 +448,8 @@ function Discover() {
                                     rank={
                                       index +
                                       (group.genre ===
-                                      featuredRecommendation?.recommendation.genre
+                                      featuredRecommendation?.recommendation
+                                        .genre
                                         ? 2
                                         : 1)
                                     }
@@ -465,15 +465,17 @@ function Discover() {
                                     variant="outline"
                                     size="sm"
                                     onClick={() =>
-                                      setExpandedRecommendationGenres((current) => {
-                                        const next = new Set(current);
-                                        if (next.has(group.genre)) {
-                                          next.delete(group.genre);
-                                        } else {
-                                          next.add(group.genre);
-                                        }
-                                        return next;
-                                      })
+                                      setExpandedRecommendationGenres(
+                                        (current) => {
+                                          const next = new Set(current);
+                                          if (next.has(group.genre)) {
+                                            next.delete(group.genre);
+                                          } else {
+                                            next.add(group.genre);
+                                          }
+                                          return next;
+                                        },
+                                      )
                                     }
                                   >
                                     {expanded

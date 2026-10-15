@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Search, Store, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,8 +9,12 @@ import DiscoverPreSearch, {
 } from "./DiscoverPreSearch";
 import { searchApps, type App } from "@/catalog";
 import {
+  isRecommendationCacheFresh,
   loadBundledRecommendations,
   loadLatestRecommendations,
+  readCachedRecommendations,
+  retainUsableRecommendationData,
+  writeCachedRecommendations,
   type RecommendationData,
 } from "@/catalog/recommendation-data";
 import { getRecommendedCatalogApps } from "@/catalog/recommendations";
@@ -30,6 +34,10 @@ function Discover() {
   const { states, loading, error, refreshPackages } = useAppState();
   const [recommendationData, setRecommendationData] =
     useState<RecommendationData | null>(null);
+  const recommendationDataRef = useRef<RecommendationData | null>(null);
+  useEffect(() => {
+    recommendationDataRef.current = recommendationData;
+  }, [recommendationData]);
   const [recommendedCatalogApps, setRecommendedCatalogApps] = useState<App[]>(
     [],
   );
@@ -63,27 +71,55 @@ function Discover() {
 
   useEffect(() => {
     let cancelled = false;
+    const forceRefresh = recommendationReloadKey > 0;
 
-    // Retry reloads the bundled file and the optional online update together.
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- expose the current loading state before asynchronous reads
+    // A valid cache avoids reading either JSON file on ordinary screen refreshes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- expose refresh state before async reads
     setRecommendationStatus("loading");
     setRecommendationMessage(null);
 
     void (async () => {
-      const bundled = await loadBundledRecommendations();
-      if (cancelled) return;
-      setRecommendationData(bundled);
+      const cached = readCachedRecommendations();
+      let currentData: RecommendationData | undefined;
 
-      if (bundled.recommendations.length === 0) {
-        setRecommendationStatus("unavailable");
-        setRecommendationMessage(
-          "frontend/public/data/recommendations.json から有効なおすすめデータを読み込めませんでした。",
+      if (cached) {
+        currentData = cached.data;
+        setRecommendationData(cached.data);
+
+        if (!forceRefresh && isRecommendationCacheFresh(cached)) {
+          setRecommendationStatus("ready");
+          return;
+        }
+      } else {
+        // Only read the bundled JSON when there is no persisted, valid recommendation cache.
+        const bundled = await loadBundledRecommendations();
+        if (cancelled) return;
+        currentData = retainUsableRecommendationData(
+          bundled,
+          recommendationDataRef.current,
         );
-        return;
+        setRecommendationData(currentData);
       }
 
+      // Stale cached data remains visible while the network is checked in the background.
       const latest = await loadLatestRecommendations();
-      if (!cancelled && latest) setRecommendationData(latest);
+      if (cancelled) return;
+
+      if (latest) {
+        currentData = latest;
+        setRecommendationData(latest);
+      }
+
+      // Record the last check even on a network failure, so an offline app doesn't retry on
+      // every visit. A successful online response replaces the cached content.
+      if (currentData?.recommendations.length) {
+        writeCachedRecommendations(currentData);
+      } else {
+        setRecommendationStatus("unavailable");
+        setRecommendationMessage(
+          "同梱データとオンラインのおすすめデータを読み込めませんでした。",
+        );
+      }
     })().catch((err: unknown) => {
       if (cancelled) return;
       setRecommendationStatus("unavailable");

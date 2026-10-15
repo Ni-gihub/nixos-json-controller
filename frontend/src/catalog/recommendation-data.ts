@@ -19,16 +19,37 @@ export type RecommendationData = {
   recommendations: RecommendationRecord[];
 };
 
+export type RecommendationDocument = RecommendationData;
+
+export type CachedRecommendations = {
+  data: RecommendationDocument;
+  checkedAt: number;
+};
+
+type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
 const BUNDLED_DATA_URL = "/data/recommendations.json";
 const LATEST_DATA_URL =
   "https://raw.githubusercontent.com/Ni-gihub/nixos-json-controller/main/frontend/public/data/recommendations.json";
-const EMPTY_DATA: RecommendationData = {
+const RECOMMENDATION_CACHE_KEY = "nxc.app-store.recommendations.v1";
+export const RECOMMENDATION_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+const EMPTY_DATA: RecommendationDocument = {
   source: "Arch Linux pkgstats",
   sourceUrl: "https://pkgstats.archlinux.de/api/doc",
   generatedAt: null,
   period: null,
   recommendations: [],
 };
+
+/** Get localStorage when the WebView makes it available. */
+function getBrowserStorage(): StorageLike | undefined {
+  try {
+    return typeof window === "undefined" ? undefined : window.localStorage;
+  } catch {
+    return undefined;
+  }
+}
 
 /** Check whether an unknown JSON value is a non-array object. */
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -50,7 +71,7 @@ function isValidMonth(value: unknown): value is number {
 /** Validate remote or bundled JSON before it influences package lookup. */
 export function parseRecommendationData(
   value: unknown,
-): RecommendationData | undefined {
+): RecommendationDocument | undefined {
   if (!isRecord(value) || !Array.isArray(value.recommendations)) {
     return undefined;
   }
@@ -130,11 +151,100 @@ export function parseRecommendationData(
   };
 }
 
+/** Read the last usable recommendation result persisted by the app. */
+export function readCachedRecommendations(
+  now = Date.now(),
+  storage: StorageLike | undefined = getBrowserStorage(),
+): CachedRecommendations | undefined {
+  if (!storage) return undefined;
+
+  try {
+    const raw = storage.getItem(RECOMMENDATION_CACHE_KEY);
+    if (!raw) return undefined;
+
+    const envelope: unknown = JSON.parse(raw);
+    if (
+      !isRecord(envelope) ||
+      envelope.version !== 1 ||
+      typeof envelope.checkedAt !== "number" ||
+      !Number.isFinite(envelope.checkedAt) ||
+      envelope.checkedAt < 0 ||
+      envelope.checkedAt > now
+    ) {
+      storage.removeItem(RECOMMENDATION_CACHE_KEY);
+      return undefined;
+    }
+
+    const data = parseRecommendationData(envelope.data);
+    if (!data || data.recommendations.length === 0) {
+      storage.removeItem(RECOMMENDATION_CACHE_KEY);
+      return undefined;
+    }
+
+    return { data, checkedAt: envelope.checkedAt };
+  } catch {
+    // Remove malformed JSON when possible; storage errors must not break app startup.
+    try {
+      storage.removeItem(RECOMMENDATION_CACHE_KEY);
+    } catch {
+      // Storage can be unavailable in restricted WebView contexts.
+    }
+    return undefined;
+  }
+}
+
+/** Persist only validated, non-empty recommendation data. */
+export function writeCachedRecommendations(
+  data: RecommendationDocument,
+  checkedAt = Date.now(),
+  storage: StorageLike | undefined = getBrowserStorage(),
+): void {
+  if (
+    !storage ||
+    data.recommendations.length === 0 ||
+    !Number.isFinite(checkedAt) ||
+    checkedAt < 0
+  ) {
+    return;
+  }
+
+  try {
+    storage.setItem(
+      RECOMMENDATION_CACHE_KEY,
+      JSON.stringify({ version: 1, checkedAt, data }),
+    );
+  } catch {
+    // The app must still work if persistent browser storage is unavailable.
+  }
+}
+
+/** Cached JSON is reused for 24 hours; expired data remains usable while refreshing. */
+export function isRecommendationCacheFresh(
+  cached: CachedRecommendations,
+  now = Date.now(),
+): boolean {
+  const age = now - cached.checkedAt;
+  return age >= 0 && age < RECOMMENDATION_CACHE_TTL_MS;
+}
+
+/**
+ * Prefer a usable candidate, but preserve existing usable data when the candidate is empty.
+ * This keeps the UI populated when persistent storage and the bundled document are unavailable.
+ */
+export function retainUsableRecommendationData(
+  candidate: RecommendationDocument,
+  existing: RecommendationDocument | null | undefined,
+): RecommendationDocument {
+  if (candidate.recommendations.length > 0) return candidate;
+  if (existing?.recommendations.length) return existing;
+  return candidate;
+}
+
 /** Fetch and validate one recommendation document, treating network errors as unavailable data. */
 async function readRecommendationData(
   url: string,
   fetcher: typeof fetch,
-): Promise<RecommendationData | undefined> {
+): Promise<RecommendationDocument | undefined> {
   try {
     const response = await fetcher(url, {
       cache: "no-store",
@@ -151,16 +261,16 @@ async function readRecommendationData(
 /** Read the packaged copy first so initial UI does not depend on the network. */
 export async function loadBundledRecommendations(
   fetcher: typeof fetch = fetch,
-): Promise<RecommendationData> {
+): Promise<RecommendationDocument> {
   return (
     (await readRecommendationData(BUNDLED_DATA_URL, fetcher)) ?? EMPTY_DATA
   );
 }
 
-/** Refresh from the repository's generated JSON, retaining bundled data on failure. */
+/** Fetch the latest generated JSON; callers decide when the cached value should be refreshed. */
 export async function loadLatestRecommendations(
   fetcher: typeof fetch = fetch,
-): Promise<RecommendationData | undefined> {
+): Promise<RecommendationDocument | undefined> {
   const separator = LATEST_DATA_URL.includes("?") ? "&" : "?";
   const latest = await readRecommendationData(
     `${LATEST_DATA_URL}${separator}t=${Date.now()}`,

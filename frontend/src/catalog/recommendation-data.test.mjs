@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  isRecommendationCacheFresh,
   loadBundledRecommendations,
   loadLatestRecommendations,
   parseRecommendationData,
+  readCachedRecommendations,
+  retainUsableRecommendationData,
+  RECOMMENDATION_CACHE_TTL_MS,
+  writeCachedRecommendations,
 } from "./recommendation-data.ts";
 
 const validData = {
@@ -71,4 +76,78 @@ test("does not replace existing data with an empty remote list", async () => {
     mockResponse(emptyData),
   );
   assert.equal(data, undefined);
+});
+
+
+test("prefers non-empty bundled recommendations over retained data", () => {
+  const bundled = { ...validData, recommendations: [{ ...validData.recommendations[0], id: "chromium" }] };
+  const retained = validData;
+
+  assert.equal(retainUsableRecommendationData(bundled, retained), bundled);
+});
+
+test("retains existing recommendations when bundled data is empty", () => {
+  const emptyBundled = { ...validData, recommendations: [] };
+
+  assert.equal(retainUsableRecommendationData(emptyBundled, validData), validData);
+});
+
+test("uses empty bundled data when no usable existing data is available", () => {
+  const emptyBundled = { ...validData, recommendations: [] };
+
+  assert.equal(retainUsableRecommendationData(emptyBundled, null), emptyBundled);
+});
+
+function createMemoryStorage() {
+  const values = new Map();
+  return {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, value),
+    removeItem: (key) => values.delete(key),
+  };
+}
+
+test("persists and reads valid recommendation cache data", () => {
+  const storage = createMemoryStorage();
+  writeCachedRecommendations(validData, 1_800_000_000_000, storage);
+
+  const cached = readCachedRecommendations(1_800_000_000_001, storage);
+  assert.equal(cached?.data.recommendations[0]?.id, "firefox");
+  assert.equal(cached?.checkedAt, 1_800_000_000_000);
+});
+
+test("reuses recommendation cache for 24 hours and expires it afterwards", () => {
+  const storage = createMemoryStorage();
+  const checkedAt = 1_800_000_000_000;
+  writeCachedRecommendations(validData, checkedAt, storage);
+  const cached = readCachedRecommendations(checkedAt + 1, storage);
+
+  assert.ok(cached);
+  assert.equal(
+    isRecommendationCacheFresh(cached, checkedAt + RECOMMENDATION_CACHE_TTL_MS - 1),
+    true,
+  );
+  assert.equal(
+    isRecommendationCacheFresh(cached, checkedAt + RECOMMENDATION_CACHE_TTL_MS),
+    false,
+  );
+});
+
+test("ignores and removes malformed cache entries", () => {
+  const storage = createMemoryStorage();
+  storage.setItem("nxc.app-store.recommendations.v1", "{invalid json");
+
+  assert.equal(readCachedRecommendations(1_800_000_000_000, storage), undefined);
+  assert.equal(storage.getItem("nxc.app-store.recommendations.v1"), null);
+});
+
+test("does not persist empty recommendation data", () => {
+  const storage = createMemoryStorage();
+  writeCachedRecommendations(
+    { ...validData, recommendations: [] },
+    1_800_000_000_000,
+    storage,
+  );
+
+  assert.equal(storage.getItem("nxc.app-store.recommendations.v1"), null);
 });

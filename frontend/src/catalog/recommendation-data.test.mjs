@@ -6,6 +6,7 @@ import {
   loadLatestRecommendations,
   parseRecommendationData,
   readCachedRecommendations,
+  retainUsableRecommendationData,
   RECOMMENDATION_CACHE_TTL_MS,
   writeCachedRecommendations,
 } from "./recommendation-data.ts";
@@ -77,6 +78,25 @@ test("does not replace existing data with an empty remote list", async () => {
   assert.equal(data, undefined);
 });
 
+
+test("prefers non-empty bundled recommendations over retained data", () => {
+  const bundled = { ...validData, recommendations: [{ ...validData.recommendations[0], id: "chromium" }] };
+  const retained = validData;
+
+  assert.equal(retainUsableRecommendationData(bundled, retained), bundled);
+});
+
+test("retains existing recommendations when bundled data is empty", () => {
+  const emptyBundled = { ...validData, recommendations: [] };
+
+  assert.equal(retainUsableRecommendationData(emptyBundled, validData), validData);
+});
+
+test("uses empty bundled data when no usable existing data is available", () => {
+  const emptyBundled = { ...validData, recommendations: [] };
+
+  assert.equal(retainUsableRecommendationData(emptyBundled, null), emptyBundled);
+});
 
 function createMemoryStorage() {
   const values = new Map();

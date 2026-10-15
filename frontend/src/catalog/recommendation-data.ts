@@ -16,11 +16,10 @@ export type RecommendationData = {
   sourceUrl: string;
   generatedAt: string | null;
   period: RecommendationPeriod | null;
-};
-
-export type RecommendationDocument = RecommendationData & {
   recommendations: RecommendationRecord[];
 };
+
+export type RecommendationDocument = RecommendationData;
 
 export type CachedRecommendations = {
   data: RecommendationDocument;

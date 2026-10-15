@@ -235,7 +235,7 @@ const FALLBACK_METADATA: Record<string, FallbackMetadata> = {
     description: "仮想マシンを作成・管理するアプリ",
     category: "システム",
     tags: ["仮想化", "管理"],
-  },,
+  },
   nautilus: {
     name: "Files",
     description: "GNOMEデスクトップのファイルマネージャー",

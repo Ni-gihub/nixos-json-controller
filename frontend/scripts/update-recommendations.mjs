@@ -150,6 +150,70 @@ export function buildRecommendations(popularities, packageMap) {
   return recommendations.slice(0, recommendationLimit);
 }
 
+/**
+ * Compare recommendation payloads while ignoring generatedAt.
+ * generatedAt represents when the recommendation content last changed, not every poll.
+ */
+function recommendationContentKey(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+
+  const record = value;
+  if (
+    typeof record.source !== "string" ||
+    typeof record.sourceUrl !== "string" ||
+    typeof record.generatedAt !== "string" ||
+    Number.isNaN(Date.parse(record.generatedAt)) ||
+    !record.period ||
+    typeof record.period !== "object" ||
+    !Number.isInteger(record.period.startMonth) ||
+    !Number.isInteger(record.period.endMonth) ||
+    !Array.isArray(record.recommendations) ||
+    record.recommendations.length === 0
+  ) {
+    return null;
+  }
+
+  const recommendations = [];
+  for (const item of record.recommendations) {
+    if (
+      !item ||
+      typeof item !== "object" ||
+      typeof item.id !== "string" ||
+      typeof item.archPackage !== "string" ||
+      typeof item.popularity !== "number" ||
+      !Number.isFinite(item.popularity) ||
+      !Number.isInteger(item.count) ||
+      !Number.isInteger(item.samples)
+    ) {
+      return null;
+    }
+
+    recommendations.push({
+      id: item.id,
+      archPackage: item.archPackage,
+      popularity: item.popularity,
+      count: item.count,
+      samples: item.samples,
+    });
+  }
+
+  return JSON.stringify({
+    source: record.source,
+    sourceUrl: record.sourceUrl,
+    period: {
+      startMonth: record.period.startMonth,
+      endMonth: record.period.endMonth,
+    },
+    recommendations,
+  });
+}
+
+/** Return true when only the generation timestamp differs from usable data. */
+export function hasSameRecommendationContent(existing, next) {
+  const existingKey = recommendationContentKey(existing);
+  return existingKey !== null && existingKey === recommendationContentKey(next);
+}
+
 /** Generate a new JSON file only after statistics and candidate validation succeed. */
 async function main() {
   const packageMap = JSON.parse(await readFile(mapPath, "utf8"));
@@ -171,6 +235,25 @@ async function main() {
     period,
     recommendations,
   };
+
+  let existingText;
+  try {
+    existingText = await readFile(outputPath, "utf8");
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+
+  if (existingText !== undefined) {
+    try {
+      const existing = JSON.parse(existingText);
+      if (hasSameRecommendationContent(existing, output)) {
+        console.log("Recommendation content is unchanged; keeping the existing data file.");
+        return;
+      }
+    } catch {
+      // Replace malformed existing JSON with the newly validated payload.
+    }
+  }
 
   await writeFile(outputPath, `${JSON.stringify(output, null, 2)}\n`, "utf8");
   console.log(

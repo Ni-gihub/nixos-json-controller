@@ -61,6 +61,25 @@ test("deduplicates recommendation IDs", () => {
   assert.equal(parseRecommendationData(duplicated)?.recommendations.length, 1);
 });
 
+
+test("accepts expanded recommendation lists and rejects oversized payloads", () => {
+  const makeList = (length) => ({
+    ...validData,
+    recommendations: Array.from({ length }, (_, index) => ({
+      id: `test-app-${index}`,
+      archPackage: `test-app-${index}`,
+      genre: "テスト",
+      popularity: 50,
+      count: 10,
+      samples: 20,
+    })),
+  });
+
+  assert.equal(parseRecommendationData(makeList(59))?.recommendations.length, 59);
+  assert.equal(parseRecommendationData(makeList(150))?.recommendations.length, 150);
+  assert.equal(parseRecommendationData(makeList(251)), undefined);
+});
+
 test("uses bundled data when it can be read", async () => {
   const data = await loadBundledRecommendations(async () =>
     mockResponse(validData),
@@ -140,10 +159,10 @@ test("reuses recommendation cache for 24 hours and expires it afterwards", () =>
 
 test("ignores and removes malformed cache entries", () => {
   const storage = createMemoryStorage();
-  storage.setItem("nxc.app-store.recommendations.v1", "{invalid json");
+  storage.setItem("nxc.app-store.recommendations.v2", "{invalid json");
 
   assert.equal(readCachedRecommendations(1_800_000_000_000, storage), undefined);
-  assert.equal(storage.getItem("nxc.app-store.recommendations.v1"), null);
+  assert.equal(storage.getItem("nxc.app-store.recommendations.v2"), null);
 });
 
 test("does not persist empty recommendation data", () => {
@@ -154,5 +173,5 @@ test("does not persist empty recommendation data", () => {
     storage,
   );
 
-  assert.equal(storage.getItem("nxc.app-store.recommendations.v1"), null);
+  assert.equal(storage.getItem("nxc.app-store.recommendations.v2"), null);
 });

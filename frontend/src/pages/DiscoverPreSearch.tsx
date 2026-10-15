@@ -118,7 +118,7 @@ export default function DiscoverPreSearch({
             POPULAR PICKS
           </p>
           <h2 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
-            人気アプリから探す
+            人気のアプリから探す
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
             利用統計を参考にしたおすすめランキング。気になるアプリは詳細を確認して、そのままインストールできます。

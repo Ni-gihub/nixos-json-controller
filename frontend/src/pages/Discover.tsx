@@ -56,11 +56,26 @@ function Discover() {
       .join("\n") ?? "";
   const appById = new Map(recommendedCatalogApps.map((app) => [app.id, app]));
   const recommendedApps = (recommendationData?.recommendations ?? []).flatMap(
-    (recommendation, index) => {
+    (recommendation) => {
       const app = appById.get(recommendation.id);
-      return app ? [{ ...app, recommendation, rank: index + 1 }] : [];
+      return app ? [{ ...app, recommendation }] : [];
     },
   );
+  const featuredRecommendation = recommendedApps[0] ?? null;
+  const recommendationGenreGroups = Array.from(
+    new Set(recommendedApps.map((app) => app.recommendation.genre)),
+  )
+    .map((genre) => ({
+      genre,
+      apps: recommendedApps.filter((app) => app.recommendation.genre === genre),
+    }))
+    .map((group) => ({
+      ...group,
+      apps: group.apps.filter(
+        (app) => app.id !== featuredRecommendation?.id,
+      ),
+    }))
+    .filter((group) => group.apps.length > 0);
 
   useEffect(() => {
     if (!initialQuery || initialQuery === submittedQuery) return;
@@ -371,16 +386,59 @@ function Discover() {
                   recommendationMessage={recommendationMessage}
                   onRetry={retryRecommendations}
                 >
-                  {recommendedApps.map((app, index) => (
-                    <RecommendationAppCard
-                      key={app.id}
-                      app={app}
-                      recommendation={app.recommendation}
-                      rank={app.rank}
-                      featured={index === 0}
-                      installed={states[app.id]?.active ?? false}
-                    />
-                  ))}
+                  <div className="space-y-9">
+                    {featuredRecommendation && (
+                      <RecommendationAppCard
+                        app={featuredRecommendation}
+                        recommendation={featuredRecommendation.recommendation}
+                        rank={1}
+                        featured
+                        installed={
+                          states[featuredRecommendation.id]?.active ?? false
+                        }
+                      />
+                    )}
+
+                    {recommendationGenreGroups.length > 0 && (
+                      <div className="space-y-9">
+                        {recommendationGenreGroups.map((group) => (
+                          <section key={group.genre} className="space-y-3">
+                            <div className="flex flex-wrap items-end justify-between gap-2">
+                              <div>
+                                <p className="text-xs font-bold tracking-[0.14em] text-blue-600">
+                                  ジャンルから探す
+                                </p>
+                                <h3 className="mt-1 text-xl font-bold tracking-tight sm:text-2xl">
+                                  {group.genre}
+                                </h3>
+                              </div>
+                              <span className="text-sm text-muted-foreground">
+                                {group.apps.length}件
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                              {group.apps.map((app, index) => (
+                                <RecommendationAppCard
+                                  key={app.id}
+                                  app={app}
+                                  recommendation={app.recommendation}
+                                  rank={
+                                    index +
+                                    (group.genre ===
+                                    featuredRecommendation?.recommendation.genre
+                                      ? 2
+                                      : 1)
+                                  }
+                                  featured={false}
+                                  installed={states[app.id]?.active ?? false}
+                                />
+                              ))}
+                            </div>
+                          </section>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </DiscoverPreSearch>
               ) : (
                 <>

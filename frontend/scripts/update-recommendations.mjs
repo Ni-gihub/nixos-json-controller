@@ -12,7 +12,7 @@ const apiUrl = "https://pkgstats.archlinux.de/api/packages";
 const sourceUrl = "https://pkgstats.archlinux.de/api/doc";
 const pageSize = 10_000;
 const maxOffset = 100_000;
-const recommendationLimit = 12;
+const recommendationLimitPerGenre = 4;
 
 /** Convert a UTC Date into the API's numeric YYYYMM representation. */
 function formatMonth(date) {
@@ -123,17 +123,21 @@ export function buildRecommendations(popularities, packageMap) {
       throw new Error("recommendation package map contains an invalid entry");
     }
     if (!uniqueMappings.has(mapping.archPackage)) {
-      uniqueMappings.set(mapping.archPackage, mapping.id);
+      uniqueMappings.set(mapping.archPackage, {
+        id: mapping.id,
+        genre: mapping.genre,
+      });
     }
   }
 
   const recommendations = [];
-  for (const [archPackage, id] of uniqueMappings) {
+  for (const [archPackage, mapping] of uniqueMappings) {
     const statistic = popularityByName.get(archPackage);
     if (!statistic) continue;
     recommendations.push({
-      id,
+      id: mapping.id,
       archPackage,
+      genre: mapping.genre,
       popularity: statistic.popularity,
       count: statistic.count,
       samples: statistic.samples,
@@ -147,7 +151,13 @@ export function buildRecommendations(popularities, packageMap) {
       a.archPackage.localeCompare(b.archPackage),
   );
 
-  return recommendations.slice(0, recommendationLimit);
+  const genreCounts = new Map();
+  return recommendations.filter((recommendation) => {
+    const count = genreCounts.get(recommendation.genre) ?? 0;
+    if (count >= recommendationLimitPerGenre) return false;
+    genreCounts.set(recommendation.genre, count + 1);
+    return true;
+  });
 }
 
 /**
@@ -180,6 +190,7 @@ function recommendationContentKey(value) {
       typeof item !== "object" ||
       typeof item.id !== "string" ||
       typeof item.archPackage !== "string" ||
+      typeof item.genre !== "string" ||
       typeof item.popularity !== "number" ||
       !Number.isFinite(item.popularity) ||
       !Number.isInteger(item.count) ||
@@ -191,6 +202,7 @@ function recommendationContentKey(value) {
     recommendations.push({
       id: item.id,
       archPackage: item.archPackage,
+      genre: item.genre,
       popularity: item.popularity,
       count: item.count,
       samples: item.samples,

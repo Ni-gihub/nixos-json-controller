@@ -115,7 +115,7 @@ export default function DiscoverPreSearch({
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-xs font-bold tracking-[0.16em] text-blue-600">
-            POPULAR PICKS
+            おすすめアプリ
           </p>
           <h2 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
             人気のアプリから探す

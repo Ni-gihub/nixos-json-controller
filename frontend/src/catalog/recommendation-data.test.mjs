@@ -20,6 +20,7 @@ const validData = {
     {
       id: "firefox",
       archPackage: "firefox",
+      genre: "ブラウザ",
       popularity: 63.53,
       count: 123,
       samples: 456,

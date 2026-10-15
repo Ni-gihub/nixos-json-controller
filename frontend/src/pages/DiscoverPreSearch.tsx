@@ -121,7 +121,8 @@ export default function DiscoverPreSearch({
             人気のアプリから探す
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            Arch Linuxの利用統計を参考に、総合ピックアップとジャンル別の人気アプリを紹介します。気になるアプリは詳細を確認して、そのままインストールできます。
+            Arch
+            Linuxの利用統計を参考に、総合ピックアップとジャンル別の人気アプリを紹介します。気になるアプリは詳細を確認して、そのままインストールできます。
             {generatedAt
               ? ` データ更新日: ${new Date(generatedAt).toLocaleDateString("ja-JP")}`
               : ""}

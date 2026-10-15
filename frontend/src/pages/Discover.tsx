@@ -71,9 +71,7 @@ function Discover() {
     }))
     .map((group) => ({
       ...group,
-      apps: group.apps.filter(
-        (app) => app.id !== featuredRecommendation?.id,
-      ),
+      apps: group.apps.filter((app) => app.id !== featuredRecommendation?.id),
     }))
     .filter((group) => group.apps.length > 0);
 

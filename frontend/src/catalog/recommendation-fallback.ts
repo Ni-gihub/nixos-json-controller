@@ -1004,7 +1004,6 @@ const FALLBACK_METADATA: Record<string, FallbackMetadata> = {
     category: "ユーティリティ",
     tags: ["音声", "設定"],
   },
-
 };
 
 /** Build display-only cards for curated IDs when Nix cannot resolve catalog metadata. */

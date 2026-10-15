@@ -19,7 +19,10 @@ import {
   type RecommendationData,
 } from "@/catalog/recommendation-data";
 import { getRecommendedCatalogApps } from "@/catalog/recommendations";
-import { buildRecommendationFallbackApps } from "@/catalog/recommendation-fallback";
+import {
+  buildRecommendationFallbackApps,
+  formatUnresolvedRecommendationMessage,
+} from "@/catalog/recommendation-fallback";
 import { useAppState } from "@/lib/app-state";
 import { useSearchParams } from "react-router";
 
@@ -185,11 +188,9 @@ function Discover() {
                 `${fallbackApps.length}件は同梱の基本情報を使って表示しています。`,
               );
             }
-            if (unresolvedIds.length > 0) {
-              messages.push(
-                `表示用の情報がないため表示できないアプリ: ${unresolvedIds.join(", ")}`,
-              );
-            }
+            const unresolvedMessage =
+              formatUnresolvedRecommendationMessage(unresolvedIds);
+            if (unresolvedMessage) messages.push(unresolvedMessage);
             setRecommendationMessage(messages.join(" "));
           } else {
             setRecommendationStatus("ready");
@@ -199,17 +200,24 @@ function Discover() {
           return;
         }
 
+        const unresolvedMessage =
+          formatUnresolvedRecommendationMessage(unresolvedIds);
+
         if (fallbackApps.length > 0) {
           setRecommendationStatus("fallback");
-          setRecommendationMessage(
+          const messages = [
             "Nix検索で詳細情報を取得できなかったため、同梱の基本情報でおすすめを表示しています。",
-          );
+          ];
+          if (unresolvedMessage) messages.push(unresolvedMessage);
+          setRecommendationMessage(messages.join(" "));
           void refreshPackages(fallbackApps.map((app) => app.id));
         } else {
           setRecommendationStatus("unavailable");
-          setRecommendationMessage(
+          const messages = [
             "取得したおすすめIDがフォールバック対象にも含まれていません。おすすめJSONとパッケージ対応表を確認してください。",
-          );
+          ];
+          if (unresolvedMessage) messages.push(unresolvedMessage);
+          setRecommendationMessage(messages.join(" "));
         }
       })
       .catch((err: unknown) => {

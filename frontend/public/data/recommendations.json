@@ -1,7 +1,7 @@
 {
   "source": "Arch Linux pkgstats",
   "sourceUrl": "https://pkgstats.archlinux.de/api/doc",
-  "generatedAt": "2026-10-14T17:07:28.382Z",
+  "generatedAt": "2026-10-15T03:53:30.442Z",
   "period": {
     "startMonth": 202510,
     "endMonth": 202609
@@ -10,98 +10,282 @@
     {
       "id": "firefox",
       "archPackage": "firefox",
+      "genre": "ブラウザ",
       "popularity": 66.79,
       "count": 203545,
-      "samples": 304746,
-      "genre": "ブラウザ"
+      "samples": 304746
     },
     {
       "id": "mpv",
       "archPackage": "mpv",
+      "genre": "メディア",
       "popularity": 63.58,
       "count": 193764,
-      "samples": 304746,
-      "genre": "メディア"
+      "samples": 304746
     },
     {
       "id": "vlc",
       "archPackage": "vlc",
+      "genre": "メディア",
       "popularity": 52.45,
       "count": 159842,
-      "samples": 304746,
-      "genre": "メディア"
+      "samples": 304746
     },
     {
       "id": "pavucontrol",
       "archPackage": "pavucontrol",
+      "genre": "ユーティリティ",
       "popularity": 50.54,
       "count": 154024,
-      "samples": 304746,
-      "genre": "ユーティリティ"
+      "samples": 304746
     },
     {
       "id": "gimp",
       "archPackage": "gimp",
+      "genre": "クリエイティブ",
       "popularity": 49.74,
       "count": 151579,
-      "samples": 304746,
-      "genre": "クリエイティブ"
+      "samples": 304746
     },
     {
       "id": "steam",
       "archPackage": "steam",
+      "genre": "ゲーム",
       "popularity": 49.19,
       "count": 149919,
-      "samples": 304746,
-      "genre": "ゲーム"
+      "samples": 304746
     },
     {
       "id": "chromium",
       "archPackage": "chromium",
+      "genre": "ブラウザ",
       "popularity": 38.59,
       "count": 117610,
-      "samples": 304746,
-      "genre": "ブラウザ"
+      "samples": 304746
     },
     {
       "id": "gparted",
       "archPackage": "gparted",
+      "genre": "システム管理",
       "popularity": 37.8,
       "count": 115181,
-      "samples": 304746,
-      "genre": "システム管理"
+      "samples": 304746
     },
     {
       "id": "kdePackages.okular",
       "archPackage": "okular",
+      "genre": "ドキュメント・ノート",
       "popularity": 35.18,
       "count": 107197,
-      "samples": 304746,
-      "genre": "ドキュメント・ノート"
+      "samples": 304746
     },
     {
       "id": "obs-studio",
       "archPackage": "obs-studio",
+      "genre": "メディア",
       "popularity": 32.45,
       "count": 98890,
-      "samples": 304746,
-      "genre": "メディア"
+      "samples": 304746
     },
     {
       "id": "inkscape",
       "archPackage": "inkscape",
+      "genre": "クリエイティブ",
       "popularity": 31.77,
       "count": 96820,
-      "samples": 304746,
-      "genre": "クリエイティブ"
+      "samples": 304746
     },
     {
       "id": "kitty",
       "archPackage": "kitty",
+      "genre": "ターミナル",
       "popularity": 30.01,
       "count": 91459,
-      "samples": 304746,
-      "genre": "ターミナル"
+      "samples": 304746
+    },
+    {
+      "id": "thunderbird",
+      "archPackage": "thunderbird",
+      "genre": "コミュニケーション",
+      "popularity": 29.91,
+      "count": 91135,
+      "samples": 304746
+    },
+    {
+      "id": "discord",
+      "archPackage": "discord",
+      "genre": "コミュニケーション",
+      "popularity": 28.93,
+      "count": 88176,
+      "samples": 304746
+    },
+    {
+      "id": "audacity",
+      "archPackage": "audacity",
+      "genre": "メディア",
+      "popularity": 28.39,
+      "count": 86506,
+      "samples": 304746
+    },
+    {
+      "id": "virt-manager",
+      "archPackage": "virt-manager",
+      "genre": "システム管理",
+      "popularity": 27.68,
+      "count": 84359,
+      "samples": 304746
+    },
+    {
+      "id": "qbittorrent",
+      "archPackage": "qbittorrent",
+      "genre": "ネットワーク",
+      "popularity": 27.04,
+      "count": 82389,
+      "samples": 304746
+    },
+    {
+      "id": "alacritty",
+      "archPackage": "alacritty",
+      "genre": "ターミナル",
+      "popularity": 25.9,
+      "count": 78917,
+      "samples": 304746
+    },
+    {
+      "id": "evince",
+      "archPackage": "evince",
+      "genre": "ドキュメント・ノート",
+      "popularity": 24.37,
+      "count": 74277,
+      "samples": 304746
+    },
+    {
+      "id": "keepassxc",
+      "archPackage": "keepassxc",
+      "genre": "ユーティリティ",
+      "popularity": 23.66,
+      "count": 72099,
+      "samples": 304746
+    },
+    {
+      "id": "lutris",
+      "archPackage": "lutris",
+      "genre": "ゲーム",
+      "popularity": 22.33,
+      "count": 68052,
+      "samples": 304746
+    },
+    {
+      "id": "krita",
+      "archPackage": "krita",
+      "genre": "クリエイティブ",
+      "popularity": 21.79,
+      "count": 66406,
+      "samples": 304746
+    },
+    {
+      "id": "gnome-calculator",
+      "archPackage": "gnome-calculator",
+      "genre": "ユーティリティ",
+      "popularity": 21.67,
+      "count": 66052,
+      "samples": 304746
+    },
+    {
+      "id": "telegram-desktop",
+      "archPackage": "telegram-desktop",
+      "genre": "コミュニケーション",
+      "popularity": 20.8,
+      "count": 63386,
+      "samples": 304746
+    },
+    {
+      "id": "obsidian",
+      "archPackage": "obsidian",
+      "genre": "ドキュメント・ノート",
+      "popularity": 19.95,
+      "count": 60795,
+      "samples": 304746
+    },
+    {
+      "id": "signal-desktop",
+      "archPackage": "signal-desktop",
+      "genre": "コミュニケーション",
+      "popularity": 18.48,
+      "count": 56310,
+      "samples": 304746
+    },
+    {
+      "id": "blender",
+      "archPackage": "blender",
+      "genre": "クリエイティブ",
+      "popularity": 17.66,
+      "count": 53818,
+      "samples": 304746
+    },
+    {
+      "id": "filezilla",
+      "archPackage": "filezilla",
+      "genre": "ネットワーク",
+      "popularity": 16.91,
+      "count": 51531,
+      "samples": 304746
+    },
+    {
+      "id": "vscode",
+      "archPackage": "code",
+      "genre": "開発ツール",
+      "popularity": 14.66,
+      "count": 44690,
+      "samples": 304746
+    },
+    {
+      "id": "remmina",
+      "archPackage": "remmina",
+      "genre": "ネットワーク",
+      "popularity": 13.67,
+      "count": 41665,
+      "samples": 304746
+    },
+    {
+      "id": "epiphany",
+      "archPackage": "epiphany",
+      "genre": "ブラウザ",
+      "popularity": 12.09,
+      "count": 36850,
+      "samples": 304746
+    },
+    {
+      "id": "ghostty",
+      "archPackage": "ghostty",
+      "genre": "ターミナル",
+      "popularity": 10.9,
+      "count": 33226,
+      "samples": 304746
+    },
+    {
+      "id": "kdePackages.konqueror",
+      "archPackage": "konqueror",
+      "genre": "ブラウザ",
+      "popularity": 9.15,
+      "count": 27893,
+      "samples": 304746
+    },
+    {
+      "id": "wezterm",
+      "archPackage": "wezterm",
+      "genre": "ターミナル",
+      "popularity": 4.28,
+      "count": 13044,
+      "samples": 304746
+    },
+    {
+      "id": "vscodium",
+      "archPackage": "vscodium",
+      "genre": "開発ツール",
+      "popularity": 2.2,
+      "count": 6698,
+      "samples": 304746
     }
   ]
 }

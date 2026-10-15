@@ -116,7 +116,8 @@ export default function RecommendationAppCard({
               />
             </div>
             <p className="mt-2 text-xs leading-5 text-muted-foreground">
-              Arch Linuxの公開統計（pkgstats）に基づく割合です。NixOSでの利用率ではありません。
+              Arch
+              Linuxの公開統計（pkgstats）に基づく割合です。NixOSでの利用率ではありません。
             </p>
             <div className="mt-4 grid grid-cols-2 gap-2">
               <Link
@@ -238,7 +239,8 @@ export default function RecommendationAppCard({
         </div>
       </div>
       <p className="mt-2 text-[11px] leading-4 text-muted-foreground">
-        Arch Linuxの公開統計（pkgstats）に基づく割合です。NixOSでの利用率ではありません。
+        Arch
+        Linuxの公開統計（pkgstats）に基づく割合です。NixOSでの利用率ではありません。
       </p>
     </article>
   );

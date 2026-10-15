@@ -117,11 +117,27 @@ test("detects recommendation, period, and source changes", () => {
 });
 
 test("treats malformed existing recommendation data as changed", () => {
-  assert.equal(hasSameRecommendationContent(null, {}), false);
+  const next = {
+    source: "Arch Linux pkgstats",
+    sourceUrl: "https://pkgstats.archlinux.de/api/doc",
+    generatedAt: "2026-10-19T08:17:00.000Z",
+    period: { startMonth: 202510, endMonth: 202609 },
+    recommendations: [
+      {
+        id: "firefox",
+        archPackage: "firefox",
+        popularity: 66.79,
+        count: 203545,
+        samples: 304746,
+      },
+    ],
+  };
+
+  assert.equal(hasSameRecommendationContent(null, next), false);
   assert.equal(
     hasSameRecommendationContent(
       { source: "Arch Linux pkgstats", recommendations: [] },
-      {},
+      next,
     ),
     false,
   );

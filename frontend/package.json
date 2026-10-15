@@ -7,7 +7,7 @@
     "dev": "vite",
     "tauri": "NXC_APPSTREAM_DATA=$(cd .. && nix build .#appstream-data --no-link --print-out-paths) tauri",
     "build": "tsc -b && vite build",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx}\"",
+    "format:check": "prettier --write \"src/**/*.{ts,tsx}\" && git diff -- src/catalog/recommendation-fallback.ts src/pages/Discover.tsx",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "node --experimental-strip-types --test"

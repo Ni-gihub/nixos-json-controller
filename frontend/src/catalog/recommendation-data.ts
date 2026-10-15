@@ -183,12 +183,17 @@ export function readCachedRecommendations(
 
     return { data, checkedAt: envelope.checkedAt };
   } catch {
-    // Storage may be disabled, full, or contain an interrupted write. Continue without cache.
+    // Remove malformed JSON when possible; storage errors must not break app startup.
+    try {
+      storage.removeItem(RECOMMENDATION_CACHE_KEY);
+    } catch {
+      // Storage can be unavailable in restricted WebView contexts.
+    }
     return undefined;
   }
 }
 
-/** Persist only validated, non-empty recommendation data. */
+/** Persist only validated, non-empty recommendation data.
 export function writeCachedRecommendations(
   data: RecommendationDocument,
   checkedAt = Date.now(),

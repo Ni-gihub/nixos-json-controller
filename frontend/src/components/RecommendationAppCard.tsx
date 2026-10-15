@@ -119,7 +119,8 @@ export default function RecommendationAppCard({
               />
             </div>
             <p className="mt-2 text-xs leading-5 text-muted-foreground">
-              Arch Linuxの公開パッケージ統計を参考にしています。NixOSでの利用率ではありません。
+              Arch
+              Linuxの公開パッケージ統計を参考にしています。NixOSでの利用率ではありません。
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <Link

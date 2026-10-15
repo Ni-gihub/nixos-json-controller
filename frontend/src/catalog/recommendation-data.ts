@@ -1,6 +1,7 @@
 export type RecommendationRecord = {
   id: string;
   archPackage: string;
+  genre: string;
   popularity: number;
   count: number | null;
   samples: number | null;
@@ -87,6 +88,9 @@ export function parseRecommendationData(
       ) ||
       typeof item.archPackage !== "string" ||
       !/^[A-Za-z0-9@+_.-]+$/.test(item.archPackage) ||
+      typeof item.genre !== "string" ||
+      item.genre.trim().length === 0 ||
+      item.genre.length > 40 ||
       typeof item.popularity !== "number" ||
       !Number.isFinite(item.popularity) ||
       item.popularity < 0 ||
@@ -107,6 +111,7 @@ export function parseRecommendationData(
       recommendations.push({
         id: item.id,
         archPackage: item.archPackage,
+        genre: item.genre,
         popularity: item.popularity,
         count: item.count as number | null,
         samples: item.samples as number | null,

@@ -118,6 +118,8 @@ export function buildRecommendations(popularities, packageMap) {
       !mapping ||
       typeof mapping.archPackage !== "string" ||
       typeof mapping.id !== "string" ||
+      typeof mapping.genre !== "string" ||
+      mapping.genre.trim().length === 0 ||
       !/^[A-Za-z_][A-Za-z0-9_'-]*(\.[A-Za-z_][A-Za-z0-9_'-]*)*$/.test(mapping.id)
     ) {
       throw new Error("recommendation package map contains an invalid entry");

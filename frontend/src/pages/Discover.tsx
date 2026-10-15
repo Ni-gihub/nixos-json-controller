@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Search, Store, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import {
   loadBundledRecommendations,
   loadLatestRecommendations,
   readCachedRecommendations,
+  retainUsableRecommendationData,
   writeCachedRecommendations,
   type RecommendationData,
 } from "@/catalog/recommendation-data";
@@ -33,6 +34,10 @@ function Discover() {
   const { states, loading, error, refreshPackages } = useAppState();
   const [recommendationData, setRecommendationData] =
     useState<RecommendationData | null>(null);
+  const recommendationDataRef = useRef<RecommendationData | null>(null);
+  useEffect(() => {
+    recommendationDataRef.current = recommendationData;
+  }, [recommendationData]);
   const [recommendedCatalogApps, setRecommendedCatalogApps] = useState<App[]>(
     [],
   );
@@ -89,8 +94,11 @@ function Discover() {
         // Only read the bundled JSON when there is no persisted, valid recommendation cache.
         const bundled = await loadBundledRecommendations();
         if (cancelled) return;
-        currentData = bundled;
-        setRecommendationData(bundled);
+        currentData = retainUsableRecommendationData(
+          bundled,
+          recommendationDataRef.current,
+        );
+        setRecommendationData(currentData);
       }
 
       // Stale cached data remains visible while the network is checked in the background.

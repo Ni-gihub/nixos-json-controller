@@ -20,6 +20,7 @@ const validData = {
     {
       id: "firefox",
       archPackage: "firefox",
+      genre: "ブラウザ",
       popularity: 63.53,
       count: 123,
       samples: 456,
@@ -40,7 +41,7 @@ test("parses valid recommendation JSON", () => {
   assert.equal(parsed?.period?.startMonth, 202510);
 });
 
-test("rejects unsafe Nix attribute IDs and malformed popularity values", () => {
+test("rejects unsafe IDs, malformed popularity, and missing genres", () => {
   const unsafe = structuredClone(validData);
   unsafe.recommendations[0].id = "firefox; builtins.abort";
   assert.equal(parseRecommendationData(unsafe), undefined);
@@ -48,6 +49,10 @@ test("rejects unsafe Nix attribute IDs and malformed popularity values", () => {
   const invalidPopularity = structuredClone(validData);
   invalidPopularity.recommendations[0].popularity = 101;
   assert.equal(parseRecommendationData(invalidPopularity), undefined);
+
+  const missingGenre = structuredClone(validData);
+  delete missingGenre.recommendations[0].genre;
+  assert.equal(parseRecommendationData(missingGenre), undefined);
 });
 
 test("deduplicates recommendation IDs", () => {

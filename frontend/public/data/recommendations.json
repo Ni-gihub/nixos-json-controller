@@ -12,84 +12,96 @@
       "archPackage": "firefox",
       "popularity": 66.79,
       "count": 203545,
-      "samples": 304746
+      "samples": 304746,
+      "genre": "ブラウザ"
     },
     {
       "id": "mpv",
       "archPackage": "mpv",
       "popularity": 63.58,
       "count": 193764,
-      "samples": 304746
+      "samples": 304746,
+      "genre": "メディア"
     },
     {
       "id": "vlc",
       "archPackage": "vlc",
       "popularity": 52.45,
       "count": 159842,
-      "samples": 304746
+      "samples": 304746,
+      "genre": "メディア"
     },
     {
       "id": "pavucontrol",
       "archPackage": "pavucontrol",
       "popularity": 50.54,
       "count": 154024,
-      "samples": 304746
+      "samples": 304746,
+      "genre": "ユーティリティ"
     },
     {
       "id": "gimp",
       "archPackage": "gimp",
       "popularity": 49.74,
       "count": 151579,
-      "samples": 304746
+      "samples": 304746,
+      "genre": "クリエイティブ"
     },
     {
       "id": "steam",
       "archPackage": "steam",
       "popularity": 49.19,
       "count": 149919,
-      "samples": 304746
+      "samples": 304746,
+      "genre": "ゲーム"
     },
     {
       "id": "chromium",
       "archPackage": "chromium",
       "popularity": 38.59,
       "count": 117610,
-      "samples": 304746
+      "samples": 304746,
+      "genre": "ブラウザ"
     },
     {
       "id": "gparted",
       "archPackage": "gparted",
       "popularity": 37.8,
       "count": 115181,
-      "samples": 304746
+      "samples": 304746,
+      "genre": "システム管理"
     },
     {
       "id": "kdePackages.okular",
       "archPackage": "okular",
       "popularity": 35.18,
       "count": 107197,
-      "samples": 304746
+      "samples": 304746,
+      "genre": "ドキュメント・ノート"
     },
     {
       "id": "obs-studio",
       "archPackage": "obs-studio",
       "popularity": 32.45,
       "count": 98890,
-      "samples": 304746
+      "samples": 304746,
+      "genre": "メディア"
     },
     {
       "id": "inkscape",
       "archPackage": "inkscape",
       "popularity": 31.77,
       "count": 96820,
-      "samples": 304746
+      "samples": 304746,
+      "genre": "クリエイティブ"
     },
     {
       "id": "kitty",
       "archPackage": "kitty",
       "popularity": 30.01,
       "count": 91459,
-      "samples": 304746
+      "samples": 304746,
+      "genre": "ターミナル"
     }
   ]
 }

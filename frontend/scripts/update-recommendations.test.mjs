@@ -13,10 +13,10 @@ test("ranks only explicitly mapped GUI candidates by pkgstats popularity", () =>
     { name: "gimp", popularity: 8, count: 80, samples: 1000 },
   ];
   const map = [
-    { archPackage: "firefox", id: "firefox" },
-    { archPackage: "chromium", id: "chromium" },
-    { archPackage: "gimp", id: "gimp" },
-    { archPackage: "not-installed", id: "not-installed" },
+    { archPackage: "firefox", id: "firefox", genre: "ブラウザ" },
+    { archPackage: "chromium", id: "chromium", genre: "ブラウザ" },
+    { archPackage: "gimp", id: "gimp", genre: "クリエイティブ" },
+    { archPackage: "not-installed", id: "not-installed", genre: "ユーティリティ" },
   ];
 
   const recommendations = buildRecommendations(stats, map);
@@ -28,24 +28,34 @@ test("ranks only explicitly mapped GUI candidates by pkgstats popularity", () =>
   assert.equal(recommendations.some((item) => item.id === "systemd"), false);
 });
 
-test("limits the output to the supported number of recommendations", () => {
+test("limits each genre to four recommendations while keeping other genres", () => {
   const stats = Array.from({ length: 20 }, (_, index) => ({
     name: `app-${index}`,
     popularity: 20 - index,
     count: 100 - index,
     samples: 100,
   }));
-  const map = stats.map((item) => ({
+  const map = stats.map((item, index) => ({
     archPackage: item.name,
     id: `app-${item.name.slice(4)}`,
+    genre: index % 2 === 0 ? "ブラウザ" : "メディア",
   }));
 
-  assert.equal(buildRecommendations(stats, map).length, 12);
+  const recommendations = buildRecommendations(stats, map);
+  assert.equal(recommendations.length, 8);
+  assert.equal(
+    recommendations.filter((item) => item.genre === "ブラウザ").length,
+    4,
+  );
+  assert.equal(
+    recommendations.filter((item) => item.genre === "メディア").length,
+    4,
+  );
 });
 
 test("rejects invalid package mappings", () => {
   assert.throws(
-    () => buildRecommendations([], [{ archPackage: "firefox", id: "firefox; abort" }]),
+    () => buildRecommendations([], [{ archPackage: "firefox", id: "firefox; abort", genre: "ブラウザ" }]),
     /invalid entry/,
   );
 });
@@ -60,6 +70,7 @@ test("keeps unchanged recommendation data even when generatedAt differs", () => 
       {
         id: "firefox",
         archPackage: "firefox",
+        genre: "ブラウザ",
         popularity: 66.79,
         count: 203545,
         samples: 304746,
@@ -84,6 +95,7 @@ test("detects recommendation, period, and source changes", () => {
       {
         id: "firefox",
         archPackage: "firefox",
+        genre: "ブラウザ",
         popularity: 66.79,
         count: 203545,
         samples: 304746,
@@ -96,6 +108,15 @@ test("detects recommendation, period, and source changes", () => {
       ...existing,
       recommendations: [
         { ...existing.recommendations[0], popularity: 66.8 },
+      ],
+    }),
+    false,
+  );
+  assert.equal(
+    hasSameRecommendationContent(existing, {
+      ...existing,
+      recommendations: [
+        { ...existing.recommendations[0], genre: "メディア" },
       ],
     }),
     false,
@@ -126,6 +147,7 @@ test("treats malformed existing recommendation data as changed", () => {
       {
         id: "firefox",
         archPackage: "firefox",
+        genre: "ブラウザ",
         popularity: 66.79,
         count: 203545,
         samples: 304746,

@@ -114,14 +114,17 @@ export default function DiscoverPreSearch({
     <>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-blue-600">おすすめ</p>
-          <h2 className="mt-1 text-xl font-semibold sm:text-2xl">
-            人気のアプリ
+          <p className="text-xs font-bold tracking-[0.16em] text-blue-600">
+            POPULAR PICKS
+          </p>
+          <h2 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
+            人気のアプリから探す
           </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Arch Linux の公開パッケージ統計を参考にしています。
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+            Arch
+            Linuxの利用統計を参考に、総合ピックアップとジャンル別の人気アプリを紹介します。気になるアプリは詳細を確認して、そのままインストールできます。
             {generatedAt
-              ? ` 更新日: ${new Date(generatedAt).toLocaleDateString("ja-JP")}`
+              ? ` データ更新日: ${new Date(generatedAt).toLocaleDateString("ja-JP")}`
               : ""}
           </p>
         </div>
@@ -160,7 +163,7 @@ export default function DiscoverPreSearch({
         </div>
       )}
 
-      <div className="max-w-5xl space-y-2">{children}</div>
+      <div className="max-w-none">{children}</div>
     </>
   );
 }

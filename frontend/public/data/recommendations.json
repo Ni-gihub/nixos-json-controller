@@ -1,18 +1,34 @@
 {
   "source": "Arch Linux pkgstats",
   "sourceUrl": "https://pkgstats.archlinux.de/api/doc",
-  "generatedAt": "2026-10-15T03:53:30.442Z",
+  "generatedAt": "2026-10-15T04:43:33.656Z",
   "period": {
     "startMonth": 202510,
     "endMonth": 202609
   },
   "recommendations": [
     {
+      "id": "git",
+      "archPackage": "git",
+      "genre": "開発ツール",
+      "popularity": 94.31,
+      "count": 287393,
+      "samples": 304746
+    },
+    {
       "id": "firefox",
       "archPackage": "firefox",
       "genre": "ブラウザ",
       "popularity": 66.79,
       "count": 203545,
+      "samples": 304746
+    },
+    {
+      "id": "vim",
+      "archPackage": "vim",
+      "genre": "開発ツール",
+      "popularity": 65.76,
+      "count": 200412,
       "samples": 304746
     },
     {
@@ -56,6 +72,54 @@
       "samples": 304746
     },
     {
+      "id": "tmux",
+      "archPackage": "tmux",
+      "genre": "ターミナル",
+      "popularity": 45.95,
+      "count": 140042,
+      "samples": 304746
+    },
+    {
+      "id": "libreoffice-qt",
+      "archPackage": "libreoffice-fresh",
+      "genre": "オフィス",
+      "popularity": 44.64,
+      "count": 136041,
+      "samples": 304746
+    },
+    {
+      "id": "docker",
+      "archPackage": "docker",
+      "genre": "開発ツール",
+      "popularity": 44.36,
+      "count": 135188,
+      "samples": 304746
+    },
+    {
+      "id": "neovim",
+      "archPackage": "neovim",
+      "genre": "開発ツール",
+      "popularity": 42.18,
+      "count": 128551,
+      "samples": 304746
+    },
+    {
+      "id": "btop",
+      "archPackage": "btop",
+      "genre": "システム管理",
+      "popularity": 41.79,
+      "count": 127343,
+      "samples": 304746
+    },
+    {
+      "id": "kdePackages.dolphin",
+      "archPackage": "dolphin",
+      "genre": "ファイル管理",
+      "popularity": 41.66,
+      "count": 126965,
+      "samples": 304746
+    },
+    {
       "id": "chromium",
       "archPackage": "chromium",
       "genre": "ブラウザ",
@@ -69,6 +133,14 @@
       "genre": "システム管理",
       "popularity": 37.8,
       "count": 115181,
+      "samples": 304746
+    },
+    {
+      "id": "kdePackages.ark",
+      "archPackage": "ark",
+      "genre": "ファイル管理",
+      "popularity": 37.12,
+      "count": 113117,
       "samples": 304746
     },
     {
@@ -93,6 +165,14 @@
       "genre": "クリエイティブ",
       "popularity": 31.77,
       "count": 96820,
+      "samples": 304746
+    },
+    {
+      "id": "gnome-disk-utility",
+      "archPackage": "gnome-disk-utility",
+      "genre": "システム管理",
+      "popularity": 30.84,
+      "count": 93971,
       "samples": 304746
     },
     {
@@ -136,11 +216,27 @@
       "samples": 304746
     },
     {
+      "id": "kdePackages.filelight",
+      "archPackage": "filelight",
+      "genre": "システム管理",
+      "popularity": 27.25,
+      "count": 83033,
+      "samples": 304746
+    },
+    {
       "id": "qbittorrent",
       "archPackage": "qbittorrent",
       "genre": "ネットワーク",
       "popularity": 27.04,
       "count": 82389,
+      "samples": 304746
+    },
+    {
+      "id": "nautilus",
+      "archPackage": "nautilus",
+      "genre": "ファイル管理",
+      "popularity": 26.64,
+      "count": 81198,
       "samples": 304746
     },
     {
@@ -152,6 +248,14 @@
       "samples": 304746
     },
     {
+      "id": "kdePackages.kdenlive",
+      "archPackage": "kdenlive",
+      "genre": "メディア",
+      "popularity": 24.98,
+      "count": 76112,
+      "samples": 304746
+    },
+    {
       "id": "evince",
       "archPackage": "evince",
       "genre": "ドキュメント・ノート",
@@ -160,11 +264,35 @@
       "samples": 304746
     },
     {
+      "id": "thunar",
+      "archPackage": "thunar",
+      "genre": "ファイル管理",
+      "popularity": 23.87,
+      "count": 72744,
+      "samples": 304746
+    },
+    {
       "id": "keepassxc",
       "archPackage": "keepassxc",
       "genre": "ユーティリティ",
       "popularity": 23.66,
       "count": 72099,
+      "samples": 304746
+    },
+    {
+      "id": "feh",
+      "archPackage": "feh",
+      "genre": "クリエイティブ",
+      "popularity": 23.49,
+      "count": 71577,
+      "samples": 304746
+    },
+    {
+      "id": "file-roller",
+      "archPackage": "file-roller",
+      "genre": "ファイル管理",
+      "popularity": 22.59,
+      "count": 68833,
       "samples": 304746
     },
     {
@@ -192,6 +320,14 @@
       "samples": 304746
     },
     {
+      "id": "baobab",
+      "archPackage": "baobab",
+      "genre": "システム管理",
+      "popularity": 20.89,
+      "count": 63672,
+      "samples": 304746
+    },
+    {
       "id": "telegram-desktop",
       "archPackage": "telegram-desktop",
       "genre": "コミュニケーション",
@@ -216,11 +352,43 @@
       "samples": 304746
     },
     {
+      "id": "zathura",
+      "archPackage": "zathura",
+      "genre": "ドキュメント・ノート",
+      "popularity": 18.39,
+      "count": 56038,
+      "samples": 304746
+    },
+    {
+      "id": "calibre",
+      "archPackage": "calibre",
+      "genre": "ドキュメント・ノート",
+      "popularity": 17.74,
+      "count": 54059,
+      "samples": 304746
+    },
+    {
       "id": "blender",
       "archPackage": "blender",
       "genre": "クリエイティブ",
       "popularity": 17.66,
       "count": 53818,
+      "samples": 304746
+    },
+    {
+      "id": "handbrake",
+      "archPackage": "handbrake",
+      "genre": "メディア",
+      "popularity": 17.21,
+      "count": 52434,
+      "samples": 304746
+    },
+    {
+      "id": "podman",
+      "archPackage": "podman",
+      "genre": "開発ツール",
+      "popularity": 17.04,
+      "count": 51914,
       "samples": 304746
     },
     {
@@ -232,11 +400,27 @@
       "samples": 304746
     },
     {
+      "id": "loupe",
+      "archPackage": "loupe",
+      "genre": "クリエイティブ",
+      "popularity": 15.7,
+      "count": 47852,
+      "samples": 304746
+    },
+    {
       "id": "vscode",
       "archPackage": "code",
       "genre": "開発ツール",
       "popularity": 14.66,
       "count": 44690,
+      "samples": 304746
+    },
+    {
+      "id": "foot",
+      "archPackage": "foot",
+      "genre": "ターミナル",
+      "popularity": 14.49,
+      "count": 44165,
       "samples": 304746
     },
     {
@@ -272,19 +456,27 @@
       "samples": 304746
     },
     {
-      "id": "wezterm",
-      "archPackage": "wezterm",
+      "id": "zellij",
+      "archPackage": "zellij",
       "genre": "ターミナル",
-      "popularity": 4.28,
-      "count": 13044,
+      "popularity": 7.86,
+      "count": 23943,
       "samples": 304746
     },
     {
-      "id": "vscodium",
-      "archPackage": "vscodium",
-      "genre": "開発ツール",
-      "popularity": 2.2,
-      "count": 6698,
+      "id": "evolution",
+      "archPackage": "evolution",
+      "genre": "コミュニケーション",
+      "popularity": 6.28,
+      "count": 19130,
+      "samples": 304746
+    },
+    {
+      "id": "geary",
+      "archPackage": "geary",
+      "genre": "コミュニケーション",
+      "popularity": 3.08,
+      "count": 9393,
       "samples": 304746
     }
   ]

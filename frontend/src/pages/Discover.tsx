@@ -4,6 +4,7 @@ import { Search, Store, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import AppCard from "@/components/AppCard";
+import RecommendationAppCard from "@/components/RecommendationAppCard";
 import DiscoverPreSearch, {
   type RecommendationStatus,
 } from "./DiscoverPreSearch";
@@ -55,9 +56,9 @@ function Discover() {
       .join("\n") ?? "";
   const appById = new Map(recommendedCatalogApps.map((app) => [app.id, app]));
   const recommendedApps = (recommendationData?.recommendations ?? []).flatMap(
-    (recommendation) => {
+    (recommendation, index) => {
       const app = appById.get(recommendation.id);
-      return app ? [{ ...app, recommendation }] : [];
+      return app ? [{ ...app, recommendation, rank: index + 1 }] : [];
     },
   );
 
@@ -370,17 +371,14 @@ function Discover() {
                   recommendationMessage={recommendationMessage}
                   onRetry={retryRecommendations}
                 >
-                  {recommendedApps.map((app) => (
-                    <AppCard
+                  {recommendedApps.map((app, index) => (
+                    <RecommendationAppCard
                       key={app.id}
-                      id={app.id}
-                      name={app.name}
-                      description={app.description}
-                      category={app.category}
-                      tags={app.tags}
+                      app={app}
+                      recommendation={app.recommendation}
+                      rank={app.rank}
+                      featured={index === 0}
                       installed={states[app.id]?.active ?? false}
-                      icon={app.icon}
-                      iconCandidates={app.iconCandidates}
                     />
                   ))}
                 </DiscoverPreSearch>

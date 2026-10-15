@@ -390,7 +390,7 @@
     "genre": "ブラウザ"
   },
   {
-    "archPackage": "tor-browser",
+    "archPackage": "tor-browser-bin",
     "id": "tor-browser",
     "genre": "ブラウザ"
   },
@@ -827,11 +827,6 @@
   {
     "archPackage": "qpwgraph",
     "id": "qpwgraph",
-    "genre": "ユーティリティ"
-  },
-  {
-    "archPackage": "gnome-extensions-app",
-    "id": "gnome-extensions-app",
     "genre": "ユーティリティ"
   }
 ]

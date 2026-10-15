@@ -121,7 +121,7 @@ export default function DiscoverPreSearch({
             人気のアプリから探す
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            利用統計を参考にしたおすすめランキング。気になるアプリは詳細を確認して、そのままインストールできます。
+            Arch Linuxの利用統計を参考に、総合ピックアップとジャンル別の人気アプリを紹介します。気になるアプリは詳細を確認して、そのままインストールできます。
             {generatedAt
               ? ` データ更新日: ${new Date(generatedAt).toLocaleDateString("ja-JP")}`
               : ""}
@@ -162,9 +162,7 @@ export default function DiscoverPreSearch({
         </div>
       )}
 
-      <div className="grid max-w-none grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {children}
-      </div>
+      <div className="max-w-none">{children}</div>
     </>
   );
 }

@@ -188,5 +188,185 @@
     "archPackage": "virt-manager",
     "id": "virt-manager",
     "genre": "システム管理"
+  },
+  {
+    "archPackage": "nautilus",
+    "id": "nautilus",
+    "genre": "ファイル管理"
+  },
+  {
+    "archPackage": "thunar",
+    "id": "thunar",
+    "genre": "ファイル管理"
+  },
+  {
+    "archPackage": "dolphin",
+    "id": "kdePackages.dolphin",
+    "genre": "ファイル管理"
+  },
+  {
+    "archPackage": "ark",
+    "id": "kdePackages.ark",
+    "genre": "ファイル管理"
+  },
+  {
+    "archPackage": "file-roller",
+    "id": "file-roller",
+    "genre": "ファイル管理"
+  },
+  {
+    "archPackage": "libreoffice-fresh",
+    "id": "libreoffice-qt",
+    "genre": "オフィス"
+  },
+  {
+    "archPackage": "calibre",
+    "id": "calibre",
+    "genre": "ドキュメント・ノート"
+  },
+  {
+    "archPackage": "zathura",
+    "id": "zathura",
+    "genre": "ドキュメント・ノート"
+  },
+  {
+    "archPackage": "evolution",
+    "id": "evolution",
+    "genre": "コミュニケーション"
+  },
+  {
+    "archPackage": "geary",
+    "id": "geary",
+    "genre": "コミュニケーション"
+  },
+  {
+    "archPackage": "handbrake",
+    "id": "handbrake",
+    "genre": "メディア"
+  },
+  {
+    "archPackage": "kodi",
+    "id": "kodi",
+    "genre": "メディア"
+  },
+  {
+    "archPackage": "rhythmbox",
+    "id": "rhythmbox",
+    "genre": "メディア"
+  },
+  {
+    "archPackage": "strawberry",
+    "id": "strawberry",
+    "genre": "メディア"
+  },
+  {
+    "archPackage": "shotcut",
+    "id": "shotcut",
+    "genre": "クリエイティブ"
+  },
+  {
+    "archPackage": "gthumb",
+    "id": "gthumb",
+    "genre": "クリエイティブ"
+  },
+  {
+    "archPackage": "loupe",
+    "id": "loupe",
+    "genre": "クリエイティブ"
+  },
+  {
+    "archPackage": "imv",
+    "id": "imv",
+    "genre": "クリエイティブ"
+  },
+  {
+    "archPackage": "feh",
+    "id": "feh",
+    "genre": "クリエイティブ"
+  },
+  {
+    "archPackage": "neovim",
+    "id": "neovim",
+    "genre": "開発ツール"
+  },
+  {
+    "archPackage": "vim",
+    "id": "vim",
+    "genre": "開発ツール"
+  },
+  {
+    "archPackage": "emacs",
+    "id": "emacs",
+    "genre": "開発ツール"
+  },
+  {
+    "archPackage": "geany",
+    "id": "geany",
+    "genre": "開発ツール"
+  },
+  {
+    "archPackage": "helix",
+    "id": "helix",
+    "genre": "開発ツール"
+  },
+  {
+    "archPackage": "git",
+    "id": "git",
+    "genre": "開発ツール"
+  },
+  {
+    "archPackage": "podman",
+    "id": "podman",
+    "genre": "開発ツール"
+  },
+  {
+    "archPackage": "docker",
+    "id": "docker",
+    "genre": "開発ツール"
+  },
+  {
+    "archPackage": "sqlitebrowser",
+    "id": "sqlitebrowser",
+    "genre": "開発ツール"
+  },
+  {
+    "archPackage": "foot",
+    "id": "foot",
+    "genre": "ターミナル"
+  },
+  {
+    "archPackage": "tmux",
+    "id": "tmux",
+    "genre": "ターミナル"
+  },
+  {
+    "archPackage": "zellij",
+    "id": "zellij",
+    "genre": "ターミナル"
+  },
+  {
+    "archPackage": "btop",
+    "id": "btop",
+    "genre": "システム管理"
+  },
+  {
+    "archPackage": "gnome-disk-utility",
+    "id": "gnome-disk-utility",
+    "genre": "システム管理"
+  },
+  {
+    "archPackage": "baobab",
+    "id": "baobab",
+    "genre": "システム管理"
+  },
+  {
+    "archPackage": "filelight",
+    "id": "kdePackages.filelight",
+    "genre": "システム管理"
+  },
+  {
+    "archPackage": "gnome-system-monitor",
+    "id": "gnome-system-monitor",
+    "genre": "システム管理"
   }
 ]

@@ -1006,7 +1006,6 @@ const FALLBACK_METADATA: Record<string, FallbackMetadata> = {
   },
 };
 
-
 /** Explain which recommendation IDs cannot be shown because no display metadata exists. */
 export function formatUnresolvedRecommendationMessage(
   ids: string[],

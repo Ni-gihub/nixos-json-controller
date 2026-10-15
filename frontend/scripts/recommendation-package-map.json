@@ -1,40 +1,192 @@
 [
-  { "archPackage": "firefox", "id": "firefox" },
-  { "archPackage": "chromium", "id": "chromium" },
-  { "archPackage": "epiphany", "id": "epiphany" },
-  { "archPackage": "konqueror", "id": "kdePackages.konqueror" },
-  { "archPackage": "thunderbird", "id": "thunderbird" },
-  { "archPackage": "gimp", "id": "gimp" },
-  { "archPackage": "inkscape", "id": "inkscape" },
-  { "archPackage": "blender", "id": "blender" },
-  { "archPackage": "krita", "id": "krita" },
-  { "archPackage": "obs-studio", "id": "obs-studio" },
-  { "archPackage": "vlc", "id": "vlc" },
-  { "archPackage": "mpv", "id": "mpv" },
-  { "archPackage": "audacity", "id": "audacity" },
-  { "archPackage": "kdenlive", "id": "kdePackages.kdenlive" },
-  { "archPackage": "discord", "id": "discord" },
-  { "archPackage": "telegram-desktop", "id": "telegram-desktop" },
-  { "archPackage": "signal-desktop", "id": "signal-desktop" },
-  { "archPackage": "qbittorrent", "id": "qbittorrent" },
-  { "archPackage": "steam", "id": "steam" },
-  { "archPackage": "lutris", "id": "lutris" },
-  { "archPackage": "code", "id": "vscode" },
-  { "archPackage": "vscodium", "id": "vscodium" },
-  { "archPackage": "kitty", "id": "kitty" },
-  { "archPackage": "alacritty", "id": "alacritty" },
-  { "archPackage": "wezterm", "id": "wezterm" },
-  { "archPackage": "ghostty", "id": "ghostty" },
-  { "archPackage": "keepassxc", "id": "keepassxc" },
-  { "archPackage": "obsidian", "id": "obsidian" },
-  { "archPackage": "okular", "id": "kdePackages.okular" },
-  { "archPackage": "evince", "id": "evince" },
-  { "archPackage": "gparted", "id": "gparted" },
-  { "archPackage": "filezilla", "id": "filezilla" },
-  { "archPackage": "pavucontrol", "id": "pavucontrol" },
-  { "archPackage": "gnome-calculator", "id": "gnome-calculator" },
-  { "archPackage": "darktable", "id": "darktable" },
-  { "archPackage": "rawtherapee", "id": "rawtherapee" },
-  { "archPackage": "remmina", "id": "remmina" },
-  { "archPackage": "virt-manager", "id": "virt-manager" }
+  {
+    "archPackage": "firefox",
+    "id": "firefox",
+    "genre": "ブラウザ"
+  },
+  {
+    "archPackage": "chromium",
+    "id": "chromium",
+    "genre": "ブラウザ"
+  },
+  {
+    "archPackage": "epiphany",
+    "id": "epiphany",
+    "genre": "ブラウザ"
+  },
+  {
+    "archPackage": "konqueror",
+    "id": "kdePackages.konqueror",
+    "genre": "ブラウザ"
+  },
+  {
+    "archPackage": "thunderbird",
+    "id": "thunderbird",
+    "genre": "コミュニケーション"
+  },
+  {
+    "archPackage": "gimp",
+    "id": "gimp",
+    "genre": "クリエイティブ"
+  },
+  {
+    "archPackage": "inkscape",
+    "id": "inkscape",
+    "genre": "クリエイティブ"
+  },
+  {
+    "archPackage": "blender",
+    "id": "blender",
+    "genre": "クリエイティブ"
+  },
+  {
+    "archPackage": "krita",
+    "id": "krita",
+    "genre": "クリエイティブ"
+  },
+  {
+    "archPackage": "obs-studio",
+    "id": "obs-studio",
+    "genre": "メディア"
+  },
+  {
+    "archPackage": "vlc",
+    "id": "vlc",
+    "genre": "メディア"
+  },
+  {
+    "archPackage": "mpv",
+    "id": "mpv",
+    "genre": "メディア"
+  },
+  {
+    "archPackage": "audacity",
+    "id": "audacity",
+    "genre": "メディア"
+  },
+  {
+    "archPackage": "kdenlive",
+    "id": "kdePackages.kdenlive",
+    "genre": "メディア"
+  },
+  {
+    "archPackage": "discord",
+    "id": "discord",
+    "genre": "コミュニケーション"
+  },
+  {
+    "archPackage": "telegram-desktop",
+    "id": "telegram-desktop",
+    "genre": "コミュニケーション"
+  },
+  {
+    "archPackage": "signal-desktop",
+    "id": "signal-desktop",
+    "genre": "コミュニケーション"
+  },
+  {
+    "archPackage": "qbittorrent",
+    "id": "qbittorrent",
+    "genre": "ネットワーク"
+  },
+  {
+    "archPackage": "steam",
+    "id": "steam",
+    "genre": "ゲーム"
+  },
+  {
+    "archPackage": "lutris",
+    "id": "lutris",
+    "genre": "ゲーム"
+  },
+  {
+    "archPackage": "code",
+    "id": "vscode",
+    "genre": "開発ツール"
+  },
+  {
+    "archPackage": "vscodium",
+    "id": "vscodium",
+    "genre": "開発ツール"
+  },
+  {
+    "archPackage": "kitty",
+    "id": "kitty",
+    "genre": "ターミナル"
+  },
+  {
+    "archPackage": "alacritty",
+    "id": "alacritty",
+    "genre": "ターミナル"
+  },
+  {
+    "archPackage": "wezterm",
+    "id": "wezterm",
+    "genre": "ターミナル"
+  },
+  {
+    "archPackage": "ghostty",
+    "id": "ghostty",
+    "genre": "ターミナル"
+  },
+  {
+    "archPackage": "keepassxc",
+    "id": "keepassxc",
+    "genre": "ユーティリティ"
+  },
+  {
+    "archPackage": "obsidian",
+    "id": "obsidian",
+    "genre": "ドキュメント・ノート"
+  },
+  {
+    "archPackage": "okular",
+    "id": "kdePackages.okular",
+    "genre": "ドキュメント・ノート"
+  },
+  {
+    "archPackage": "evince",
+    "id": "evince",
+    "genre": "ドキュメント・ノート"
+  },
+  {
+    "archPackage": "gparted",
+    "id": "gparted",
+    "genre": "システム管理"
+  },
+  {
+    "archPackage": "filezilla",
+    "id": "filezilla",
+    "genre": "ネットワーク"
+  },
+  {
+    "archPackage": "pavucontrol",
+    "id": "pavucontrol",
+    "genre": "ユーティリティ"
+  },
+  {
+    "archPackage": "gnome-calculator",
+    "id": "gnome-calculator",
+    "genre": "ユーティリティ"
+  },
+  {
+    "archPackage": "darktable",
+    "id": "darktable",
+    "genre": "クリエイティブ"
+  },
+  {
+    "archPackage": "rawtherapee",
+    "id": "rawtherapee",
+    "genre": "クリエイティブ"
+  },
+  {
+    "archPackage": "remmina",
+    "id": "remmina",
+    "genre": "ネットワーク"
+  },
+  {
+    "archPackage": "virt-manager",
+    "id": "virt-manager",
+    "genre": "システム管理"
+  }
 ]

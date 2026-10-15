@@ -42,6 +42,9 @@ function Discover() {
   const [recommendedCatalogApps, setRecommendedCatalogApps] = useState<App[]>(
     [],
   );
+  const [expandedRecommendationGenres, setExpandedRecommendationGenres] = useState<
+    Set<string>
+  >(new Set());
   const [recommendationStatus, setRecommendationStatus] =
     useState<RecommendationStatus>("loading");
   const [recommendationMessage, setRecommendationMessage] = useState<
@@ -165,27 +168,42 @@ function Discover() {
 
         const foundIds = new Set(apps.map((app) => app.id));
         const missingIds = ids.filter((id) => !foundIds.has(id));
+        const fallbackApps = buildRecommendationFallbackApps(missingIds);
+        const combinedApps = [
+          ...apps,
+          ...fallbackApps.filter((app) => !foundIds.has(app.id)),
+        ];
+        const combinedIds = new Set(combinedApps.map((app) => app.id));
+        const unresolvedIds = ids.filter((id) => !combinedIds.has(id));
+        setRecommendedCatalogApps(combinedApps);
+
         if (apps.length > 0) {
-          setRecommendedCatalogApps(apps);
-          if (missingIds.length > 0) {
+          if (fallbackApps.length > 0 || unresolvedIds.length > 0) {
             setRecommendationStatus("partial");
-            setRecommendationMessage(
-              `${missingIds.length}件のおすすめアプリは、このNixpkgs環境で詳細情報を解決できませんでした: ${missingIds.join(", ")}`,
-            );
+            const messages: string[] = [];
+            if (fallbackApps.length > 0) {
+              messages.push(
+                `${fallbackApps.length}件は同梱の基本情報を使って表示しています。`,
+              );
+            }
+            if (unresolvedIds.length > 0) {
+              messages.push(
+                `表示用の情報がないため表示できないアプリ: ${unresolvedIds.join(", ")}`,
+              );
+            }
+            setRecommendationMessage(messages.join(" "));
           } else {
             setRecommendationStatus("ready");
             setRecommendationMessage(null);
           }
-          void refreshPackages(apps.map((app) => app.id));
+          void refreshPackages(combinedApps.map((app) => app.id));
           return;
         }
 
-        const fallbackApps = buildRecommendationFallbackApps(ids);
-        setRecommendedCatalogApps(fallbackApps);
         if (fallbackApps.length > 0) {
           setRecommendationStatus("fallback");
           setRecommendationMessage(
-            "Nix検索は正常終了しましたが、おすすめIDと一致する詳細情報が0件でした。パッケージ属性名や現在のシステム向けの評価結果を確認してください。",
+            "Nix検索で詳細情報を取得できなかったため、同梱の基本情報でおすすめを表示しています。",
           );
           void refreshPackages(fallbackApps.map((app) => app.id));
         } else {
@@ -399,42 +417,74 @@ function Discover() {
 
                     {recommendationGenreGroups.length > 0 && (
                       <div className="space-y-9">
-                        {recommendationGenreGroups.map((group) => (
-                          <section key={group.genre} className="space-y-3">
-                            <div className="flex flex-wrap items-end justify-between gap-2">
-                              <div>
-                                <p className="text-xs font-bold tracking-[0.14em] text-blue-600">
-                                  ジャンルから探す
-                                </p>
-                                <h3 className="mt-1 text-xl font-bold tracking-tight sm:text-2xl">
-                                  {group.genre}
-                                </h3>
+                        {recommendationGenreGroups.map((group) => {
+                          const expanded = expandedRecommendationGenres.has(
+                            group.genre,
+                          );
+                          const visibleApps = expanded
+                            ? group.apps
+                            : group.apps.slice(0, 6);
+
+                          return (
+                            <section key={group.genre} className="space-y-3">
+                              <div className="flex flex-wrap items-end justify-between gap-2">
+                                <div>
+                                  <p className="text-xs font-bold tracking-[0.14em] text-blue-600">
+                                    ジャンルから探す
+                                  </p>
+                                  <h3 className="mt-1 text-xl font-bold tracking-tight sm:text-2xl">
+                                    {group.genre}
+                                  </h3>
+                                </div>
+                                <span className="text-sm text-muted-foreground">
+                                  {group.apps.length}件
+                                </span>
                               </div>
-                              <span className="text-sm text-muted-foreground">
-                                {group.apps.length}件
-                              </span>
-                            </div>
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                              {group.apps.map((app, index) => (
-                                <RecommendationAppCard
-                                  key={app.id}
-                                  app={app}
-                                  recommendation={app.recommendation}
-                                  rank={
-                                    index +
-                                    (group.genre ===
-                                    featuredRecommendation?.recommendation.genre
-                                      ? 2
-                                      : 1)
-                                  }
-                                  featured={false}
-                                  installed={states[app.id]?.active ?? false}
-                                />
-                              ))}
-                            </div>
-                          </section>
-                        ))}
-                      </div>
+                              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                                {visibleApps.map((app, index) => (
+                                  <RecommendationAppCard
+                                    key={app.id}
+                                    app={app}
+                                    recommendation={app.recommendation}
+                                    rank={
+                                      index +
+                                      (group.genre ===
+                                      featuredRecommendation?.recommendation.genre
+                                        ? 2
+                                        : 1)
+                                    }
+                                    featured={false}
+                                    installed={states[app.id]?.active ?? false}
+                                  />
+                                ))}
+                              </div>
+                              {group.apps.length > 6 && (
+                                <div className="flex justify-center">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                      setExpandedRecommendationGenres((current) => {
+                                        const next = new Set(current);
+                                        if (next.has(group.genre)) {
+                                          next.delete(group.genre);
+                                        } else {
+                                          next.add(group.genre);
+                                        }
+                                        return next;
+                                      })
+                                    }
+                                  >
+                                    {expanded
+                                      ? "閉じる"
+                                      : `もっと見る（残り${group.apps.length - 6}件）`}
+                                  </Button>
+                                </div>
+                              )}
+                            </section>
+                          );
+                        })}
                     )}
                   </div>
                 </DiscoverPreSearch>

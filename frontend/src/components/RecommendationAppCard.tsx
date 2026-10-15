@@ -26,7 +26,7 @@ export default function RecommendationAppCard({
   const { refreshPackage } = useAppState();
   const detailPath = `/apps/${app.id}`;
   const popularity = recommendation.popularity.toFixed(2);
-  const rankLabel = String(rank).padStart(2, "0");
+  const rankLabel = `${rank}位`;
 
   if (featured) {
     return (
@@ -93,7 +93,7 @@ export default function RecommendationAppCard({
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/80 bg-white/75 p-4 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-slate-950/35">
+          <div className="rounded-2xl border border-white/80 bg-white/75 p-4 shadow-sm backdrop-blur-sm sm:col-span-2 lg:col-span-1 dark:border-white/10 dark:bg-slate-950/35">
             <div className="flex items-center justify-between gap-3">
               <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                 <TrendingUp className="size-4 text-blue-600 dark:text-blue-300" />
@@ -155,7 +155,7 @@ export default function RecommendationAppCard({
           variant="secondary"
           className="shrink-0 rounded-full px-2.5 tabular-nums"
         >
-          {popularity}%
+          人気度 {popularity}%
         </Badge>
       </div>
 

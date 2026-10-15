@@ -368,5 +368,465 @@
     "archPackage": "gnome-system-monitor",
     "id": "gnome-system-monitor",
     "genre": "システム管理"
+  },
+  {
+    "archPackage": "qutebrowser",
+    "id": "qutebrowser",
+    "genre": "ブラウザ"
+  },
+  {
+    "archPackage": "falkon",
+    "id": "falkon",
+    "genre": "ブラウザ"
+  },
+  {
+    "archPackage": "brave-bin",
+    "id": "brave",
+    "genre": "ブラウザ"
+  },
+  {
+    "archPackage": "librewolf",
+    "id": "librewolf",
+    "genre": "ブラウザ"
+  },
+  {
+    "archPackage": "tor-browser-bin",
+    "id": "tor-browser",
+    "genre": "ブラウザ"
+  },
+  {
+    "archPackage": "vivaldi",
+    "id": "vivaldi",
+    "genre": "ブラウザ"
+  },
+  {
+    "archPackage": "element-desktop",
+    "id": "element-desktop",
+    "genre": "コミュニケーション"
+  },
+  {
+    "archPackage": "mumble",
+    "id": "mumble",
+    "genre": "コミュニケーション"
+  },
+  {
+    "archPackage": "hexchat",
+    "id": "hexchat",
+    "genre": "コミュニケーション"
+  },
+  {
+    "archPackage": "pidgin",
+    "id": "pidgin",
+    "genre": "コミュニケーション"
+  },
+  {
+    "archPackage": "zoom",
+    "id": "zoom-us",
+    "genre": "コミュニケーション"
+  },
+  {
+    "archPackage": "slack-desktop",
+    "id": "slack",
+    "genre": "コミュニケーション"
+  },
+  {
+    "archPackage": "teams-for-linux",
+    "id": "teams-for-linux",
+    "genre": "コミュニケーション"
+  },
+  {
+    "archPackage": "jami",
+    "id": "jami",
+    "genre": "コミュニケーション"
+  },
+  {
+    "archPackage": "vesktop",
+    "id": "vesktop",
+    "genre": "コミュニケーション"
+  },
+  {
+    "archPackage": "spotify",
+    "id": "spotify",
+    "genre": "メディア"
+  },
+  {
+    "archPackage": "clementine",
+    "id": "clementine",
+    "genre": "メディア"
+  },
+  {
+    "archPackage": "smplayer",
+    "id": "smplayer",
+    "genre": "メディア"
+  },
+  {
+    "archPackage": "celluloid",
+    "id": "celluloid",
+    "genre": "メディア"
+  },
+  {
+    "archPackage": "audacious",
+    "id": "audacious",
+    "genre": "メディア"
+  },
+  {
+    "archPackage": "deadbeef",
+    "id": "deadbeef",
+    "genre": "メディア"
+  },
+  {
+    "archPackage": "mkvtoolnix-gui",
+    "id": "mkvtoolnix",
+    "genre": "メディア"
+  },
+  {
+    "archPackage": "jellyfin-media-player",
+    "id": "jellyfin-media-player",
+    "genre": "メディア"
+  },
+  {
+    "archPackage": "pinta",
+    "id": "pinta",
+    "genre": "クリエイティブ"
+  },
+  {
+    "archPackage": "mypaint",
+    "id": "mypaint",
+    "genre": "クリエイティブ"
+  },
+  {
+    "archPackage": "digikam",
+    "id": "digikam",
+    "genre": "クリエイティブ"
+  },
+  {
+    "archPackage": "shotwell",
+    "id": "shotwell",
+    "genre": "クリエイティブ"
+  },
+  {
+    "archPackage": "nomacs",
+    "id": "nomacs",
+    "genre": "クリエイティブ"
+  },
+  {
+    "archPackage": "openshot",
+    "id": "openshot-qt",
+    "genre": "クリエイティブ"
+  },
+  {
+    "archPackage": "pitivi",
+    "id": "pitivi",
+    "genre": "クリエイティブ"
+  },
+  {
+    "archPackage": "flowblade",
+    "id": "flowblade",
+    "genre": "クリエイティブ"
+  },
+  {
+    "archPackage": "freecad",
+    "id": "freecad",
+    "genre": "クリエイティブ"
+  },
+  {
+    "archPackage": "openscad",
+    "id": "openscad",
+    "genre": "クリエイティブ"
+  },
+  {
+    "archPackage": "kicad",
+    "id": "kicad",
+    "genre": "クリエイティブ"
+  },
+  {
+    "archPackage": "librecad",
+    "id": "librecad",
+    "genre": "クリエイティブ"
+  },
+  {
+    "archPackage": "gnome-tweaks",
+    "id": "gnome-tweaks",
+    "genre": "システム管理"
+  },
+  {
+    "archPackage": "dconf-editor",
+    "id": "dconf-editor",
+    "genre": "システム管理"
+  },
+  {
+    "archPackage": "mission-center",
+    "id": "mission-center",
+    "genre": "システム管理"
+  },
+  {
+    "archPackage": "timeshift",
+    "id": "timeshift",
+    "genre": "システム管理"
+  },
+  {
+    "archPackage": "bleachbit",
+    "id": "bleachbit",
+    "genre": "システム管理"
+  },
+  {
+    "archPackage": "pika-backup",
+    "id": "pika-backup",
+    "genre": "システム管理"
+  },
+  {
+    "archPackage": "deja-dup",
+    "id": "deja-dup",
+    "genre": "システム管理"
+  },
+  {
+    "archPackage": "nemo",
+    "id": "nemo",
+    "genre": "ファイル管理"
+  },
+  {
+    "archPackage": "pcmanfm",
+    "id": "pcmanfm",
+    "genre": "ファイル管理"
+  },
+  {
+    "archPackage": "krusader",
+    "id": "kdePackages.krusader",
+    "genre": "ファイル管理"
+  },
+  {
+    "archPackage": "caja",
+    "id": "caja",
+    "genre": "ファイル管理"
+  },
+  {
+    "archPackage": "onlyoffice-bin",
+    "id": "onlyoffice-bin",
+    "genre": "オフィス"
+  },
+  {
+    "archPackage": "abiword",
+    "id": "abiword",
+    "genre": "オフィス"
+  },
+  {
+    "archPackage": "gnumeric",
+    "id": "gnumeric",
+    "genre": "オフィス"
+  },
+  {
+    "archPackage": "calligra",
+    "id": "kdePackages.calligra",
+    "genre": "オフィス"
+  },
+  {
+    "archPackage": "xournalpp",
+    "id": "xournalpp",
+    "genre": "ドキュメント・ノート"
+  },
+  {
+    "archPackage": "pdfarranger",
+    "id": "pdfarranger",
+    "genre": "ドキュメント・ノート"
+  },
+  {
+    "archPackage": "foliate",
+    "id": "foliate",
+    "genre": "ドキュメント・ノート"
+  },
+  {
+    "archPackage": "joplin-desktop",
+    "id": "joplin-desktop",
+    "genre": "ドキュメント・ノート"
+  },
+  {
+    "archPackage": "logseq",
+    "id": "logseq",
+    "genre": "ドキュメント・ノート"
+  },
+  {
+    "archPackage": "marktext",
+    "id": "marktext",
+    "genre": "ドキュメント・ノート"
+  },
+  {
+    "archPackage": "apostrophe",
+    "id": "apostrophe",
+    "genre": "ドキュメント・ノート"
+  },
+  {
+    "archPackage": "sioyek",
+    "id": "sioyek",
+    "genre": "ドキュメント・ノート"
+  },
+  {
+    "archPackage": "mupdf",
+    "id": "mupdf",
+    "genre": "ドキュメント・ノート"
+  },
+  {
+    "archPackage": "kate",
+    "id": "kdePackages.kate",
+    "genre": "開発ツール"
+  },
+  {
+    "archPackage": "dbeaver",
+    "id": "dbeaver",
+    "genre": "開発ツール"
+  },
+  {
+    "archPackage": "postman-bin",
+    "id": "postman",
+    "genre": "開発ツール"
+  },
+  {
+    "archPackage": "insomnia",
+    "id": "insomnia",
+    "genre": "開発ツール"
+  },
+  {
+    "archPackage": "bruno",
+    "id": "bruno",
+    "genre": "開発ツール"
+  },
+  {
+    "archPackage": "android-studio",
+    "id": "android-studio",
+    "genre": "開発ツール"
+  },
+  {
+    "archPackage": "qtcreator",
+    "id": "qtcreator",
+    "genre": "開発ツール"
+  },
+  {
+    "archPackage": "jetbrains-toolbox",
+    "id": "jetbrains-toolbox",
+    "genre": "開発ツール"
+  },
+  {
+    "archPackage": "intellij-idea-community-edition",
+    "id": "jetbrains.idea-community",
+    "genre": "開発ツール"
+  },
+  {
+    "archPackage": "pycharm-community-edition",
+    "id": "jetbrains.pycharm-community",
+    "genre": "開発ツール"
+  },
+  {
+    "archPackage": "eclipse-java",
+    "id": "eclipse",
+    "genre": "開発ツール"
+  },
+  {
+    "archPackage": "gnome-terminal",
+    "id": "gnome-terminal",
+    "genre": "ターミナル"
+  },
+  {
+    "archPackage": "konsole",
+    "id": "kdePackages.konsole",
+    "genre": "ターミナル"
+  },
+  {
+    "archPackage": "tilix",
+    "id": "tilix",
+    "genre": "ターミナル"
+  },
+  {
+    "archPackage": "terminator",
+    "id": "terminator",
+    "genre": "ターミナル"
+  },
+  {
+    "archPackage": "xfce4-terminal",
+    "id": "xfce.xfce4-terminal",
+    "genre": "ターミナル"
+  },
+  {
+    "archPackage": "cool-retro-term",
+    "id": "cool-retro-term",
+    "genre": "ターミナル"
+  },
+  {
+    "archPackage": "transmission-qt",
+    "id": "transmission_4-qt",
+    "genre": "ネットワーク"
+  },
+  {
+    "archPackage": "deluge",
+    "id": "deluge",
+    "genre": "ネットワーク"
+  },
+  {
+    "archPackage": "wireshark-qt",
+    "id": "wireshark",
+    "genre": "ネットワーク"
+  },
+  {
+    "archPackage": "localsend",
+    "id": "localsend",
+    "genre": "ネットワーク"
+  },
+  {
+    "archPackage": "warpinator",
+    "id": "warpinator",
+    "genre": "ネットワーク"
+  },
+  {
+    "archPackage": "nextcloud-client",
+    "id": "nextcloud-client",
+    "genre": "ネットワーク"
+  },
+  {
+    "archPackage": "rustdesk",
+    "id": "rustdesk",
+    "genre": "ネットワーク"
+  },
+  {
+    "archPackage": "heroic",
+    "id": "heroic",
+    "genre": "ゲーム"
+  },
+  {
+    "archPackage": "bottles",
+    "id": "bottles",
+    "genre": "ゲーム"
+  },
+  {
+    "archPackage": "prismlauncher",
+    "id": "prismlauncher",
+    "genre": "ゲーム"
+  },
+  {
+    "archPackage": "retroarch",
+    "id": "retroarch",
+    "genre": "ゲーム"
+  },
+  {
+    "archPackage": "dolphin-emu",
+    "id": "dolphin-emu",
+    "genre": "ゲーム"
+  },
+  {
+    "archPackage": "pcsx2",
+    "id": "pcsx2",
+    "genre": "ゲーム"
+  },
+  {
+    "archPackage": "itch",
+    "id": "itch",
+    "genre": "ゲーム"
+  },
+  {
+    "archPackage": "helvum",
+    "id": "helvum",
+    "genre": "ユーティリティ"
+  },
+  {
+    "archPackage": "qpwgraph",
+    "id": "qpwgraph",
+    "genre": "ユーティリティ"
   }
 ]

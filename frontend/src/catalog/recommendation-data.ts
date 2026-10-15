@@ -32,7 +32,7 @@ type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 const BUNDLED_DATA_URL = "/data/recommendations.json";
 const LATEST_DATA_URL =
   "https://raw.githubusercontent.com/Ni-gihub/nixos-json-controller/main/frontend/public/data/recommendations.json";
-const RECOMMENDATION_CACHE_KEY = "nxc.app-store.recommendations.v1";
+const RECOMMENDATION_CACHE_KEY = "nxc.app-store.recommendations.v2";
 export const RECOMMENDATION_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 const EMPTY_DATA: RecommendationDocument = {
@@ -120,7 +120,7 @@ export function parseRecommendationData(
     }
   }
 
-  if (recommendations.length > 50) return undefined;
+  if (recommendations.length > 250) return undefined;
 
   let period: RecommendationPeriod | null = null;
   if (value.period !== null) {

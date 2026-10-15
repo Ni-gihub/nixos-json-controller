@@ -28,8 +28,8 @@ test("ranks only explicitly mapped GUI candidates by pkgstats popularity", () =>
   assert.equal(recommendations.some((item) => item.id === "systemd"), false);
 });
 
-test("limits each genre to four recommendations while keeping other genres", () => {
-  const stats = Array.from({ length: 20 }, (_, index) => ({
+test("limits each genre to twelve recommendations while keeping other genres", () => {
+  const stats = Array.from({ length: 40 }, (_, index) => ({
     name: `app-${index}`,
     popularity: 20 - index,
     count: 100 - index,
@@ -42,14 +42,30 @@ test("limits each genre to four recommendations while keeping other genres", () 
   }));
 
   const recommendations = buildRecommendations(stats, map);
-  assert.equal(recommendations.length, 12);
+  assert.equal(recommendations.length, 24);
   assert.equal(
     recommendations.filter((item) => item.genre === "ブラウザ").length,
-    6,
+    12,
   );
   assert.equal(
     recommendations.filter((item) => item.genre === "メディア").length,
-    6,
+    12,
+  );
+});
+
+test("does not emit duplicate IDs when Arch packages map to one Nix attribute", () => {
+  const stats = [
+    { name: "editor", popularity: 90, count: 90, samples: 100 },
+    { name: "editor-nightly", popularity: 80, count: 80, samples: 100 },
+  ];
+  const map = [
+    { archPackage: "editor", id: "editor", genre: "開発ツール" },
+    { archPackage: "editor-nightly", id: "editor", genre: "開発ツール" },
+  ];
+
+  assert.deepEqual(
+    buildRecommendations(stats, map).map((item) => item.id),
+    ["editor"],
   );
 });
 

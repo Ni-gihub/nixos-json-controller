@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildRecommendationFallbackApps } from "./recommendation-fallback.ts";
+import {
+  buildRecommendationFallbackApps,
+  formatUnresolvedRecommendationMessage,
+} from "./recommendation-fallback.ts";
 
 test("builds useful fallback cards for curated package IDs", () => {
   const apps = buildRecommendationFallbackApps([
@@ -22,4 +25,16 @@ test("builds useful fallback cards for curated package IDs", () => {
 
 test("does not generate cards for IDs outside the curated allowlist", () => {
   assert.deepEqual(buildRecommendationFallbackApps(["builtins.abort", "unknown-app"]), []);
+});
+
+test("describes recommendation IDs that have no fallback metadata", () => {
+  assert.equal(
+    formatUnresolvedRecommendationMessage(["unknown-app", "other-unknown"]),
+    "表示用の情報がないため表示できないアプリ: unknown-app, other-unknown",
+  );
+  assert.equal(formatUnresolvedRecommendationMessage([]), undefined);
+  assert.equal(
+    formatUnresolvedRecommendationMessage(["unknown-app", "unknown-app"]),
+    "表示用の情報がないため表示できないアプリ: unknown-app",
+  );
 });

@@ -42,14 +42,14 @@ test("limits each genre to four recommendations while keeping other genres", () 
   }));
 
   const recommendations = buildRecommendations(stats, map);
-  assert.equal(recommendations.length, 8);
+  assert.equal(recommendations.length, 12);
   assert.equal(
     recommendations.filter((item) => item.genre === "ブラウザ").length,
-    4,
+    6,
   );
   assert.equal(
     recommendations.filter((item) => item.genre === "メディア").length,
-    4,
+    6,
   );
 });
 

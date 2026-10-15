@@ -26,7 +26,7 @@ export default function RecommendationAppCard({
   const { refreshPackage } = useAppState();
   const detailPath = `/apps/${app.id}`;
   const popularity = recommendation.popularity.toFixed(2);
-  const rankLabel = String(rank).padStart(2, "0");
+  const rankLabel = `${rank}位`;
 
   if (featured) {
     return (
@@ -39,7 +39,7 @@ export default function RecommendationAppCard({
           aria-hidden="true"
           className="pointer-events-none absolute -bottom-24 left-1/3 size-60 rounded-full bg-indigo-400/10 blur-3xl"
         />
-        <div className="relative grid gap-5 p-5 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-7 sm:p-7 lg:grid-cols-[7rem_minmax(0,1fr)_15rem]">
+        <div className="relative grid gap-5 p-5 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-7 sm:p-7 lg:grid-cols-[7rem_minmax(0,1fr)_18rem]">
           <Link
             to={detailPath}
             aria-label={`${app.name}の詳細`}
@@ -59,11 +59,8 @@ export default function RecommendationAppCard({
             <div className="flex flex-wrap items-center gap-2">
               <Badge className="gap-1 rounded-full bg-amber-100 px-2.5 text-amber-900 hover:bg-amber-100 dark:bg-amber-300/15 dark:text-amber-200">
                 <Sparkles className="size-3.5" />
-                おすすめピックアップ
+                総合ランキング {rank}位
               </Badge>
-              <span className="text-xs font-semibold tracking-[0.14em] text-muted-foreground">
-                RANK {rankLabel}
-              </span>
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <Link
@@ -96,11 +93,11 @@ export default function RecommendationAppCard({
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/80 bg-white/75 p-4 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-slate-950/35">
+          <div className="rounded-2xl border border-white/80 bg-white/75 p-4 shadow-sm backdrop-blur-sm sm:col-span-2 lg:col-span-1 dark:border-white/10 dark:bg-slate-950/35">
             <div className="flex items-center justify-between gap-3">
               <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                 <TrendingUp className="size-4 text-blue-600 dark:text-blue-300" />
-                Arch Linuxの人気指標
+                Arch Linuxでの人気度
               </span>
               <span className="text-lg font-bold tabular-nums text-blue-700 dark:text-blue-300">
                 {popularity}%
@@ -120,26 +117,24 @@ export default function RecommendationAppCard({
             </div>
             <p className="mt-2 text-xs leading-5 text-muted-foreground">
               Arch
-              Linuxの公開パッケージ統計を参考にしています。NixOSでの利用率ではありません。
+              Linuxの公開統計（pkgstats）に基づく割合です。NixOSでの利用率ではありません。
             </p>
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-4 grid grid-cols-2 gap-2">
               <Link
                 to={detailPath}
-                className="inline-flex h-9 flex-1 items-center justify-center gap-1 rounded-full border border-border bg-background px-3 text-sm font-medium transition-colors hover:bg-muted"
+                className="inline-flex h-10 min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded-full border border-border bg-background px-2 text-sm font-medium transition-colors hover:bg-muted"
               >
                 詳細を見る
-                <ArrowUpRight className="size-4" />
+                <ArrowUpRight className="size-4 shrink-0" />
               </Link>
-              <div className="min-w-24 shrink-0">
-                <InstallButton
-                  packageId={app.id}
-                  appName={app.name}
-                  installed={installed}
-                  onInstalled={() => refreshPackage(app.id)}
-                  className="h-9 w-full rounded-full px-4 text-sm"
-                  size="sm"
-                />
-              </div>
+              <InstallButton
+                packageId={app.id}
+                appName={app.name}
+                installed={installed}
+                onInstalled={() => refreshPackage(app.id)}
+                className="h-10 w-full whitespace-nowrap rounded-full px-2 text-sm"
+                size="sm"
+              />
             </div>
           </div>
         </div>
@@ -154,13 +149,13 @@ export default function RecommendationAppCard({
           <span className="flex size-8 items-center justify-center rounded-full bg-muted text-sm font-bold tabular-nums text-foreground">
             {rankLabel}
           </span>
-          人気ランキング
+          ジャンル内ランキング
         </span>
         <Badge
           variant="secondary"
           className="shrink-0 rounded-full px-2.5 tabular-nums"
         >
-          {popularity}%
+          人気度 {popularity}%
         </Badge>
       </div>
 
@@ -189,7 +184,7 @@ export default function RecommendationAppCard({
             </Link>
             {installed && (
               <Badge variant="secondary" className="rounded-full text-[10px]">
-                済
+                インストール済み
               </Badge>
             )}
           </div>
@@ -227,9 +222,9 @@ export default function RecommendationAppCard({
       <div className="mt-auto flex items-center gap-2 pt-4">
         <Link
           to={detailPath}
-          className="inline-flex h-9 min-w-0 flex-1 items-center justify-center gap-1 rounded-full border border-border px-3 text-sm font-medium transition-colors hover:bg-muted"
+          className="inline-flex h-9 min-w-0 flex-1 items-center justify-center gap-1 whitespace-nowrap rounded-full border border-border px-2 text-sm font-medium transition-colors hover:bg-muted"
         >
-          詳細
+          詳細を見る
           <ArrowUpRight className="size-4" />
         </Link>
         <div className="min-w-24 shrink-0">
@@ -244,7 +239,8 @@ export default function RecommendationAppCard({
         </div>
       </div>
       <p className="mt-2 text-[11px] leading-4 text-muted-foreground">
-        Arch Linux pkgstatsに基づく人気指標
+        Arch
+        Linuxの公開統計（pkgstats）に基づく割合です。NixOSでの利用率ではありません。
       </p>
     </article>
   );

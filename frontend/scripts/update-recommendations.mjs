@@ -12,7 +12,7 @@ const apiUrl = "https://pkgstats.archlinux.de/api/packages";
 const sourceUrl = "https://pkgstats.archlinux.de/api/doc";
 const pageSize = 10_000;
 const maxOffset = 100_000;
-const recommendationLimitPerGenre = 4;
+const recommendationLimitPerGenre = 6;
 
 /** Convert a UTC Date into the API's numeric YYYYMM representation. */
 function formatMonth(date) {

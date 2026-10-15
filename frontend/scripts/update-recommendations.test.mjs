@@ -53,6 +53,22 @@ test("limits each genre to twelve recommendations while keeping other genres", (
   );
 });
 
+test("does not emit duplicate IDs when Arch packages map to one Nix attribute", () => {
+  const stats = [
+    { name: "editor", popularity: 90, count: 90, samples: 100 },
+    { name: "editor-nightly", popularity: 80, count: 80, samples: 100 },
+  ];
+  const map = [
+    { archPackage: "editor", id: "editor", genre: "開発ツール" },
+    { archPackage: "editor-nightly", id: "editor", genre: "開発ツール" },
+  ];
+
+  assert.deepEqual(
+    buildRecommendations(stats, map).map((item) => item.id),
+    ["editor"],
+  );
+});
+
 test("rejects invalid package mappings", () => {
   assert.throws(
     () => buildRecommendations([], [{ archPackage: "firefox", id: "firefox; abort", genre: "ブラウザ" }]),

@@ -12,7 +12,7 @@ const apiUrl = "https://pkgstats.archlinux.de/api/packages";
 const sourceUrl = "https://pkgstats.archlinux.de/api/doc";
 const pageSize = 10_000;
 const maxOffset = 100_000;
-const recommendationLimitPerGenre = 6;
+const recommendationLimitPerGenre = 12;
 
 /** Convert a UTC Date into the API's numeric YYYYMM representation. */
 function formatMonth(date) {
@@ -154,9 +154,12 @@ export function buildRecommendations(popularities, packageMap) {
   );
 
   const genreCounts = new Map();
+  const includedIds = new Set();
   return recommendations.filter((recommendation) => {
+    if (includedIds.has(recommendation.id)) return false;
     const count = genreCounts.get(recommendation.genre) ?? 0;
     if (count >= recommendationLimitPerGenre) return false;
+    includedIds.add(recommendation.id);
     genreCounts.set(recommendation.genre, count + 1);
     return true;
   });

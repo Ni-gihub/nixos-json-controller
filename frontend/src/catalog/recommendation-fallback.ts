@@ -1006,6 +1006,17 @@ const FALLBACK_METADATA: Record<string, FallbackMetadata> = {
   },
 };
 
+
+/** Explain which recommendation IDs cannot be shown because no display metadata exists. */
+export function formatUnresolvedRecommendationMessage(
+  ids: string[],
+): string | undefined {
+  const unresolvedIds = [...new Set(ids.filter((id) => id.trim().length > 0))];
+  if (unresolvedIds.length === 0) return undefined;
+
+  return `表示用の情報がないため表示できないアプリ: ${unresolvedIds.join(", ")}`;
+}
+
 /** Build display-only cards for curated IDs when Nix cannot resolve catalog metadata. */
 export function buildRecommendationFallbackApps(ids: string[]): App[] {
   return ids.flatMap((id) => {

@@ -193,7 +193,7 @@ export function readCachedRecommendations(
   }
 }
 
-/** Persist only validated, non-empty recommendation data.
+/** Persist only validated, non-empty recommendation data. */
 export function writeCachedRecommendations(
   data: RecommendationDocument,
   checkedAt = Date.now(),

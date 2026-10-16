@@ -103,7 +103,8 @@ export default function RecommendationAppCard({
               />
             </div>
             <p className="mt-3 text-xs leading-5 text-muted-foreground">
-              Arch Linuxの公開統計（pkgstats）に基づく割合です。NixOSでの利用率ではありません。
+              Arch
+              Linuxの公開統計（pkgstats）に基づく割合です。NixOSでの利用率ではありません。
             </p>
             <div className="mt-5 flex flex-wrap gap-2">
               <Link
@@ -181,7 +182,9 @@ export default function RecommendationAppCard({
       </div>
 
       <div className="mt-4 flex min-w-0 items-center gap-2 border-t border-border/80 pt-3 text-xs">
-        <span className="shrink-0 font-medium text-foreground/80">{app.category}</span>
+        <span className="shrink-0 font-medium text-foreground/80">
+          {app.category}
+        </span>
         {app.tags.slice(0, 1).map((tag) => (
           <span key={tag} className="min-w-0 truncate text-muted-foreground">
             {tag}

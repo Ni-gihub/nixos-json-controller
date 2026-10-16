@@ -164,7 +164,9 @@ function AppDetail() {
 
             <Card className="rounded-xl border-border bg-card shadow-sm">
               <CardContent className="p-5 sm:p-6 lg:p-8">
-                <h2 className="text-lg font-semibold tracking-tight">説明・詳細情報</h2>
+                <h2 className="text-lg font-semibold tracking-tight">
+                  説明・詳細情報
+                </h2>
                 <div className="mt-5 grid gap-5 md:grid-cols-2">
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm font-medium">

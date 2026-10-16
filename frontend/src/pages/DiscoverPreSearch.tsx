@@ -124,7 +124,9 @@ export default function DiscoverPreSearch({
         </div>
         <div className="shrink-0 text-xs leading-5 text-muted-foreground">
           {generatedAt && (
-            <p>データ更新日 {new Date(generatedAt).toLocaleDateString("ja-JP")}</p>
+            <p>
+              データ更新日 {new Date(generatedAt).toLocaleDateString("ja-JP")}
+            </p>
           )}
           {loading && <p className="mt-1">インストール状態を確認中...</p>}
         </div>

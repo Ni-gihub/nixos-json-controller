@@ -4,12 +4,14 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 
 type RecommendationCarouselProps = {
   label: string;
+  resetKey: string;
   children: ReactNode;
 };
 
 /** Horizontal ranking rail with subtle navigation hints and a visible next-card peek. */
 export default function RecommendationCarousel({
   label,
+  resetKey,
   children,
 }: RecommendationCarouselProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -31,6 +33,8 @@ export default function RecommendationCarousel({
     const viewport = viewportRef.current;
     if (!viewport) return;
 
+    // Keep each genre rail anchored at rank 1 when its catalog data changes.
+    viewport.scrollLeft = 0;
     updateScrollState();
     viewport.addEventListener("scroll", updateScrollState, { passive: true });
     const resizeObserver = new ResizeObserver(updateScrollState);
@@ -42,7 +46,7 @@ export default function RecommendationCarousel({
       viewport.removeEventListener("scroll", updateScrollState);
       resizeObserver.disconnect();
     };
-  }, [children, updateScrollState]);
+  }, [resetKey, updateScrollState]);
 
   const scroll = (direction: -1 | 1) => {
     const viewport = viewportRef.current;
@@ -61,7 +65,7 @@ export default function RecommendationCarousel({
         role="region"
         aria-label={`${label}。横方向にスクロールできます`}
         tabIndex={0}
-        className="nxc-carousel-track flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-3 pr-14 outline-none focus-visible:rounded-xl focus-visible:ring-2 focus-visible:ring-[#007aff]/40"
+        className="nxc-carousel-track flex snap-x snap-mandatory gap-4 overflow-x-auto pb-3 pr-14 outline-none focus-visible:rounded-xl focus-visible:ring-2 focus-visible:ring-[#007aff]/40"
       >
         {children}
       </div>

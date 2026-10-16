@@ -87,7 +87,7 @@ function AppDetail() {
 
   return (
     <div className="min-h-[calc(100vh-2.5rem)] bg-background text-foreground">
-      <header className="sticky top-10 z-30 border-b border-border bg-background/95 backdrop-blur">
+      <header className="sticky top-10 z-30 border-b border-primary/10 bg-background/95 backdrop-blur">
         <div className="flex h-14 items-center px-5 sm:px-6">
           <Link
             to={
@@ -95,12 +95,12 @@ function AppDetail() {
                 ? `/discover?query=${encodeURIComponent(returnQuery)}`
                 : "/discover"
             }
-            className="inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
           >
             <ArrowLeft className="size-4" />
             アプリを探す
           </Link>
-          <div className="ml-4 border-l border-border pl-4 text-sm font-semibold">
+          <div className="ml-4 border-l border-primary/15 pl-4 text-sm font-semibold">
             nxc App Store
           </div>
         </div>
@@ -109,10 +109,10 @@ function AppDetail() {
       <main className="mx-auto w-full max-w-none px-5 py-6 sm:px-6 lg:px-8 lg:py-8">
         <div className="mx-auto max-w-5xl">
           <section className="min-w-0 space-y-6">
-            <Card className="overflow-hidden rounded-xl border-border bg-card shadow-sm">
+            <Card className="overflow-hidden rounded-2xl border-primary/15 bg-card shadow-md shadow-blue-950/5">
               <CardContent className="relative p-5 sm:p-6 lg:p-8">
                 <div className="relative flex flex-col items-start gap-5 sm:flex-row">
-                  <div className="flex size-24 shrink-0 items-center justify-center rounded-2xl border border-border bg-muted/40 text-4xl font-bold text-[#007aff]">
+                  <div className="flex size-24 shrink-0 items-center justify-center rounded-2xl border border-primary/15 bg-primary/10 text-4xl font-bold text-primary shadow-sm">
                     <AppIcon
                       name={app.name}
                       packageId={app.id}
@@ -126,7 +126,7 @@ function AppDetail() {
                     <div className="flex flex-wrap items-start justify-between gap-5">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-                          <span className="font-medium text-[#007aff]">
+                          <span className="font-medium text-primary">
                             {app.category}
                           </span>
                           {app.tags.map((tag) => (
@@ -142,7 +142,7 @@ function AppDetail() {
                         installed={installed}
                         statusKnown={statusKnown}
                         onInstalled={() => refreshPackage(id)}
-                        className="h-10 shrink-0 rounded-full bg-[#007aff] px-4 text-sm text-white hover:bg-[#006de4]"
+                        className="h-10 shrink-0 rounded-full bg-primary px-4 text-sm text-white hover:bg-primary/90"
                         size="sm"
                       />
                     </div>
@@ -162,7 +162,7 @@ function AppDetail() {
               </CardContent>
             </Card>
 
-            <Card className="rounded-xl border-border bg-card shadow-sm">
+            <Card className="rounded-2xl border-primary/15 bg-card shadow-sm">
               <CardContent className="p-5 sm:p-6 lg:p-8">
                 <h2 className="text-lg font-semibold tracking-tight">
                   説明・詳細情報
@@ -170,16 +170,16 @@ function AppDetail() {
                 <div className="mt-5 grid gap-5 md:grid-cols-2">
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm font-medium">
-                      <Package className="size-4 text-[#007aff]" />
+                      <Package className="size-4 text-primary" />
                       パッケージ
                     </div>
-                    <p className="break-all rounded-xl border border-border bg-muted/50 px-4 py-3 font-mono text-sm">
+                    <p className="break-all rounded-xl border border-primary/10 bg-primary/5 px-4 py-3 font-mono text-sm">
                       {app.id}
                     </p>
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm font-medium">
-                      <Tag className="size-4 text-[#007aff]" />
+                      <Tag className="size-4 text-primary" />
                       カテゴリ
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -199,7 +199,7 @@ function AppDetail() {
                       href={app.homepage}
                       target="_blank"
                       rel="noreferrer"
-                      className="mt-2 inline-flex max-w-full items-center gap-2 break-all text-sm text-[#007aff] hover:underline"
+                      className="mt-2 inline-flex max-w-full items-center gap-2 break-all text-sm text-primary hover:underline"
                     >
                       {app.homepage}
                       <ExternalLink className="size-4 shrink-0" />

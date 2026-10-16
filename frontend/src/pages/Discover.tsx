@@ -302,7 +302,7 @@ function Discover() {
         <aside className="hidden w-64 shrink-0 border-r border-sidebar-border bg-sidebar lg:block">
           <div className="sticky top-10 flex h-[calc(100vh-2.5rem)] flex-col p-6">
             <div className="flex items-center gap-3">
-              <div className="flex size-10 items-center justify-center rounded-xl bg-[#007aff] text-white">
+              <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-white shadow-sm shadow-blue-500/25">
                 <Store className="size-5" />
               </div>
               <div>
@@ -316,16 +316,16 @@ function Discover() {
             <nav aria-label="App Store" className="mt-8 space-y-2">
               <div
                 aria-current="page"
-                className="flex items-center gap-3 rounded-lg border-l-2 border-[#007aff] bg-sidebar-accent px-3 py-2.5 text-sm font-semibold text-sidebar-accent-foreground"
+                className="flex items-center gap-3 rounded-xl border-l-2 border-primary bg-sidebar-accent px-3 py-2.5 text-sm font-semibold text-sidebar-accent-foreground shadow-sm"
               >
                 <Search className="size-4" />
                 アプリを探す
               </div>
             </nav>
 
-            <div className="mt-auto rounded-xl border border-sidebar-border bg-card/70 p-4">
+            <div className="mt-auto rounded-xl border border-sidebar-border bg-card p-4 shadow-sm">
               <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <Package className="size-4 text-[#007aff]" />
+                <Package className="size-4 text-primary" />
                 Nixpkgsカタログ
               </div>
               <p className="mt-2 text-xs leading-5 text-muted-foreground">
@@ -339,7 +339,7 @@ function Discover() {
           <main className="w-full px-5 py-6 sm:px-6 lg:px-8 lg:py-8">
             <section className="border-b border-border pb-6">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">
+                <p className="text-sm font-semibold text-primary">
                   Nixpkgsカタログ
                 </p>
                 <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
@@ -352,9 +352,9 @@ function Discover() {
                 <form onSubmit={handleSearch} className="mt-5 max-w-4xl">
                   <div className="flex w-full gap-2">
                     <div className="relative min-w-0 flex-1">
-                      <Search className="absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-[#007aff]" />
+                      <Search className="absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-primary" />
                       <Input
-                        className="h-11 rounded-xl border-border bg-card pl-10 pr-3 text-sm ring-offset-background placeholder:text-muted-foreground/70 focus-visible:border-[#007aff] focus-visible:ring-[#007aff]/20 sm:text-base md:text-base!"
+                        className="h-11 rounded-xl border-border bg-card pl-10 pr-3 text-sm ring-offset-background placeholder:text-muted-foreground/70 focus-visible:border-primary focus-visible:ring-primary/20 sm:text-base md:text-base!"
                         placeholder="アプリ、言語、ライブラリ、ツールを検索..."
                         value={query}
                         onChange={(event) => {
@@ -372,7 +372,7 @@ function Discover() {
                     </div>
                     <Button
                       type="submit"
-                      className="h-11 rounded-full bg-[#007aff] px-5 text-white hover:bg-[#006de4]"
+                      className="h-11 rounded-full bg-primary px-5 font-semibold text-primary-foreground shadow-sm shadow-blue-500/20 hover:bg-primary/90"
                       disabled={!query.trim() || searching}
                     >
                       <Search className="mr-2 size-4" />
@@ -416,7 +416,7 @@ function Discover() {
                           <section key={group.genre} className="space-y-3">
                             <div className="flex items-center justify-between gap-4">
                               <div className="min-w-0">
-                                <h3 className="text-lg font-semibold tracking-tight sm:text-xl">
+                                <h3 className="text-lg font-bold tracking-tight sm:text-xl">
                                   {group.genre}
                                 </h3>
                                 <p className="mt-0.5 text-sm text-muted-foreground">
@@ -465,7 +465,7 @@ function Discover() {
                 <>
                   <div className="mb-6 flex items-end justify-between gap-4">
                     <div>
-                      <p className="text-sm font-semibold text-[#007aff]">
+                      <p className="text-sm font-semibold text-primary">
                         検索結果
                       </p>
                       <h2 className="mt-1 text-xl font-semibold sm:text-2xl">

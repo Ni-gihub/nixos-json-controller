@@ -54,7 +54,9 @@ export default function RecommendationCarousel({
 
     viewport.scrollBy({
       left: direction * Math.max(220, Math.round(viewport.clientWidth * 0.72)),
-      behavior: "smooth",
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
     });
   };
 
@@ -65,7 +67,7 @@ export default function RecommendationCarousel({
         role="region"
         aria-label={`${label}。横方向にスクロールできます`}
         tabIndex={0}
-        className="nxc-carousel-track flex snap-x snap-mandatory gap-4 overflow-x-auto pb-3 pr-14 outline-none focus-visible:rounded-xl focus-visible:ring-2 focus-visible:ring-[#007aff]/40"
+        className="nxc-carousel-track flex snap-x snap-mandatory gap-4 overflow-x-auto pb-3 pr-14 outline-none focus-visible:rounded-xl focus-visible:ring-2 focus-visible:ring-primary/40"
       >
         {children}
       </div>
@@ -80,7 +82,7 @@ export default function RecommendationCarousel({
             type="button"
             aria-label={`${label}を左にスクロール`}
             onClick={() => scroll(-1)}
-            className="absolute left-1 top-1/2 z-10 flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-border/70 bg-background/80 text-foreground/55 opacity-65 shadow-sm backdrop-blur-sm transition hover:bg-background/95 hover:text-foreground hover:opacity-100 focus-visible:opacity-100"
+            className="absolute left-1 top-1/2 z-10 flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-border/70 bg-background/80 text-foreground/55 opacity-65 shadow-sm backdrop-blur-sm transition hover:bg-background/95 hover:text-primary hover:opacity-100 focus-visible:opacity-100"
           >
             <ChevronLeft className="size-5" />
           </button>
@@ -97,7 +99,7 @@ export default function RecommendationCarousel({
             type="button"
             aria-label={`${label}を右にスクロール`}
             onClick={() => scroll(1)}
-            className="absolute right-1 top-1/2 z-10 flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-border/70 bg-background/80 text-foreground/55 opacity-65 shadow-sm backdrop-blur-sm transition hover:bg-background/95 hover:text-foreground hover:opacity-100 focus-visible:opacity-100"
+            className="absolute right-1 top-1/2 z-10 flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-border/70 bg-background/80 text-foreground/55 opacity-65 shadow-sm backdrop-blur-sm transition hover:bg-background/95 hover:text-primary hover:opacity-100 focus-visible:opacity-100"
           >
             <ChevronRight className="size-5" />
           </button>

@@ -12,11 +12,11 @@ export default function WindowTitleBar() {
   return (
     <header
       data-tauri-drag-region
-      className="sticky top-0 z-50 flex h-10 shrink-0 items-center gap-2 border-b border-border bg-background px-3 text-foreground"
+      className="sticky top-0 z-50 flex h-10 shrink-0 items-center gap-2 border-b border-primary/10 bg-background/95 px-3 text-foreground backdrop-blur-sm"
     >
       <span
         data-tauri-drag-region
-        className="flex size-6 shrink-0 items-center justify-center rounded-md bg-[#007aff] text-white"
+        className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary text-white shadow-sm shadow-blue-500/25"
       >
         <Store className="size-3.5" />
       </span>
@@ -35,7 +35,7 @@ export default function WindowTitleBar() {
             aria-label="最小化"
             title="最小化"
             onClick={() => void appWindow.minimize().catch(console.error)}
-            className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007aff]/40"
+            className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
           >
             <Minus className="size-4" />
           </button>
@@ -44,7 +44,7 @@ export default function WindowTitleBar() {
             aria-label="最大化／元に戻す"
             title="最大化／元に戻す"
             onClick={() => void appWindow.toggleMaximize().catch(console.error)}
-            className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007aff]/40"
+            className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
           >
             <Square className="size-3.5" />
           </button>

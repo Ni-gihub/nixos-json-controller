@@ -29,9 +29,9 @@ export default function DiscoverPreSearch({
 }: DiscoverPreSearchProps) {
   if (query.trim().length > 0) {
     return (
-      <div className="flex min-h-[220px] w-full items-center justify-center rounded-xl border border-border bg-card px-6 py-10 text-center">
+      <div className="flex min-h-[220px] w-full items-center justify-center rounded-2xl border border-primary/15 bg-card px-6 py-10 text-center shadow-sm">
         <div>
-          <div className="mx-auto flex size-10 items-center justify-center rounded-lg bg-muted text-[#007aff]">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/10">
             <Search className="size-5" />
           </div>
           <h2 className="mt-5 text-xl font-semibold">検索してアプリを探す</h2>
@@ -48,10 +48,10 @@ export default function DiscoverPreSearch({
     return (
       <div
         aria-live="polite"
-        className="flex min-h-[220px] w-full items-center justify-center rounded-xl border border-border bg-card px-6 py-10 text-center"
+        className="flex min-h-[220px] w-full items-center justify-center rounded-2xl border border-primary/15 bg-card px-6 py-10 text-center shadow-sm"
       >
         <div>
-          <div className="mx-auto flex size-10 items-center justify-center rounded-lg bg-muted text-[#007aff]">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/10">
             <Search className="size-5" />
           </div>
           <h2 className="mt-5 text-xl font-semibold">
@@ -67,9 +67,9 @@ export default function DiscoverPreSearch({
 
   if (!hasRecommendations && recommendationStatus === "unavailable") {
     return (
-      <div className="flex min-h-[260px] w-full items-center justify-center rounded-xl border border-border bg-card px-6 py-10 text-center">
+      <div className="flex min-h-[260px] w-full items-center justify-center rounded-2xl border border-primary/15 bg-card px-6 py-10 text-center shadow-sm">
         <div className="max-w-2xl">
-          <div className="mx-auto flex size-10 items-center justify-center rounded-lg bg-muted text-[#007aff]">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/10">
             <Search className="size-5" />
           </div>
           <h2 className="mt-5 text-xl font-semibold">
@@ -96,9 +96,9 @@ export default function DiscoverPreSearch({
 
   if (!hasRecommendations) {
     return (
-      <div className="flex min-h-[260px] w-full items-center justify-center rounded-xl border border-border bg-card px-6 py-10 text-center">
+      <div className="flex min-h-[260px] w-full items-center justify-center rounded-2xl border border-primary/15 bg-card px-6 py-10 text-center shadow-sm">
         <div>
-          <div className="mx-auto flex size-10 items-center justify-center rounded-lg bg-muted text-[#007aff]">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/10">
             <Search className="size-5" />
           </div>
           <h2 className="mt-5 text-xl font-semibold">検索してアプリを探す</h2>
@@ -112,17 +112,17 @@ export default function DiscoverPreSearch({
 
   return (
     <>
-      <div className="mb-7 flex flex-wrap items-end justify-between gap-4 border-b border-border/80 pb-5">
+      <div className="mb-7 flex flex-wrap items-end justify-between gap-4 border-b border-primary/15 pb-5">
         <div>
-          <p className="text-xs font-semibold text-[#007aff]">おすすめアプリ</p>
-          <h2 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
+          <p className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">おすすめアプリ</p>
+          <h2 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">
             人気のアプリから探す
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
             人気のアプリをジャンル別に紹介します。詳細を確認して、そのままインストールできます。
           </p>
         </div>
-        <div className="shrink-0 text-xs leading-5 text-muted-foreground">
+        <div className="shrink-0 text-xs leading-5 text-foreground/60">
           {generatedAt && (
             <p>
               データ更新日 {new Date(generatedAt).toLocaleDateString("ja-JP")}

@@ -113,7 +113,7 @@ function InstallButton({
         >
           <form
             onSubmit={handlePasswordSubmit}
-            className="w-full max-w-sm rounded-2xl border border-blue-100 bg-background p-6 shadow-xl"
+            className="w-full max-w-sm rounded-2xl border border-primary/15 bg-card p-6 shadow-2xl shadow-blue-950/10"
             onClick={(event) => event.stopPropagation()}
           >
             <h2 className="text-lg font-semibold">認証が必要です</h2>
@@ -142,7 +142,7 @@ function InstallButton({
               </Button>
               <Button
                 type="submit"
-                className="bg-blue-600 text-white hover:bg-blue-700"
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
                 disabled={!password}
               >
                 続行

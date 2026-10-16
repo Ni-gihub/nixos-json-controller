@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { Search, Store, Sparkles } from "lucide-react";
+import { Package, Search, Store } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import AppCard from "@/components/AppCard";
@@ -299,10 +299,10 @@ function Discover() {
   return (
     <div className="min-h-[calc(100vh-2.5rem)] bg-background text-foreground">
       <div className="flex min-h-[calc(100vh-2.5rem)]">
-        <aside className="hidden w-64 shrink-0 border-r border-border bg-background lg:block">
+        <aside className="hidden w-64 shrink-0 border-r border-sidebar-border bg-sidebar lg:block">
           <div className="sticky top-10 flex h-[calc(100vh-2.5rem)] flex-col p-6">
             <div className="flex items-center gap-3">
-              <div className="flex size-11 items-center justify-center rounded-2xl bg-[#007aff] text-white">
+              <div className="flex size-10 items-center justify-center rounded-xl bg-[#007aff] text-white">
                 <Store className="size-5" />
               </div>
               <div>
@@ -316,42 +316,32 @@ function Discover() {
             <nav aria-label="App Store" className="mt-8 space-y-2">
               <div
                 aria-current="page"
-                className="flex items-center gap-3 rounded-xl bg-muted px-4 py-3 text-sm font-semibold text-foreground"
+                className="flex items-center gap-3 rounded-lg border-l-2 border-[#007aff] bg-sidebar-accent px-3 py-2.5 text-sm font-semibold text-sidebar-accent-foreground"
               >
                 <Search className="size-4" />
                 アプリを探す
               </div>
             </nav>
 
-            <div className="mt-auto rounded-2xl border border-border bg-card p-4">
+            <div className="mt-auto rounded-xl border border-sidebar-border bg-card/70 p-4">
               <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <Sparkles className="size-4 text-[#007aff]" />
-                Nixpkgs
+                <Package className="size-4 text-[#007aff]" />
+                Nixpkgsカタログ
               </div>
               <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                アプリ、言語、ライブラリ、開発ツールをまとめて検索できます。
+                アプリから開発ツールまで、まとめて探せます。
               </p>
             </div>
           </div>
         </aside>
 
         <div className="min-w-0 flex-1">
-          <header className="border-b border-border bg-background/95 backdrop-blur lg:hidden">
-            <div className="flex h-16 items-center px-5">
-              <div className="flex items-center gap-2 font-semibold">
-                <Store className="size-5 text-[#007aff]" />
-                nxc App Store
-              </div>
-            </div>
-          </header>
-
           <main className="w-full px-5 py-6 sm:px-6 lg:px-8 lg:py-8">
             <section className="border-b border-border pb-6">
               <div>
-                <div className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                  <Store className="size-4" />
-                  NixOS App Store
-                </div>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Nixpkgsカタログ
+                </p>
                 <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
                   アプリを探す
                 </h1>
@@ -495,14 +485,14 @@ function Discover() {
                   </div>
 
                   {searchError ? (
-                    <div className="w-full rounded-2xl border border-dashed border-border bg-card/70 p-8 text-center">
+                    <div className="w-full rounded-xl border border-dashed border-border bg-card p-8 text-center">
                       <p className="font-medium">検索できませんでした。</p>
                       <p className="mt-2 text-sm text-muted-foreground">
                         {searchError}
                       </p>
                     </div>
                   ) : results.length === 0 && !searching ? (
-                    <div className="w-full rounded-2xl border border-dashed border-border bg-card/70 p-8 text-center">
+                    <div className="w-full rounded-xl border border-dashed border-border bg-card p-8 text-center">
                       <p className="font-medium">
                         該当するパッケージが見つかりませんでした。
                       </p>

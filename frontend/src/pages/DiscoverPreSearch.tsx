@@ -29,9 +29,9 @@ export default function DiscoverPreSearch({
 }: DiscoverPreSearchProps) {
   if (query.trim().length > 0) {
     return (
-      <div className="flex min-h-[220px] w-full items-center justify-center rounded-2xl border border-border bg-card px-6 py-10 text-center">
+      <div className="flex min-h-[220px] w-full items-center justify-center rounded-xl border border-border bg-card px-6 py-10 text-center">
         <div>
-          <div className="mx-auto flex size-11 items-center justify-center rounded-xl bg-muted text-[#007aff]">
+          <div className="mx-auto flex size-10 items-center justify-center rounded-lg bg-muted text-[#007aff]">
             <Search className="size-5" />
           </div>
           <h2 className="mt-5 text-xl font-semibold">検索してアプリを探す</h2>
@@ -48,10 +48,10 @@ export default function DiscoverPreSearch({
     return (
       <div
         aria-live="polite"
-        className="flex min-h-[220px] w-full items-center justify-center rounded-2xl border border-border bg-card px-6 py-10 text-center"
+        className="flex min-h-[220px] w-full items-center justify-center rounded-xl border border-border bg-card px-6 py-10 text-center"
       >
         <div>
-          <div className="mx-auto flex size-11 items-center justify-center rounded-xl bg-muted text-[#007aff]">
+          <div className="mx-auto flex size-10 items-center justify-center rounded-lg bg-muted text-[#007aff]">
             <Search className="size-5" />
           </div>
           <h2 className="mt-5 text-xl font-semibold">
@@ -67,9 +67,9 @@ export default function DiscoverPreSearch({
 
   if (!hasRecommendations && recommendationStatus === "unavailable") {
     return (
-      <div className="flex min-h-[260px] w-full items-center justify-center rounded-2xl border border-border bg-card px-6 py-10 text-center">
+      <div className="flex min-h-[260px] w-full items-center justify-center rounded-xl border border-border bg-card px-6 py-10 text-center">
         <div className="max-w-2xl">
-          <div className="mx-auto flex size-11 items-center justify-center rounded-xl bg-muted text-[#007aff]">
+          <div className="mx-auto flex size-10 items-center justify-center rounded-lg bg-muted text-[#007aff]">
             <Search className="size-5" />
           </div>
           <h2 className="mt-5 text-xl font-semibold">
@@ -96,9 +96,9 @@ export default function DiscoverPreSearch({
 
   if (!hasRecommendations) {
     return (
-      <div className="flex min-h-[260px] w-full items-center justify-center rounded-2xl border border-border bg-card px-6 py-10 text-center">
+      <div className="flex min-h-[260px] w-full items-center justify-center rounded-xl border border-border bg-card px-6 py-10 text-center">
         <div>
-          <div className="mx-auto flex size-11 items-center justify-center rounded-xl bg-muted text-[#007aff]">
+          <div className="mx-auto flex size-10 items-center justify-center rounded-lg bg-muted text-[#007aff]">
             <Search className="size-5" />
           </div>
           <h2 className="mt-5 text-xl font-semibold">検索してアプリを探す</h2>
@@ -112,33 +112,28 @@ export default function DiscoverPreSearch({
 
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+      <div className="mb-7 flex flex-wrap items-end justify-between gap-4 border-b border-border/80 pb-5">
         <div>
-          <p className="text-xs font-semibold tracking-wide text-[#007aff]">
-            おすすめアプリ
-          </p>
-          <h2 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
+          <p className="text-xs font-semibold text-[#007aff]">おすすめアプリ</p>
+          <h2 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
             人気のアプリから探す
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            Arch
-            Linuxの利用統計を参考に、総合ピックアップとジャンル別の人気アプリを紹介します。気になるアプリは詳細を確認して、そのままインストールできます。
-            {generatedAt
-              ? ` データ更新日: ${new Date(generatedAt).toLocaleDateString("ja-JP")}`
-              : ""}
+            人気のアプリをジャンル別に紹介します。詳細を確認して、そのままインストールできます。
           </p>
         </div>
-        {loading && (
-          <span className="text-sm text-muted-foreground">
-            インストール状態を確認中...
-          </span>
-        )}
+        <div className="shrink-0 text-xs leading-5 text-muted-foreground">
+          {generatedAt && (
+            <p>データ更新日 {new Date(generatedAt).toLocaleDateString("ja-JP")}</p>
+          )}
+          {loading && <p className="mt-1">インストール状態を確認中...</p>}
+        </div>
       </div>
 
       {(recommendationStatus === "partial" ||
         recommendationStatus === "fallback") && (
         <div
-          className="mb-5 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-950"
+          className="mb-5 rounded-lg border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-950"
           role="status"
         >
           <p className="font-medium">

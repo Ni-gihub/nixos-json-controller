@@ -109,7 +109,7 @@ function AppDetail() {
       <main className="mx-auto w-full max-w-none px-5 py-6 sm:px-6 lg:px-8 lg:py-8">
         <div className="mx-auto max-w-5xl">
           <section className="min-w-0 space-y-6">
-            <Card className="overflow-hidden rounded-2xl border-border bg-card">
+            <Card className="overflow-hidden rounded-xl border-border bg-card shadow-sm">
               <CardContent className="relative p-5 sm:p-6 lg:p-8">
                 <div className="relative flex flex-col items-start gap-5 sm:flex-row">
                   <div className="flex size-24 shrink-0 items-center justify-center rounded-2xl border border-border bg-muted/40 text-4xl font-bold text-[#007aff]">
@@ -125,18 +125,14 @@ function AppDetail() {
                   <div className="min-w-0 flex-1 pt-1">
                     <div className="flex flex-wrap items-start justify-between gap-5">
                       <div className="min-w-0">
-                        <div className="flex flex-wrap gap-2">
-                          <Badge className="rounded-full bg-[#007aff] px-3 py-1 text-white hover:bg-[#007aff]">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                          <span className="font-medium text-[#007aff]">
                             {app.category}
-                          </Badge>
+                          </span>
                           {app.tags.map((tag) => (
-                            <Badge
-                              key={tag}
-                              variant="outline"
-                              className="rounded-full border-border bg-card"
-                            >
+                            <span key={tag} className="text-muted-foreground">
                               {tag}
-                            </Badge>
+                            </span>
                           ))}
                         </div>
                       </div>
@@ -146,11 +142,11 @@ function AppDetail() {
                         installed={installed}
                         statusKnown={statusKnown}
                         onInstalled={() => refreshPackage(id)}
-                        className="h-10 shrink-0 rounded-full bg-blue-600 px-4 text-sm text-white hover:bg-blue-700"
+                        className="h-10 shrink-0 rounded-full bg-[#007aff] px-4 text-sm text-white hover:bg-[#006de4]"
                         size="sm"
                       />
                     </div>
-                    <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl lg:text-4xl">
+                    <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
                       {app.name}
                     </h1>
                     {app.version && (
@@ -166,9 +162,9 @@ function AppDetail() {
               </CardContent>
             </Card>
 
-            <Card className="rounded-2xl border-border bg-card">
+            <Card className="rounded-xl border-border bg-card shadow-sm">
               <CardContent className="p-5 sm:p-6 lg:p-8">
-                <h2 className="text-xl font-semibold">説明・詳細情報</h2>
+                <h2 className="text-lg font-semibold tracking-tight">説明・詳細情報</h2>
                 <div className="mt-5 grid gap-5 md:grid-cols-2">
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm font-medium">

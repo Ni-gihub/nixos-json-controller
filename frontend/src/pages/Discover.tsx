@@ -323,15 +323,6 @@ function Discover() {
               </div>
             </nav>
 
-            <div className="mt-auto rounded-xl bg-sidebar-accent/35 p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <Package className="size-4 text-primary" />
-                Nixpkgsカタログ
-              </div>
-              <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                アプリから開発ツールまで、まとめて探せます。
-              </p>
-            </div>
           </div>
         </aside>
 

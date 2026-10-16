@@ -231,10 +231,6 @@ export default function RecommendationAppCard({
           />
         </div>
       </div>
-      <p className="mt-2 text-[11px] leading-4 text-muted-foreground">
-        Arch Linux
-        pkgstatsの公開統計に基づく人気度（NixOSの利用率ではありません）。
-      </p>
     </article>
   );
 }

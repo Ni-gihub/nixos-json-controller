@@ -297,10 +297,10 @@ function Discover() {
   const hasResults = submittedQuery.length > 0;
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="flex min-h-screen">
+    <div className="min-h-[calc(100vh-2.5rem)] bg-background text-foreground">
+      <div className="flex min-h-[calc(100vh-2.5rem)]">
         <aside className="hidden w-64 shrink-0 border-r border-border bg-background lg:block">
-          <div className="sticky top-0 flex h-screen flex-col p-6">
+          <div className="sticky top-10 flex h-[calc(100vh-2.5rem)] flex-col p-6">
             <div className="flex items-center gap-3">
               <div className="flex size-11 items-center justify-center rounded-2xl bg-[#007aff] text-white">
                 <Store className="size-5" />
@@ -439,6 +439,9 @@ function Discover() {
                             </div>
                             <RecommendationCarousel
                               label={`${group.genre}のランキング`}
+                              resetKey={group.apps
+                                .map((app) => app.id)
+                                .join("|")}
                             >
                               {group.apps.map((app, index) => (
                                 <div

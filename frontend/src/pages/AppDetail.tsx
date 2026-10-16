@@ -54,7 +54,7 @@ function AppDetail() {
 
   if (loadingApp) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/20 text-muted-foreground">
+      <div className="flex min-h-[calc(100vh-2.5rem)] items-center justify-center bg-muted/20 text-muted-foreground">
         パッケージ情報を取得中...
       </div>
     );
@@ -62,7 +62,7 @@ function AppDetail() {
 
   if (!app || !id) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/20">
+      <div className="flex min-h-[calc(100vh-2.5rem)] items-center justify-center bg-muted/20">
         <div className="text-center">
           <h1 className="text-2xl font-bold">パッケージが見つかりません</h1>
           {error && (
@@ -86,8 +86,8 @@ function AppDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur">
+    <div className="min-h-[calc(100vh-2.5rem)] bg-background text-foreground">
+      <header className="sticky top-10 z-30 border-b border-border bg-background/95 backdrop-blur">
         <div className="flex h-14 items-center px-5 sm:px-6">
           <Link
             to={

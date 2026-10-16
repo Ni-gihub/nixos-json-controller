@@ -6,6 +6,7 @@ import { Minus, Square, Store, X } from "lucide-react";
 /** Frameless-window titlebar styled to blend into the nxc App Store UI. */
 export default function WindowTitleBar() {
   const appWindow = useMemo(() => (isTauri() ? getCurrentWindow() : null), []);
+  // Browser previews keep the branded bar; native window controls are Tauri-only.
   const isDesktopApp = appWindow !== null;
 
   return (

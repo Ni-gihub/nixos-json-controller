@@ -16,7 +16,7 @@ export default function WindowTitleBar() {
     >
       <span
         data-tauri-drag-region
-        className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary text-white"
+        className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary text-white shadow-sm shadow-blue-500/25"
       >
         <Store className="size-3.5" />
       </span>

@@ -316,7 +316,7 @@ function Discover() {
             <nav aria-label="App Store" className="mt-8 space-y-2">
               <div
                 aria-current="page"
-                className="flex items-center gap-3 rounded-lg border-l-2 border-[#007aff] bg-sidebar-accent px-3 py-2.5 text-sm font-semibold text-sidebar-accent-foreground"
+                className="flex items-center gap-3 rounded-xl border-l-2 border-primary bg-sidebar-accent px-3 py-2.5 text-sm font-semibold text-sidebar-accent-foreground shadow-sm"
               >
                 <Search className="size-4" />
                 アプリを探す

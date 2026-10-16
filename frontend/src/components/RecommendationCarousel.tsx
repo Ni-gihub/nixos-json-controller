@@ -54,7 +54,9 @@ export default function RecommendationCarousel({
 
     viewport.scrollBy({
       left: direction * Math.max(220, Math.round(viewport.clientWidth * 0.72)),
-      behavior: "smooth",
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
     });
   };
 

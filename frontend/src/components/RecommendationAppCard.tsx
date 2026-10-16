@@ -135,7 +135,7 @@ export default function RecommendationAppCard({
   }
 
   return (
-    <article className="group flex h-full min-w-0 flex-col rounded-2xl border border-border/80 bg-card p-4 shadow-[0_4px_16px_-14px_rgba(20,55,105,0.5)] transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_12px_28px_-20px_rgba(0,122,255,0.42)]">
+    <article className="group flex h-full min-w-0 flex-col rounded-2xl border border-border/80 bg-card p-4 shadow-[0_4px_16px_-14px_rgba(20,55,105,0.5)] transition-[border-color,box-shadow,transform] duration-200 motion-reduce:transition-none hover:-translate-y-0.5 motion-reduce:hover:translate-y-0 hover:border-primary/30 hover:shadow-[0_12px_28px_-20px_rgba(0,122,255,0.42)]">
       <div className="flex items-center justify-between gap-3 border-b border-border/80 pb-3">
         <div className="flex items-baseline gap-1.5">
           <span className="text-2xl font-bold leading-none tracking-tight tabular-nums text-primary">

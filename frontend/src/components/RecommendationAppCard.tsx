@@ -73,7 +73,10 @@ export default function RecommendationAppCard({
                   {app.category}
                 </span>
                 {app.tags.slice(0, 2).map((tag) => (
-                  <span key={tag} className="rounded-md bg-secondary px-2 py-1 text-secondary-foreground">
+                  <span
+                    key={tag}
+                    className="rounded-md bg-secondary px-2 py-1 text-secondary-foreground"
+                  >
                     {tag}
                   </span>
                 ))}
@@ -188,7 +191,10 @@ export default function RecommendationAppCard({
           {app.category}
         </span>
         {app.tags.slice(0, 1).map((tag) => (
-          <span key={tag} className="min-w-0 truncate rounded-md bg-secondary px-2 py-1 text-secondary-foreground">
+          <span
+            key={tag}
+            className="min-w-0 truncate rounded-md bg-secondary px-2 py-1 text-secondary-foreground"
+          >
             {tag}
           </span>
         ))}

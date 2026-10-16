@@ -114,7 +114,9 @@ export default function DiscoverPreSearch({
     <>
       <div className="mb-7 flex flex-wrap items-end justify-between gap-4 border-b border-primary/15 pb-5">
         <div>
-          <p className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">おすすめアプリ</p>
+          <p className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+            おすすめアプリ
+          </p>
           <h2 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">
             人気のアプリから探す
           </h2>

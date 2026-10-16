@@ -29,9 +29,9 @@ export default function DiscoverPreSearch({
 }: DiscoverPreSearchProps) {
   if (query.trim().length > 0) {
     return (
-      <div className="flex min-h-[220px] w-full items-center justify-center rounded-3xl border border-dashed border-blue-200 bg-white/65 px-6 py-12 text-center">
+      <div className="flex min-h-[220px] w-full items-center justify-center rounded-2xl border border-border bg-card px-6 py-10 text-center">
         <div>
-          <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+          <div className="mx-auto flex size-11 items-center justify-center rounded-xl bg-muted text-[#007aff]">
             <Search className="size-5" />
           </div>
           <h2 className="mt-5 text-xl font-semibold">検索してアプリを探す</h2>
@@ -48,10 +48,10 @@ export default function DiscoverPreSearch({
     return (
       <div
         aria-live="polite"
-        className="flex min-h-[220px] w-full items-center justify-center rounded-3xl border border-dashed border-blue-200 bg-white/65 px-6 py-12 text-center"
+        className="flex min-h-[220px] w-full items-center justify-center rounded-2xl border border-border bg-card px-6 py-10 text-center"
       >
         <div>
-          <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+          <div className="mx-auto flex size-11 items-center justify-center rounded-xl bg-muted text-[#007aff]">
             <Search className="size-5" />
           </div>
           <h2 className="mt-5 text-xl font-semibold">
@@ -67,9 +67,9 @@ export default function DiscoverPreSearch({
 
   if (!hasRecommendations && recommendationStatus === "unavailable") {
     return (
-      <div className="flex min-h-[260px] w-full items-center justify-center rounded-3xl border border-dashed border-blue-200 bg-white/65 px-6 py-12 text-center">
+      <div className="flex min-h-[260px] w-full items-center justify-center rounded-2xl border border-border bg-card px-6 py-10 text-center">
         <div className="max-w-2xl">
-          <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+          <div className="mx-auto flex size-11 items-center justify-center rounded-xl bg-muted text-[#007aff]">
             <Search className="size-5" />
           </div>
           <h2 className="mt-5 text-xl font-semibold">
@@ -96,9 +96,9 @@ export default function DiscoverPreSearch({
 
   if (!hasRecommendations) {
     return (
-      <div className="flex min-h-[260px] w-full items-center justify-center rounded-3xl border border-dashed border-blue-200 bg-white/65 px-6 py-12 text-center">
+      <div className="flex min-h-[260px] w-full items-center justify-center rounded-2xl border border-border bg-card px-6 py-10 text-center">
         <div>
-          <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+          <div className="mx-auto flex size-11 items-center justify-center rounded-xl bg-muted text-[#007aff]">
             <Search className="size-5" />
           </div>
           <h2 className="mt-5 text-xl font-semibold">検索してアプリを探す</h2>
@@ -114,7 +114,7 @@ export default function DiscoverPreSearch({
     <>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-xs font-bold tracking-[0.16em] text-blue-600">
+          <p className="text-xs font-semibold tracking-wide text-[#007aff]">
             おすすめアプリ
           </p>
           <h2 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">

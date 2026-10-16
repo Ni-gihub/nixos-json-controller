@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import AppCard from "@/components/AppCard";
 import RecommendationAppCard from "@/components/RecommendationAppCard";
+import RecommendationCarousel from "@/components/RecommendationCarousel";
 import DiscoverPreSearch, {
   type RecommendationStatus,
 } from "./DiscoverPreSearch";
@@ -45,8 +46,6 @@ function Discover() {
   const [recommendedCatalogApps, setRecommendedCatalogApps] = useState<App[]>(
     [],
   );
-  const [expandedRecommendationGenres, setExpandedRecommendationGenres] =
-    useState<Set<string>>(new Set());
   const [recommendationStatus, setRecommendationStatus] =
     useState<RecommendationStatus>("loading");
   const [recommendationMessage, setRecommendationMessage] = useState<
@@ -300,10 +299,10 @@ function Discover() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="flex min-h-screen">
-        <aside className="hidden w-64 shrink-0 border-r border-blue-100/80 bg-white/90 lg:block">
+        <aside className="hidden w-64 shrink-0 border-r border-border bg-background lg:block">
           <div className="sticky top-0 flex h-screen flex-col p-6">
             <div className="flex items-center gap-3">
-              <div className="flex size-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white">
+              <div className="flex size-11 items-center justify-center rounded-2xl bg-[#007aff] text-white">
                 <Store className="size-5" />
               </div>
               <div>
@@ -317,19 +316,19 @@ function Discover() {
             <nav aria-label="App Store" className="mt-8 space-y-2">
               <div
                 aria-current="page"
-                className="flex items-center gap-3 rounded-xl bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700"
+                className="flex items-center gap-3 rounded-xl bg-muted px-4 py-3 text-sm font-semibold text-foreground"
               >
                 <Search className="size-4" />
                 アプリを探す
               </div>
             </nav>
 
-            <div className="mt-auto rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-50 p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold text-blue-900">
-                <Sparkles className="size-4 text-blue-600" />
+            <div className="mt-auto rounded-2xl border border-border bg-card p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Sparkles className="size-4 text-[#007aff]" />
                 Nixpkgs
               </div>
-              <p className="mt-2 text-xs leading-5 text-blue-900/65">
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">
                 アプリ、言語、ライブラリ、開発ツールをまとめて検索できます。
               </p>
             </div>
@@ -337,36 +336,35 @@ function Discover() {
         </aside>
 
         <div className="min-w-0 flex-1">
-          <header className="border-b border-blue-100/70 bg-white/90 backdrop-blur lg:hidden">
+          <header className="border-b border-border bg-background/95 backdrop-blur lg:hidden">
             <div className="flex h-16 items-center px-5">
               <div className="flex items-center gap-2 font-semibold">
-                <Store className="size-5 text-blue-600" />
+                <Store className="size-5 text-[#007aff]" />
                 nxc App Store
               </div>
             </div>
           </header>
 
           <main className="w-full px-5 py-6 sm:px-6 lg:px-8 lg:py-8">
-            <section className="relative overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-br from-white via-blue-50/70 to-indigo-100/70 px-5 py-4 sm:px-6 sm:py-5">
-              <div className="pointer-events-none absolute -right-12 -top-14 size-48 rounded-full bg-blue-400/15 blur-3xl" />
-              <div className="relative">
-                <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white/75 px-3 py-1.5 text-sm font-semibold text-blue-700">
+            <section className="border-b border-border pb-6">
+              <div>
+                <div className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground">
                   <Store className="size-4" />
                   NixOS App Store
                 </div>
-                <h1 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl lg:text-3xl">
+                <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
                   アプリを探す
                 </h1>
-                <p className="mt-2 max-w-3xl text-sm leading-5 text-muted-foreground sm:text-base">
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
                   Nixpkgsにあるアプリ、言語、ライブラリ、開発ツールを検索できます。
                 </p>
 
-                <form onSubmit={handleSearch} className="mt-3">
+                <form onSubmit={handleSearch} className="mt-5 max-w-4xl">
                   <div className="flex w-full gap-2">
                     <div className="relative min-w-0 flex-1">
-                      <Search className="absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-blue-500" />
+                      <Search className="absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-[#007aff]" />
                       <Input
-                        className="h-10 rounded-lg border-blue-200 bg-white/95 pl-10 pr-3 text-sm ring-offset-background placeholder:text-muted-foreground/70 focus-visible:border-blue-400 focus-visible:ring-blue-200 sm:h-11 sm:text-base md:text-base!"
+                        className="h-11 rounded-xl border-border bg-card pl-10 pr-3 text-sm ring-offset-background placeholder:text-muted-foreground/70 focus-visible:border-[#007aff] focus-visible:ring-[#007aff]/20 sm:text-base md:text-base!"
                         placeholder="アプリ、言語、ライブラリ、ツールを検索..."
                         value={query}
                         onChange={(event) => {
@@ -384,7 +382,7 @@ function Discover() {
                     </div>
                     <Button
                       type="submit"
-                      className="h-10 rounded-lg bg-blue-600 px-3 text-white hover:bg-blue-700 sm:h-11 sm:px-4"
+                      className="h-11 rounded-full bg-[#007aff] px-5 text-white hover:bg-[#006de4]"
                       disabled={!query.trim() || searching}
                     >
                       <Search className="mr-2 size-4" />
@@ -398,7 +396,7 @@ function Discover() {
               </div>
             </section>
 
-            <section className="mt-8 lg:mt-10">
+            <section className="mt-6 lg:mt-8">
               {!hasResults ? (
                 <DiscoverPreSearch
                   query={query}
@@ -423,34 +421,31 @@ function Discover() {
                     )}
 
                     {recommendationGenreGroups.length > 0 && (
-                      <div className="space-y-9">
-                        {recommendationGenreGroups.map((group) => {
-                          const expanded = expandedRecommendationGenres.has(
-                            group.genre,
-                          );
-                          const visibleApps = expanded
-                            ? group.apps
-                            : group.apps.slice(0, 6);
-
-                          return (
-                            <section key={group.genre} className="space-y-3">
-                              <div className="flex flex-wrap items-end justify-between gap-2">
-                                <div>
-                                  <p className="text-xs font-bold tracking-[0.14em] text-blue-600">
-                                    ジャンルから探す
-                                  </p>
-                                  <h3 className="mt-1 text-xl font-bold tracking-tight sm:text-2xl">
-                                    {group.genre}
-                                  </h3>
-                                </div>
-                                <span className="text-sm text-muted-foreground">
-                                  {group.apps.length}件
-                                </span>
+                      <div className="space-y-8">
+                        {recommendationGenreGroups.map((group) => (
+                          <section key={group.genre} className="space-y-3">
+                            <div className="flex items-center justify-between gap-4">
+                              <div className="min-w-0">
+                                <h3 className="text-lg font-semibold tracking-tight sm:text-xl">
+                                  {group.genre}
+                                </h3>
+                                <p className="mt-0.5 text-sm text-muted-foreground">
+                                  人気順のランキング
+                                </p>
                               </div>
-                              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                                {visibleApps.map((app, index) => (
+                              <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
+                                {group.apps.length}件
+                              </span>
+                            </div>
+                            <RecommendationCarousel
+                              label={`${group.genre}のランキング`}
+                            >
+                              {group.apps.map((app, index) => (
+                                <div
+                                  key={app.id}
+                                  className="w-[280px] shrink-0 snap-start sm:w-[300px] xl:w-[320px]"
+                                >
                                   <RecommendationAppCard
-                                    key={app.id}
                                     app={app}
                                     recommendation={app.recommendation}
                                     rank={
@@ -464,37 +459,11 @@ function Discover() {
                                     featured={false}
                                     installed={states[app.id]?.active ?? false}
                                   />
-                                ))}
-                              </div>
-                              {group.apps.length > 6 && (
-                                <div className="flex justify-center">
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() =>
-                                      setExpandedRecommendationGenres(
-                                        (current) => {
-                                          const next = new Set(current);
-                                          if (next.has(group.genre)) {
-                                            next.delete(group.genre);
-                                          } else {
-                                            next.add(group.genre);
-                                          }
-                                          return next;
-                                        },
-                                      )
-                                    }
-                                  >
-                                    {expanded
-                                      ? "閉じる"
-                                      : `もっと見る（残り${group.apps.length - 6}件）`}
-                                  </Button>
                                 </div>
-                              )}
-                            </section>
-                          );
-                        })}
+                              ))}
+                            </RecommendationCarousel>
+                          </section>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -503,7 +472,7 @@ function Discover() {
                 <>
                   <div className="mb-6 flex items-end justify-between gap-4">
                     <div>
-                      <p className="text-sm font-semibold text-blue-600">
+                      <p className="text-sm font-semibold text-[#007aff]">
                         検索結果
                       </p>
                       <h2 className="mt-1 text-xl font-semibold sm:text-2xl">

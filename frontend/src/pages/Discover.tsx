@@ -16,7 +16,6 @@ import {
   SlidersHorizontal,
   Store,
   Terminal,
-  Wrench,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -556,7 +555,9 @@ function Discover() {
                                           : 1)
                                       }
                                       featured={false}
-                                      installed={states[app.id]?.active ?? false}
+                                      installed={
+                                        states[app.id]?.active ?? false
+                                      }
                                     />
                                   </div>
                                 ))}

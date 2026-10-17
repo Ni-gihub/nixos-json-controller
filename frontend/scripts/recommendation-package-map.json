@@ -828,5 +828,95 @@
     "archPackage": "qpwgraph",
     "id": "qpwgraph",
     "genre": "ユーティリティ"
+  },
+  {
+    "archPackage": "flameshot",
+    "id": "flameshot",
+    "genre": "ユーティリティ"
+  },
+  {
+    "archPackage": "qalculate-gtk",
+    "id": "qalculate-gtk",
+    "genre": "ユーティリティ"
+  },
+  {
+    "archPackage": "blueman",
+    "id": "blueman",
+    "genre": "ユーティリティ"
+  },
+  {
+    "archPackage": "texstudio",
+    "id": "texstudio",
+    "genre": "オフィス"
+  },
+  {
+    "archPackage": "gnucash",
+    "id": "gnucash",
+    "genre": "オフィス"
+  },
+  {
+    "archPackage": "freeplane",
+    "id": "freeplane",
+    "genre": "オフィス"
+  },
+  {
+    "archPackage": "xarchiver",
+    "id": "xarchiver",
+    "genre": "ファイル管理"
+  },
+  {
+    "archPackage": "fsearch",
+    "id": "fsearch",
+    "genre": "ファイル管理"
+  },
+  {
+    "archPackage": "doublecmd-qt6",
+    "id": "doublecmd",
+    "genre": "ファイル管理"
+  },
+  {
+    "archPackage": "scummvm",
+    "id": "scummvm",
+    "genre": "ゲーム"
+  },
+  {
+    "archPackage": "supertuxkart",
+    "id": "supertuxkart",
+    "genre": "ゲーム"
+  },
+  {
+    "archPackage": "wesnoth",
+    "id": "wesnoth",
+    "genre": "ゲーム"
+  },
+  {
+    "archPackage": "ungoogled-chromium",
+    "id": "ungoogled-chromium",
+    "genre": "ブラウザ"
+  },
+  {
+    "archPackage": "nyxt",
+    "id": "nyxt",
+    "genre": "ブラウザ"
+  },
+  {
+    "archPackage": "google-chrome",
+    "id": "google-chrome",
+    "genre": "ブラウザ"
+  },
+  {
+    "archPackage": "nicotine+",
+    "id": "nicotine-plus",
+    "genre": "ネットワーク"
+  },
+  {
+    "archPackage": "syncthingtray",
+    "id": "syncthingtray",
+    "genre": "ネットワーク"
+  },
+  {
+    "archPackage": "croc",
+    "id": "croc",
+    "genre": "ネットワーク"
   }
 ]

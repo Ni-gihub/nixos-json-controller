@@ -1,6 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { Search, Store } from "lucide-react";
+import {
+  BookOpen,
+  Briefcase,
+  Code2,
+  Film,
+  FolderOpen,
+  Gamepad2,
+  Globe,
+  MessageCircle,
+  Network,
+  Palette,
+  Search,
+  Settings,
+  SlidersHorizontal,
+  Store,
+  Terminal,
+  Wrench,
+  type LucideIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import AppCard from "@/components/AppCard";
@@ -26,6 +44,83 @@ import {
 } from "@/catalog/recommendation-fallback";
 import { useAppState } from "@/lib/app-state";
 import { useSearchParams } from "react-router";
+
+const recommendationGenreVisuals: Record<
+  string,
+  { icon: LucideIcon; surface: string; foreground: string }
+> = {
+  ブラウザ: {
+    icon: Globe,
+    surface: "bg-sky-50 dark:bg-sky-950/40",
+    foreground: "text-sky-700 dark:text-sky-300",
+  },
+  コミュニケーション: {
+    icon: MessageCircle,
+    surface: "bg-violet-50 dark:bg-violet-950/40",
+    foreground: "text-violet-700 dark:text-violet-300",
+  },
+  クリエイティブ: {
+    icon: Palette,
+    surface: "bg-fuchsia-50 dark:bg-fuchsia-950/40",
+    foreground: "text-fuchsia-700 dark:text-fuchsia-300",
+  },
+  メディア: {
+    icon: Film,
+    surface: "bg-rose-50 dark:bg-rose-950/40",
+    foreground: "text-rose-700 dark:text-rose-300",
+  },
+  ネットワーク: {
+    icon: Network,
+    surface: "bg-cyan-50 dark:bg-cyan-950/40",
+    foreground: "text-cyan-700 dark:text-cyan-300",
+  },
+  ゲーム: {
+    icon: Gamepad2,
+    surface: "bg-emerald-50 dark:bg-emerald-950/40",
+    foreground: "text-emerald-700 dark:text-emerald-300",
+  },
+  開発ツール: {
+    icon: Code2,
+    surface: "bg-indigo-50 dark:bg-indigo-950/40",
+    foreground: "text-indigo-700 dark:text-indigo-300",
+  },
+  ターミナル: {
+    icon: Terminal,
+    surface: "bg-slate-100 dark:bg-slate-900/60",
+    foreground: "text-slate-700 dark:text-slate-300",
+  },
+  ユーティリティ: {
+    icon: SlidersHorizontal,
+    surface: "bg-amber-50 dark:bg-amber-950/40",
+    foreground: "text-amber-700 dark:text-amber-300",
+  },
+  オフィス: {
+    icon: Briefcase,
+    surface: "bg-orange-50 dark:bg-orange-950/40",
+    foreground: "text-orange-700 dark:text-orange-300",
+  },
+  システム管理: {
+    icon: Settings,
+    surface: "bg-lime-50 dark:bg-lime-950/40",
+    foreground: "text-lime-700 dark:text-lime-300",
+  },
+  ファイル管理: {
+    icon: FolderOpen,
+    surface: "bg-teal-50 dark:bg-teal-950/40",
+    foreground: "text-teal-700 dark:text-teal-300",
+  },
+  "ドキュメント・ノート": {
+    icon: BookOpen,
+    surface: "bg-blue-50 dark:bg-blue-950/40",
+    foreground: "text-blue-700 dark:text-blue-300",
+  },
+};
+
+const fallbackGenreVisual = {
+  icon: FolderOpen,
+  surface: "bg-secondary",
+  foreground: "text-secondary-foreground",
+};
 
 /** Search the NixOS package catalog and display matching application cards. */
 function Discover() {
@@ -404,19 +499,43 @@ function Discover() {
                       <div className="space-y-8">
                         {recommendationGenreGroups.map((group) => (
                           <section key={group.genre} className="space-y-3">
-                            <div className="flex items-center justify-between gap-4">
-                              <div className="min-w-0">
-                                <h3 className="text-lg font-bold tracking-tight sm:text-xl">
-                                  {group.genre}
-                                </h3>
-                                <p className="mt-0.5 text-sm text-muted-foreground">
-                                  人気順のランキング
-                                </p>
-                              </div>
-                              <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
-                                {group.apps.length}件
-                              </span>
-                            </div>
+                            {(() => {
+                              const visual =
+                                recommendationGenreVisuals[group.genre] ??
+                                fallbackGenreVisual;
+                              const GenreIcon = visual.icon;
+
+                              return (
+                                <div className="flex items-center justify-between gap-4">
+                                  <div className="flex min-w-0 items-center gap-3">
+                                    <div
+                                      aria-hidden="true"
+                                      className={`flex size-11 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset ring-black/5 dark:ring-white/10 ${visual.surface}`}
+                                    >
+                                      <GenreIcon
+                                        className={`size-5 ${visual.foreground}`}
+                                        strokeWidth={1.9}
+                                      />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                        <h3 className="text-lg font-bold tracking-tight sm:text-xl">
+                                          {group.genre}
+                                        </h3>
+                                        <span
+                                          className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${visual.surface} ${visual.foreground}`}
+                                        >
+                                          {group.apps.length}件
+                                        </span>
+                                      </div>
+                                      <p className="mt-0.5 text-sm text-muted-foreground">
+                                        人気順のランキング
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })()}
                             <RecommendationCarousel
                               label={`${group.genre}のランキング`}
                               resetKey={group.apps

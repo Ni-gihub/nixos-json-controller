@@ -505,62 +505,62 @@ function Discover() {
 
                           return (
                             <section key={group.genre} className="space-y-3">
-                            <div className="flex items-center justify-between gap-4">
-                              <div className="flex min-w-0 items-center gap-3">
-                                <div
-                                  aria-hidden="true"
-                                  className={`flex size-11 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset ring-black/5 dark:ring-white/10 ${visual.surface}`}
-                                >
-                                  <GenreIcon
-                                    className={`size-5 ${visual.foreground}`}
-                                    strokeWidth={1.9}
-                                  />
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                    <h3 className="text-lg font-bold tracking-tight sm:text-xl">
-                                      {group.genre}
-                                    </h3>
-                                    <span
-                                      className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${visual.surface} ${visual.foreground}`}
-                                    >
-                                      {group.apps.length}件
-                                    </span>
+                              <div className="flex items-center justify-between gap-4">
+                                <div className="flex min-w-0 items-center gap-3">
+                                  <div
+                                    aria-hidden="true"
+                                    className={`flex size-11 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset ring-black/5 dark:ring-white/10 ${visual.surface}`}
+                                  >
+                                    <GenreIcon
+                                      className={`size-5 ${visual.foreground}`}
+                                      strokeWidth={1.9}
+                                    />
                                   </div>
-                                  <p className="mt-0.5 text-sm text-muted-foreground">
-                                    人気順のランキング
-                                  </p>
+                                  <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                      <h3 className="text-lg font-bold tracking-tight sm:text-xl">
+                                        {group.genre}
+                                      </h3>
+                                      <span
+                                        className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${visual.surface} ${visual.foreground}`}
+                                      >
+                                        {group.apps.length}件
+                                      </span>
+                                    </div>
+                                    <p className="mt-0.5 text-sm text-muted-foreground">
+                                      人気順のランキング
+                                    </p>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                            <RecommendationCarousel
-                              label={`${group.genre}のランキング`}
-                              resetKey={group.apps
-                                .map((app) => app.id)
-                                .join("|")}
-                            >
-                              {group.apps.map((app, index) => (
-                                <div
-                                  key={app.id}
-                                  className="w-[280px] shrink-0 snap-start sm:w-[300px] xl:w-[320px]"
-                                >
-                                  <RecommendationAppCard
-                                    app={app}
-                                    recommendation={app.recommendation}
-                                    rank={
-                                      index +
-                                      (group.genre ===
-                                      featuredRecommendation?.recommendation
-                                        .genre
-                                        ? 2
-                                        : 1)
-                                    }
-                                    featured={false}
-                                    installed={states[app.id]?.active ?? false}
-                                  />
-                                </div>
-                              ))}
-                            </RecommendationCarousel>
+                              <RecommendationCarousel
+                                label={`${group.genre}のランキング`}
+                                resetKey={group.apps
+                                  .map((app) => app.id)
+                                  .join("|")}
+                              >
+                                {group.apps.map((app, index) => (
+                                  <div
+                                    key={app.id}
+                                    className="w-[280px] shrink-0 snap-start sm:w-[300px] xl:w-[320px]"
+                                  >
+                                    <RecommendationAppCard
+                                      app={app}
+                                      recommendation={app.recommendation}
+                                      rank={
+                                        index +
+                                        (group.genre ===
+                                        featuredRecommendation?.recommendation
+                                          .genre
+                                          ? 2
+                                          : 1)
+                                      }
+                                      featured={false}
+                                      installed={states[app.id]?.active ?? false}
+                                    />
+                                  </div>
+                                ))}
+                              </RecommendationCarousel>
                             </section>
                           );
                         })}

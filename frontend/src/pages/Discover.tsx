@@ -497,9 +497,12 @@ function Discover() {
                     {recommendationGenreGroups.length > 0 && (
                       <div className="space-y-8">
                         {recommendationGenreGroups.map((group) => {
-                          const visual =
-                            recommendationGenreVisuals[group.genre] ??
-                            fallbackGenreVisual;
+                          const visual = Object.hasOwn(
+                            recommendationGenreVisuals,
+                            group.genre,
+                          )
+                            ? recommendationGenreVisuals[group.genre]
+                            : fallbackGenreVisual;
                           const GenreIcon = visual.icon;
 
                           return (

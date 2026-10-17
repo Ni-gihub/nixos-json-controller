@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   BookOpen,
@@ -42,7 +42,11 @@ import {
   formatUnresolvedRecommendationMessage,
 } from "@/catalog/recommendation-fallback";
 import { useAppState } from "@/lib/app-state";
-import { useSearchParams } from "react-router";
+import {
+  classifySearchUrlTransition,
+  isCurrentSearchRequest,
+} from "./discover-search-state";
+import { useLocation, useNavigationType, useSearchParams } from "react-router";
 
 const recommendationGenreVisuals: Record<
   string,
@@ -123,6 +127,8 @@ const fallbackGenreVisual = {
 
 /** Search the NixOS package catalog and display matching application cards. */
 function Discover() {
+  const location = useLocation();
+  const navigationType = useNavigationType();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialQuery = searchParams.get("query")?.trim() ?? "";
   const [query, setQuery] = useState(initialQuery);
@@ -131,6 +137,41 @@ function Discover() {
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const { states, loading, error, refreshPackages } = useAppState();
+  const searchRequestIdRef = useRef(0);
+  const pendingUrlQueryRef = useRef<string | null>(null);
+  const lastHandledLocationKeyRef = useRef<string | null>(null);
+
+  const runSearch = useCallback(
+    (searchQuery: string) => {
+      const requestId = ++searchRequestIdRef.current;
+      setSearching(true);
+      setSearchError(null);
+
+      void searchApps(searchQuery)
+        .then((nextResults) => {
+          if (!isCurrentSearchRequest(requestId, searchRequestIdRef.current)) {
+            return;
+          }
+
+          setResults(nextResults);
+          void refreshPackages(nextResults.map((app) => app.id));
+        })
+        .catch((err: unknown) => {
+          if (!isCurrentSearchRequest(requestId, searchRequestIdRef.current)) {
+            return;
+          }
+
+          setResults([]);
+          setSearchError(String(err));
+        })
+        .finally(() => {
+          if (isCurrentSearchRequest(requestId, searchRequestIdRef.current)) {
+            setSearching(false);
+          }
+        });
+    },
+    [refreshPackages],
+  );
   const [recommendationData, setRecommendationData] =
     useState<RecommendationData | null>(null);
   const recommendationDataRef = useRef<RecommendationData | null>(null);
@@ -174,12 +215,35 @@ function Discover() {
     .filter((group) => group.apps.length > 0);
 
   useEffect(() => {
-    if (!initialQuery || initialQuery === submittedQuery) return;
-    // Keep the controlled input synchronized with browser navigation.
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- URL query is external navigation state
-    setQuery(initialQuery);
-    setSubmittedQuery(initialQuery);
-  }, [initialQuery, submittedQuery]);
+    const isInitialLocation = lastHandledLocationKeyRef.current === null;
+    if (lastHandledLocationKeyRef.current === location.key) return;
+    lastHandledLocationKeyRef.current = location.key;
+
+    const transition = classifySearchUrlTransition(
+      initialQuery,
+      pendingUrlQueryRef.current,
+      navigationType,
+    );
+
+    if (transition.kind === "stale") return;
+    if (transition.kind === "internal") {
+      pendingUrlQueryRef.current = null;
+      return;
+    }
+
+    pendingUrlQueryRef.current = null;
+    if (!isInitialLocation) {
+      // Invalidate in-flight work before applying browser or external URL navigation.
+      searchRequestIdRef.current += 1;
+      setSearching(false);
+      setResults([]);
+      setSearchError(null);
+      setQuery(transition.query);
+      setSubmittedQuery(transition.query);
+    }
+
+    if (transition.query) runSearch(transition.query);
+  }, [initialQuery, location.key, navigationType, runSearch]);
 
   useEffect(() => {
     let cancelled = false;
@@ -337,55 +401,15 @@ function Discover() {
     };
   }, [recommendationIds, refreshPackages, recommendationReloadKey]);
 
-  useEffect(() => {
-    if (
-      !initialQuery ||
-      initialQuery !== submittedQuery ||
-      results.length > 0 ||
-      searching
-    )
-      return;
-
-    // Start the route-triggered lookup immediately so the UI reflects the pending request.
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- required loading state for the async search
-    setSearching(true);
-    setSearchError(null);
-    void searchApps(initialQuery)
-      .then((nextResults) => {
-        setResults(nextResults);
-        void refreshPackages(nextResults.map((app) => app.id));
-      })
-      .catch((err) => {
-        setResults([]);
-        setSearchError(String(err));
-      })
-      .finally(() => setSearching(false));
-  }, [
-    initialQuery,
-    refreshPackages,
-    results.length,
-    searching,
-    submittedQuery,
-  ]);
-
-  const handleSearch = async (event: FormEvent<HTMLFormElement>) => {
+  const handleSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const normalized = query.trim();
     if (!normalized) return;
+
     setSubmittedQuery(normalized);
+    pendingUrlQueryRef.current = normalized;
     setSearchParams({ query: normalized });
-    setSearching(true);
-    setSearchError(null);
-    try {
-      const nextResults = await searchApps(normalized);
-      setResults(nextResults);
-      void refreshPackages(nextResults.map((app) => app.id));
-    } catch (err) {
-      setResults([]);
-      setSearchError(String(err));
-    } finally {
-      setSearching(false);
-    }
+    runSearch(normalized);
   };
 
   const hasResults = submittedQuery.length > 0;
@@ -445,9 +469,13 @@ function Discover() {
                           const value = event.target.value;
                           setQuery(value);
                           if (!value.trim()) {
+                            // Cancel any older request so it cannot repopulate cleared results.
+                            searchRequestIdRef.current += 1;
+                            setSearching(false);
                             setSubmittedQuery("");
                             setResults([]);
                             setSearchError(null);
+                            pendingUrlQueryRef.current = "";
                             setSearchParams({});
                           }
                         }}

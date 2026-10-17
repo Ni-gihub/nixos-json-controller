@@ -152,15 +152,15 @@ export default function RecommendationAppCard({
         <Link
           to={detailPath}
           aria-label={`${app.name}の詳細`}
-          className="flex size-14 shrink-0 items-center justify-center rounded-2xl border border-primary/15 bg-primary/5 shadow-sm transition-colors group-hover:bg-primary/10"
+          className="flex size-18 shrink-0 items-center justify-center rounded-2xl border border-border/70 bg-secondary/70 shadow-sm transition-[border-color,background-color] group-hover:border-primary/30 group-hover:bg-primary/5"
         >
           <AppIcon
             name={app.name}
             packageId={app.id}
             icon={app.icon}
             iconCandidates={app.iconCandidates}
-            imageClassName="size-10 object-contain"
-            fallbackClassName="size-8 text-foreground/65"
+            imageClassName="size-12 object-contain"
+            fallbackClassName="size-9 text-foreground/65"
           />
         </Link>
         <div className="min-w-0 flex-1">

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { Package, Search, Store } from "lucide-react";
+import { Search, Store } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import AppCard from "@/components/AppCard";
@@ -299,7 +299,7 @@ function Discover() {
   return (
     <div className="min-h-[calc(100vh-2.5rem)] bg-background text-foreground">
       <div className="flex min-h-[calc(100vh-2.5rem)]">
-        <aside className="hidden w-64 shrink-0 border-r border-sidebar-border bg-sidebar lg:block">
+        <aside className="hidden w-64 shrink-0 bg-sidebar lg:block">
           <div className="sticky top-10 flex h-[calc(100vh-2.5rem)] flex-col p-6">
             <div className="flex items-center gap-3">
               <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-white shadow-sm shadow-blue-500/25">
@@ -316,22 +316,12 @@ function Discover() {
             <nav aria-label="App Store" className="mt-8 space-y-2">
               <div
                 aria-current="page"
-                className="flex items-center gap-3 rounded-xl border-l-2 border-primary bg-sidebar-accent px-3 py-2.5 text-sm font-semibold text-sidebar-accent-foreground shadow-sm"
+                className="flex items-center gap-3 rounded-lg bg-sidebar-accent px-3 py-2.5 text-sm font-semibold text-sidebar-accent-foreground transition-colors"
               >
-                <Search className="size-4" />
+                <Search className="size-4 text-primary" />
                 アプリを探す
               </div>
             </nav>
-
-            <div className="mt-auto rounded-xl border border-sidebar-border bg-card p-4 shadow-sm">
-              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <Package className="size-4 text-primary" />
-                Nixpkgsカタログ
-              </div>
-              <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                アプリから開発ツールまで、まとめて探せます。
-              </p>
-            </div>
           </div>
         </aside>
 

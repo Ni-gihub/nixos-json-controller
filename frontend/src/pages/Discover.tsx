@@ -322,7 +322,6 @@ function Discover() {
                 アプリを探す
               </div>
             </nav>
-
           </div>
         </aside>
 

@@ -9,7 +9,7 @@ CLI ではパッケージの追加・削除やサービスの有効化・無効�
 - **CLI：** Nix profile からインストールして利用できます。
 - **GUI：** React / TypeScript と Tauri 2 で開発中です。開発環境での起動・動作確認ができます。
 - **GUI の本番インストール：** Nix profile からの配布、ランチャー統合、更新・削除手順は未整備です。実装は Issue [#101](https://github.com/Ni-gihub/nixos-json-controller/issues/101) で管理しています。
-- **既知の問題：** App Store の検索結果でアイコンが透明になる問題を調査中です。詳細は [Issue #96](https://github.com/Ni-gihub/nixos-json-controller/issues/96) を参照してください。
+- **対応中の課題：** GUI の本番配布、Tauri の本番セキュリティ設定、Nixpkgs 検索の性能・結果上限、スクロール時の表示問題などは未完了 Issue で管理しています。主な項目は [#101](https://github.com/Ni-gihub/nixos-json-controller/issues/101)、[#106](https://github.com/Ni-gihub/nixos-json-controller/issues/106)、[#123](https://github.com/Ni-gihub/nixos-json-controller/issues/123)、[#126](https://github.com/Ni-gihub/nixos-json-controller/issues/126)、[#134](https://github.com/Ni-gihub/nixos-json-controller/issues/134) です。
 
 現在の Flake package は x86_64-linux を対象としています。
 
@@ -230,7 +230,7 @@ NXC はユーザーの NixOS 設定を無条件に書き換えることを目的
       ↓
     結果の検証
 
-Nix 評価や rebuild 後の検証に失敗した場合は、変更前の状態へ戻すロールバック処理を行います。ロールバックの結果は、実際のエラー出力も含めて確認してください。
+パッケージの追加・削除では、rebuild 後にアクティブなシステム上の存在状態を確認し、検証に失敗した場合は設定の復元と必要な再ビルドを試みます。復元にも失敗した場合は、元のエラーと復元エラーの両方を確認してください。サービスの有効化・無効化については、現時点の executor がパッケージと同等の再ビルド後検証を行っていないため、関連作業を [Issue #138](https://github.com/Ni-gihub/nixos-json-controller/issues/138) で管理しています。
 
 NixOS の宣言的な設定変更と rebuild を伴うため、変更操作では必要に応じて sudo 認証が求められます。
 
@@ -277,11 +277,13 @@ frontend/package.json の tauri スクリプトは、リポジトリルートの
 
 frontend ディレクトリで実行します。
 
+    pnpm format:check
     pnpm test
     pnpm lint
     pnpm build
 
-- pnpm test：アイコンの候補選択やフォールバックに関するテスト
+- pnpm format:check：Frontend のフォーマットチェック
+- pnpm test：Frontend の自動テスト
 - pnpm lint：ESLint による静的チェック
 - pnpm build：TypeScript のビルドチェックと Vite の本番用 Frontend ビルド
 
@@ -320,15 +322,23 @@ GUI 用の Flake package、Desktop Entry、静的なランチャーアイコン�
 
 ---
 
-# 関連 Issue
+# 関連 Issue（未完了の主な作業）
 
 - [#43 — 検索後のインストール状態確認の遅延を調査・改善する](https://github.com/Ni-gihub/nixos-json-controller/issues/43)
-- [#88 — デスクトップ版 App Store の文字を読みやすくする](https://github.com/Ni-gihub/nixos-json-controller/issues/88)
-- [#96 — アプリのアイコンが透明になる問題を根本原因から調査する](https://github.com/Ni-gihub/nixos-json-controller/issues/96)
 - [#101 — nxc App Store を Nix profile から本番インストールできるようにする](https://github.com/Ni-gihub/nixos-json-controller/issues/101)
+- [#103 — パスワード送信後の待機表示とインストール中UIを改善する](https://github.com/Ni-gihub/nixos-json-controller/issues/103)
+- [#106 — 本番配布前にCSPとTauriの権限設定を見直す](https://github.com/Ni-gihub/nixos-json-controller/issues/106)
+- [#123 — Nixpkgs検索をローカルインデックス化する](https://github.com/Ni-gihub/nixos-json-controller/issues/123)
+- [#126 — 通常検索の結果を追加で表示できるようにする](https://github.com/Ni-gihub/nixos-json-controller/issues/126)
+- [#134 — 高速スクロール時にサイドバーの描画が重なって見える](https://github.com/Ni-gihub/nixos-json-controller/issues/134)
+- [#137 — 書き込み権限を持つ推薦更新ワークフローの Actions を SHA 固定する](https://github.com/Ni-gihub/nixos-json-controller/issues/137)
+- [#138 — サービス設定の変更失敗を検知し、再ビルド後の状態を検証する](https://github.com/Ni-gihub/nixos-json-controller/issues/138)
+- [#139 — プロジェクトのライセンスを明示し、利用・再配布条件を整える](https://github.com/Ni-gihub/nixos-json-controller/issues/139)
+- [#140 — パッケージ名の前方一致によるインストール済み誤判定を修正する](https://github.com/Ni-gihub/nixos-json-controller/issues/140)
+- [#141 — サービス設定の安全性判定を対象オプション単位に修正する](https://github.com/Ni-gihub/nixos-json-controller/issues/141)
 
 ---
 
 # ライセンス
 
-現在、リポジトリには利用者向けライセンスがまだ設定されていません。再配布や利用条件を明確にする場合は、ライセンスを別途設定する必要があります。
+現在、リポジトリには利用者向けライセンスがまだ設定されていません。採用するライセンスの決定、利用・改変・再配布条件の明示、外部由来の資産に関する条件確認は [Issue #139](https://github.com/Ni-gihub/nixos-json-controller/issues/139) で管理しています。

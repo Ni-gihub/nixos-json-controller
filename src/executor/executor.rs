@@ -64,15 +64,26 @@ impl Executor {
                 );
             }
 
-            if let Action::InstallPackage | Action::RemovePackage = plan.action {
-                if let Err(error) = verify_package_state(&plan.action, &plan.target.name) {
-                    return rollback_after_verification_failure(
-                        error,
-                        package_change.as_ref(),
-                        service_change.as_ref(),
-                        password,
-                    );
+            let verification_result = match plan.action {
+                Action::InstallPackage | Action::RemovePackage => {
+                    verify_package_state(&plan.action, &plan.target.name)
                 }
+                Action::EnableService | Action::DisableService => verify_service_state(
+                    &plan.action,
+                    &plan.target.name,
+                    service_change
+                        .as_ref()
+                        .and_then(|change| change.verification_option.as_deref()),
+                ),
+            };
+
+            if let Err(error) = verification_result {
+                return rollback_after_verification_failure(
+                    error,
+                    package_change.as_ref(),
+                    service_change.as_ref(),
+                    password,
+                );
             }
         }
 
@@ -96,14 +107,34 @@ fn rollback_after_rebuild_failure(
     Err(ExecutorError::NixosError(error))
 }
 
+/// Roll back a change and restore the previous system after verification fails.
 fn rollback_after_verification_failure(
     error: String,
     package_change: Option<&super::package::PackageChange>,
     service_change: Option<&super::service::ServiceChange>,
     password: Option<&str>,
 ) -> Result<(), ExecutorError> {
-    let rollback_result = rollback_change(package_change, service_change);
-    if let Err(rollback_error) = rollback_result {
+    rollback_after_verification_failure_with(
+        error,
+        || rollback_change(package_change, service_change),
+        || nixos::rebuild::switch_with_password(password),
+    )
+}
+
+/// Restore the previous configuration and rebuild it after a failed verification.
+///
+/// The closures keep the failure handling testable without changing system state
+/// from unit tests.
+fn rollback_after_verification_failure_with<R, B>(
+    error: String,
+    rollback: R,
+    rebuild_restored_system: B,
+) -> Result<(), ExecutorError>
+where
+    R: FnOnce() -> Result<(), String>,
+    B: FnOnce() -> Result<(), String>,
+{
+    if let Err(rollback_error) = rollback() {
         return Err(ExecutorError::NixosError(format!(
             "{}; rollback also failed: {}",
             error, rollback_error
@@ -112,7 +143,7 @@ fn rollback_after_verification_failure(
 
     // The active system was already switched, so rebuild once more from the
     // restored configuration to return the machine to the previous state.
-    if let Err(rebuild_error) = nixos::rebuild::switch_with_password(password) {
+    if let Err(rebuild_error) = rebuild_restored_system() {
         return Err(ExecutorError::NixosError(format!(
             "{}; rollback succeeded but restoring the previous system failed: {}",
             error, rebuild_error
@@ -122,6 +153,7 @@ fn rollback_after_verification_failure(
     Err(ExecutorError::NixosError(error))
 }
 
+/// Restore the files changed by a package or service operation.
 fn rollback_change(
     package_change: Option<&super::package::PackageChange>,
     service_change: Option<&super::service::ServiceChange>,
@@ -135,6 +167,7 @@ fn rollback_change(
     }
 }
 
+/// Check whether the active system reflects the requested package action.
 fn verify_package_state(action: &Action, package: &str) -> Result<(), String> {
     let system = nixos::system::SystemState::discover()?;
     let present = system.has_package(package) || system.has_command(package);
@@ -142,6 +175,7 @@ fn verify_package_state(action: &Action, package: &str) -> Result<(), String> {
     verify_package_presence(action, package, present)
 }
 
+/// Validate active package presence against an install/remove action.
 fn verify_package_presence(action: &Action, package: &str, present: bool) -> Result<(), String> {
     match action {
         Action::InstallPackage if present => Ok(()),
@@ -158,6 +192,97 @@ fn verify_package_presence(action: &Action, package: &str, present: bool) -> Res
     }
 }
 
+/// Verify the effective NixOS enable option for the requested service action.
+fn verify_service_state(
+    action: &Action,
+    service: &str,
+    edited_option: Option<&str>,
+) -> Result<(), String> {
+    let context = nixos::flake::discovery_context()?;
+
+    if let Some(option) = edited_option {
+        return verify_explicit_service_option(action, service, option, |option| {
+            nixos::provenance::evaluate_boolean_option(
+                context.flake_root(),
+                context.configuration_name(),
+                option,
+            )
+        });
+    }
+    let provenance = nixos::provenance::evaluate_service_provenance(
+        context.flake_root(),
+        context.configuration_name(),
+        service,
+    )?;
+
+    let local_files = provenance.local_files(context.flake_root());
+    let candidates = if local_files.is_empty() {
+        // When there is no local definition, prefer the service-level option,
+        // then fall back to a raw systemd unit option for custom services.
+        vec![
+            format!("services.{service}.enable"),
+            format!("systemd.services.{service}.enable"),
+        ]
+    } else {
+        vec![provenance.option]
+    };
+
+    let mut evaluation_errors = Vec::new();
+    for option in candidates {
+        match nixos::provenance::evaluate_boolean_option(
+            context.flake_root(),
+            context.configuration_name(),
+            &option,
+        ) {
+            Ok(enabled) => return verify_service_option_value(action, service, &option, enabled),
+            Err(error) => evaluation_errors.push(format!("{}: {}", option, error)),
+        }
+    }
+
+    Err(format!(
+        "could not evaluate the effective NixOS enable option for service '{}': {}",
+        service,
+        evaluation_errors.join("; ")
+    ))
+}
+
+/// Verify only the option that the service writer actually changed.
+fn verify_explicit_service_option<F>(
+    action: &Action,
+    service: &str,
+    option: &str,
+    evaluate: F,
+) -> Result<(), String>
+where
+    F: FnOnce(&str) -> Result<bool, String>,
+{
+    let enabled = evaluate(option)?;
+    verify_service_option_value(action, service, option, enabled)
+}
+
+/// Compare an evaluated service option with the requested enable/disable state.
+fn verify_service_option_value(
+    action: &Action,
+    service: &str,
+    option: &str,
+    enabled: bool,
+) -> Result<(), String> {
+    match action {
+        Action::EnableService if enabled => Ok(()),
+        Action::DisableService if !enabled => Ok(()),
+        Action::EnableService => Err(format!(
+            "nixos-rebuild completed but effective NixOS option '{}' for service '{}' is false; expected true",
+            option, service
+        )),
+        Action::DisableService => Err(format!(
+            "nixos-rebuild completed but effective NixOS option '{}' for service '{}' is true; expected false",
+            option, service
+        )),
+        _ => Ok(()),
+    }
+}
+
+/// Decide whether an operation requires switching the NixOS system.
 fn should_rebuild(plan: &ExecutionPlan, changed: bool, rebuild: bool) -> bool {
     if !rebuild {
         return false;
@@ -191,6 +316,32 @@ mod tests {
                 reason: "test".to_string(),
             }),
         }
+    }
+
+    #[test]
+    fn reports_verification_and_rollback_errors_together() {
+        let result = rollback_after_verification_failure_with(
+            "service verification failed".to_string(),
+            || Err("backup restore failed".to_string()),
+            || Ok(()),
+        );
+
+        let error = result.unwrap_err().to_string();
+        assert!(error.contains("service verification failed"));
+        assert!(error.contains("backup restore failed"));
+    }
+
+    #[test]
+    fn reports_verification_and_restored_rebuild_errors_together() {
+        let result = rollback_after_verification_failure_with(
+            "service verification failed".to_string(),
+            || Ok(()),
+            || Err("restored system rebuild failed".to_string()),
+        );
+
+        let error = result.unwrap_err().to_string();
+        assert!(error.contains("service verification failed"));
+        assert!(error.contains("restored system rebuild failed"));
     }
 
     #[test]
@@ -236,5 +387,82 @@ mod tests {
         let error = verify_package_presence(&Action::RemovePackage, "firefox", true).unwrap_err();
 
         assert!(error.contains("package 'firefox' is still present in the active system"));
+    }
+    #[test]
+    fn accepts_service_enable_when_effective_option_is_true() {
+        assert!(
+            verify_service_option_value(
+                &Action::EnableService,
+                "openssh",
+                "services.openssh.enable",
+                true
+            )
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn accepts_service_disable_when_effective_option_is_false() {
+        assert!(
+            verify_service_option_value(
+                &Action::DisableService,
+                "openssh",
+                "services.openssh.enable",
+                false
+            )
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn rejects_service_enable_when_effective_option_remains_false() {
+        let error = verify_service_option_value(
+            &Action::EnableService,
+            "openssh",
+            "services.openssh.enable",
+            false,
+        )
+        .unwrap_err();
+
+        assert!(error.contains("effective NixOS option 'services.openssh.enable'"));
+        assert!(error.contains("expected true"));
+    }
+
+    #[test]
+    fn rejects_service_disable_when_effective_option_remains_true() {
+        let error = verify_service_option_value(
+            &Action::DisableService,
+            "openssh",
+            "services.openssh.enable",
+            true,
+        )
+        .unwrap_err();
+
+        assert!(error.contains("effective NixOS option 'services.openssh.enable'"));
+        assert!(error.contains("expected false"));
+    }
+
+    #[test]
+    fn verifies_only_the_selected_option_when_both_service_options_are_available() {
+        let mut evaluated_options = Vec::new();
+        let error = verify_explicit_service_option(
+            &Action::DisableService,
+            "custom",
+            "systemd.services.custom.enable",
+            |option| {
+                evaluated_options.push(option.to_string());
+                // The other option could evaluate to false, but it was not edited.
+                if option == "services.custom.enable" {
+                    Ok(false)
+                } else {
+                    Ok(true)
+                }
+            },
+        )
+        .unwrap_err();
+
+        assert_eq!(evaluated_options, vec!["systemd.services.custom.enable"]);
+        assert!(error.contains("systemd.services.custom.enable"));
+        assert!(error.contains("expected false"));
     }
 }

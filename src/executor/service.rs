@@ -13,6 +13,7 @@ pub struct ServiceChange {
     pub backups: Vec<nixos::dedicated::FileBackup>,
     pub created_files: Vec<std::path::PathBuf>,
     pub staged_files: Vec<nixos::dedicated::StagedFile>,
+    pub verification_option: Option<String>,
 }
 
 impl ServiceChange {
@@ -31,10 +32,12 @@ impl From<nixos::dedicated::DedicatedServiceChange> for ServiceChange {
             backups: change.backups,
             created_files: change.created_files,
             staged_files: change.staged_files,
+            verification_option: None,
         }
     }
 }
 
+/// Apply a planned service enable/disable change and capture rollback data.
 pub fn execute(plan: ExecutionPlan) -> Result<ServiceChange, ExecutorError> {
     let context = nixos::flake::discovery_context().map_err(ExecutorError::NixosError)?;
     let config = nixos::config::ConfigState::discover(context.flake_root())
@@ -53,7 +56,14 @@ pub fn execute(plan: ExecutionPlan) -> Result<ServiceChange, ExecutorError> {
     match plan.action {
         Action::EnableService => {
             if !provenance_paths.is_empty() {
-                if provenance.contains_local_boolean(context.flake_root(), true) {
+                let effective_enabled = nixos::provenance::evaluate_boolean_option(
+                    context.flake_root(),
+                    context.configuration_name(),
+                    &provenance.option,
+                )
+                .map_err(ExecutorError::NixosError)?;
+
+                if effective_enabled {
                     return Ok(ServiceChange::default());
                 }
 
@@ -99,7 +109,14 @@ pub fn execute(plan: ExecutionPlan) -> Result<ServiceChange, ExecutorError> {
 
         Action::DisableService => {
             if !provenance_paths.is_empty() {
-                if provenance.contains_local_boolean(context.flake_root(), false) {
+                let effective_enabled = nixos::provenance::evaluate_boolean_option(
+                    context.flake_root(),
+                    context.configuration_name(),
+                    &provenance.option,
+                )
+                .map_err(ExecutorError::NixosError)?;
+
+                if !effective_enabled {
                     return Ok(ServiceChange::default());
                 }
 
@@ -125,6 +142,7 @@ pub fn execute(plan: ExecutionPlan) -> Result<ServiceChange, ExecutorError> {
 
             match disable_service_strategy(&config, &system, &plan.target.name) {
                 ServiceDisableStrategy::Declared { paths } => {
+                    let verification_option = service_option_for_paths(&paths, &plan.target.name)?;
                     let backups = nixos::dedicated::apply_file_changes(
                         &paths,
                         |path| {
@@ -144,6 +162,7 @@ pub fn execute(plan: ExecutionPlan) -> Result<ServiceChange, ExecutorError> {
 
                     Ok(ServiceChange {
                         backups,
+                        verification_option: Some(verification_option),
                         ..ServiceChange::default()
                     })
                 }
@@ -164,11 +183,17 @@ pub fn execute(plan: ExecutionPlan) -> Result<ServiceChange, ExecutorError> {
     }
 }
 
+/// Safely update one service declaration and retain its original file contents.
 fn write_service_file(
     path: &std::path::Path,
     service: &str,
     enabled: bool,
 ) -> Result<ServiceChange, ExecutorError> {
+    let content = std::fs::read_to_string(path).map_err(|error| {
+        ExecutorError::NixosError(format!("failed to read {}: {}", path.display(), error))
+    })?;
+    let verification_option = nixos::module::service_option_for_content(&content, service)
+        .map_err(ExecutorError::NixosError)?;
     let backup = nixos::dedicated::FileBackup::capture(path).map_err(ExecutorError::NixosError)?;
 
     let result = if enabled {
@@ -185,9 +210,11 @@ fn write_service_file(
         backups: vec![backup],
         created_files: Vec::new(),
         staged_files: Vec::new(),
+        verification_option: Some(verification_option),
     })
 }
 
+/// Add a service declaration to NXC's dedicated module when no safe existing target exists.
 fn install_service_in_dedicated_module(
     flake_root: &std::path::Path,
     config: &nixos::config::ConfigState,
@@ -195,9 +222,50 @@ fn install_service_in_dedicated_module(
 ) -> Result<ServiceChange, ExecutorError> {
     println!("Using the NXC dedicated service module for '{}'.", service);
 
-    nixos::dedicated::enable_service(flake_root, config, service)
+    let mut change: ServiceChange = nixos::dedicated::enable_service(flake_root, config, service)
         .map(Into::into)
-        .map_err(ExecutorError::NixosError)
+        .map_err(ExecutorError::NixosError)?;
+    let module_path = flake_root.join(nixos::dedicated::DEDICATED_SERVICE_MODULE);
+    let content = std::fs::read_to_string(&module_path).map_err(|error| {
+        ExecutorError::NixosError(format!(
+            "failed to read {}: {}",
+            module_path.display(),
+            error
+        ))
+    })?;
+    change.verification_option = Some(
+        nixos::module::service_option_for_content(&content, service)
+            .map_err(ExecutorError::NixosError)?,
+    );
+    Ok(change)
+}
+
+fn service_option_for_paths(
+    paths: &[std::path::PathBuf],
+    service: &str,
+) -> Result<String, ExecutorError> {
+    let mut selected: Option<String> = None;
+
+    for path in paths {
+        let content = std::fs::read_to_string(path).map_err(|error| {
+            ExecutorError::NixosError(format!("failed to read {}: {}", path.display(), error))
+        })?;
+        let option = nixos::module::service_option_for_content(&content, service)
+            .map_err(ExecutorError::NixosError)?;
+
+        if let Some(previous) = &selected {
+            if previous != &option {
+                return Err(ExecutorError::NixosError(format!(
+                    "service '{}' is declared through multiple option paths ('{}' and '{}'); refusing to verify an arbitrary option",
+                    service, previous, option
+                )));
+            }
+        } else {
+            selected = Some(option);
+        }
+    }
+
+    Ok(selected.unwrap_or_else(|| format!("services.{service}.enable")))
 }
 
 fn format_paths(paths: &[std::path::PathBuf]) -> String {

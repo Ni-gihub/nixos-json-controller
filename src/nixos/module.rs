@@ -14,12 +14,14 @@ pub fn remove_package(package: &str) -> Result<String, String> {
     remove_package_from_content(&content, package)
 }
 
+/// Read the core module and safely enable the named service.
 pub fn enable_service(service: &str) -> Result<String, String> {
     validate_service_name(service)?;
     let content = flake::read_core()?;
     add_service_to_content(&content, service, true)
 }
 
+/// Read the core module and safely disable the named service.
 pub fn disable_service(service: &str) -> Result<String, String> {
     validate_service_name(service)?;
     let content = flake::read_core()?;
@@ -669,6 +671,7 @@ fn is_direct_module_attribute(
     depth == 1
 }
 
+/// Find a unique, directly declared standalone boolean assignment.
 fn find_boolean_assignment(
     content: &str,
     attribute: &str,

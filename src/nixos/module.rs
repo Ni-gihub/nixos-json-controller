@@ -1076,6 +1076,15 @@ mod tests {
     }
 
     #[test]
+    fn skips_attribute_sets_inside_let_bindings() {
+        let content = "let helper = { nested = { services.foo.enable = false; }; }; in {\\n  services.foo.enable = false;\\n}\\n";
+        let result = add_service_to_content(content, "foo", true).unwrap();
+
+        assert!(result.contains("nested = { services.foo.enable = false; }"));
+        assert!(result.contains("services.foo.enable = true;"));
+    }
+
+    #[test]
     fn edits_direct_option_when_nested_option_appears_first() {
         let content = "{\n  home-manager.users.bob = {\n    services.foo.enable = false;\n  };\n  services.foo.enable = false;\n}\n";
         let result = add_service_to_content(content, "foo", true).unwrap();

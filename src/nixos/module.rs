@@ -562,49 +562,68 @@ fn validate_service_name(service: &str) -> Result<(), String> {
 ///
 /// Only simple Nix attribute names are accepted. Nested attribute sets are not
 /// treated as direct NixOS options, and unsupported existing values are rejected.
-pub fn add_service_to_content(
+/// Find a safely editable service declaration, preferring the high-level NixOS option.
+fn existing_service_assignment(
     content: &str,
     service: &str,
-    enabled: bool,
-) -> Result<String, String> {
+) -> Result<Option<(String, usize, usize)>, String> {
     validate_service_name(service)?;
     let attributes = [
-        // Prefer the high-level NixOS service option when it is declared.
-        // Fall back to the systemd option for custom units without a service module.
         format!("services.{service}.enable"),
         format!("systemd.services.{service}.enable"),
     ];
 
     for attribute in &attributes {
-        match find_boolean_assignment(content, attribute)? {
-            Some((start, end)) => {
-                let mut result = content.to_string();
-                result.replace_range(start..end, if enabled { "true" } else { "false" });
-                return Ok(result);
-            }
-            None => continue,
+        if let Some((start, end)) = find_boolean_assignment(content, attribute)? {
+            return Ok(Some((attribute.clone(), start, end)));
         }
     }
 
-    // No exact assignment exists. Insert a new declaration only in this case;
-    // if an existing declaration uses an unsupported expression, the finder
-    // returns an error instead of silently appending a lower-priority value.
-    let code = nix_code_mask(content);
-    let closing_brace = content
-        .char_indices()
-        .rev()
-        .find_map(|(index, ch)| (ch == '}' && code[index]).then_some(index))
-        .ok_or("Nix module closing brace not found")?;
+    Ok(None)
+}
 
-    let setting = format!("  services.{service}.enable = {enabled};\n");
-    let mut result = content.to_string();
-    result.insert_str(closing_brace, &setting);
-    Ok(result)
+/// Return the service option that a write to this content will target.
+pub fn service_option_for_content(content: &str, service: &str) -> Result<String, String> {
+    Ok(existing_service_assignment(content, service)?
+        .map(|(option, _, _)| option)
+        .unwrap_or_else(|| format!("services.{service}.enable")))
+}
+
+/// Add or update a service enable option in the module's returned attribute set.
+///
+/// Only simple Nix attribute names are accepted. Nested attribute sets are not
+/// treated as direct NixOS options, and unsupported existing values are rejected.
+pub fn add_service_to_content(
+    content: &str,
+    service: &str,
+    enabled: bool,
+) -> Result<String, String> {
+    match existing_service_assignment(content, service)? {
+        Some((_, start, end)) => {
+            let mut result = content.to_string();
+            result.replace_range(start..end, if enabled { "true" } else { "false" });
+            Ok(result)
+        }
+        None => {
+            let code = nix_code_mask(content);
+            let (_, closing_brace) = returned_module_attrset(content, &code)?;
+            let newline = if content[..closing_brace].ends_with('\n') {
+                ""
+            } else {
+                "\n"
+            };
+            let setting = format!("{newline}  services.{service}.enable = {enabled};\n");
+            let mut result = content.to_string();
+            result.insert_str(closing_brace, &setting);
+            Ok(result)
+        }
+    }
 }
 
 /// Locate the attribute set returned by a NixOS module function.
 ///
-/// Supports plain attribute sets, `{ ... }: { ... }`, and `let ... in { ... }`.
+/// Supports plain attribute sets, `{ ... }: { ... }`, `args@{ ... }: { ... }`,
+/// `{ ... }@args: { ... }`, and `let ... in { ... }`.
 /// Attribute sets used by let bindings are skipped rather than mistaken for the
 /// module's returned value.
 fn returned_module_attrset(content: &str, code: &[bool]) -> Result<(usize, usize), String> {
@@ -612,13 +631,7 @@ fn returned_module_attrset(content: &str, code: &[bool]) -> Result<(usize, usize
     let first_token = skip_nix_trivia(content, 0, content.len());
 
     let body_open = if active_token_at(content, code, first_token, "let") {
-        let in_pos = find_top_level_keyword(content, code, first_token + "let".len(), "in")
-            .ok_or("Nix let expression has no top-level 'in'")?;
-        let body = skip_nix_trivia(content, in_pos + "in".len(), content.len());
-        if bytes.get(body) != Some(&b'{') || !code[body] {
-            return Err("Nix let expression does not return an attribute set".to_string());
-        }
-        body
+        returned_attrset_after_let(content, code, first_token)?
     } else {
         let first_open = (0..bytes.len())
             .find(|&i| bytes[i] == b'{' && code[i])
@@ -627,17 +640,24 @@ fn returned_module_attrset(content: &str, code: &[bool]) -> Result<(usize, usize
             .ok_or("Nix module attribute set is not balanced")?;
         let after_first = skip_nix_trivia(content, first_close + 1, content.len());
 
-        if bytes.get(after_first) == Some(&b':') && code[after_first] {
-            let expression_start = skip_nix_trivia(content, after_first + 1, content.len());
+        let colon = if bytes.get(after_first) == Some(&b':') && code[after_first] {
+            Some(after_first)
+        } else if bytes.get(after_first) == Some(&b'@') && code[after_first] {
+            let argument_start = skip_nix_trivia(content, after_first + 1, content.len());
+            let argument_end = read_nix_identifier_end(content, argument_start, content.len());
+            let colon = skip_nix_trivia(content, argument_end, content.len());
+            (argument_end > argument_start
+                && bytes.get(colon) == Some(&b':')
+                && code[colon])
+                .then_some(colon)
+        } else {
+            None
+        };
+
+        if let Some(colon) = colon {
+            let expression_start = skip_nix_trivia(content, colon + 1, content.len());
             if active_token_at(content, code, expression_start, "let") {
-                let in_pos =
-                    find_top_level_keyword(content, code, expression_start + "let".len(), "in")
-                        .ok_or("Nix let expression has no top-level 'in'")?;
-                let body = skip_nix_trivia(content, in_pos + "in".len(), content.len());
-                if bytes.get(body) != Some(&b'{') || !code[body] {
-                    return Err("Nix let expression does not return an attribute set".to_string());
-                }
-                body
+                returned_attrset_after_let(content, code, expression_start)?
             } else {
                 (expression_start..bytes.len())
                     .find(|&i| bytes[i] == b'{' && code[i])
@@ -651,6 +671,21 @@ fn returned_module_attrset(content: &str, code: &[bool]) -> Result<(usize, usize
     let body_close = find_matching_delimiter(content, body_open, '{', '}')
         .ok_or("returned Nix module attribute set is not balanced")?;
     Ok((body_open, body_close))
+}
+
+/// Locate the attribute set returned by a top-level `let ... in { ... }` expression.
+fn returned_attrset_after_let(
+    content: &str,
+    code: &[bool],
+    let_start: usize,
+) -> Result<usize, String> {
+    let in_pos = find_top_level_keyword(content, code, let_start + "let".len(), "in")
+        .ok_or("Nix let expression has no top-level 'in'")?;
+    let body = skip_nix_trivia(content, in_pos + "in".len(), content.len());
+    if content.as_bytes().get(body) != Some(&b'{') || !code[body] {
+        return Err("Nix let expression does not return an attribute set".to_string());
+    }
+    Ok(body)
 }
 
 /// Find a Nix keyword outside nested delimiters, comments, and strings.
@@ -717,6 +752,58 @@ fn is_direct_module_attribute(
     depth == 1
 }
 
+/// Find a direct assignment to a parent attribute path of a service option.
+fn find_direct_prefix_assignment(
+    content: &str,
+    code: &[bool],
+    body_start: usize,
+    body_end: usize,
+    attribute: &str,
+) -> Option<String> {
+    let option_path = attribute.strip_suffix(".enable")?;
+    let prefixes = if let Some(service) = option_path.strip_prefix("services.") {
+        vec!["services".to_string(), format!("services.{service}")]
+    } else if let Some(service) = option_path.strip_prefix("systemd.services.") {
+        vec![
+            "systemd".to_string(),
+            "systemd.services".to_string(),
+            format!("systemd.services.{service}"),
+        ]
+    } else {
+        return None;
+    };
+
+    for prefix in prefixes {
+        let mut search_from = body_start;
+        while search_from < body_end {
+            let Some(relative) = content[search_from..body_end].find(&prefix) else {
+                break;
+            };
+            let start = search_from + relative;
+            let end = start + prefix.len();
+            search_from = end;
+
+            if !active_token_at(content, code, start, &prefix)
+                || !is_direct_module_attribute(content, code, body_start, start)
+            {
+                continue;
+            }
+
+            let equals = skip_nix_trivia(content, end, body_end);
+            let next = content.as_bytes().get(equals + 1).copied();
+            if equals < body_end
+                && content.as_bytes()[equals] == b'='
+                && code[equals]
+                && !matches!(next, Some(b'=' | b'>'))
+            {
+                return Some(prefix);
+            }
+        }
+    }
+
+    None
+}
+
 /// Find a unique, directly declared standalone boolean assignment.
 fn find_boolean_assignment(
     content: &str,
@@ -764,6 +851,15 @@ fn find_boolean_assignment(
         }
 
         assignments.push(equals);
+    }
+
+    if let Some(prefix) =
+        find_direct_prefix_assignment(content, &code, body_start, body_end, attribute)
+    {
+        return Err(format!(
+            "found direct assignment to '{}' before '{}'; refusing to add a conflicting declaration",
+            prefix, attribute
+        ));
     }
 
     match assignments.as_slice() {
@@ -1155,4 +1251,48 @@ mod tests {
                 .contains("standalone true/false literal")
         );
     }
+
+    #[test]
+    fn rejects_parent_attribute_assignments_that_would_conflict_with_service_options() {
+        let cases = [
+            "{ services.openssh = { enable = true; }; }",
+            "{ services = { openssh.enable = true; }; }",
+            "{ systemd.services.openssh = { enable = true; }; }",
+            "{ systemd.services = { openssh.enable = true; }; }",
+            "{ systemd = { services.openssh.enable = true; }; }",
+        ];
+
+        for content in cases {
+            let error = add_service_to_content(content, "openssh", false).unwrap_err();
+            assert!(
+                error.contains("conflicting declaration"),
+                "unexpected error for {content:?}: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn supports_module_function_attribute_set_aliased_after_closing_brace() {
+        let content = "{ config, pkgs, ... }@args: {\\n  services.openssh.enable = true;\\n}\\n";
+        let result = add_service_to_content(content, "openssh", false).unwrap();
+
+        assert!(result.contains("services.openssh.enable = false;"));
+        assert!(!result.contains("services.openssh.enable = true;"));
+    }
+
+    #[test]
+    fn selects_the_existing_service_option_when_both_option_paths_exist() {
+        let content = "{ services.openssh.enable = false; systemd.services.openssh.enable = true; }";
+        assert_eq!(
+            service_option_for_content(content, "openssh").unwrap(),
+            "services.openssh.enable"
+        );
+
+        let raw_systemd = "{ systemd.services.custom.enable = false; }";
+        assert_eq!(
+            service_option_for_content(raw_systemd, "custom").unwrap(),
+            "systemd.services.custom.enable"
+        );
+    }
+
 }

@@ -68,9 +68,13 @@ impl Executor {
                 Action::InstallPackage | Action::RemovePackage => {
                     verify_package_state(&plan.action, &plan.target.name)
                 }
-                Action::EnableService | Action::DisableService => {
-                    verify_service_state(&plan.action, &plan.target.name)
-                }
+                Action::EnableService | Action::DisableService => verify_service_state(
+                    &plan.action,
+                    &plan.target.name,
+                    service_change
+                        .as_ref()
+                        .and_then(|change| change.verification_option.as_deref()),
+                ),
             };
 
             if let Err(error) = verification_result {
@@ -189,8 +193,22 @@ fn verify_package_presence(action: &Action, package: &str, present: bool) -> Res
 }
 
 /// Verify the effective NixOS enable option for the requested service action.
-fn verify_service_state(action: &Action, service: &str) -> Result<(), String> {
+fn verify_service_state(
+    action: &Action,
+    service: &str,
+    edited_option: Option<&str>,
+) -> Result<(), String> {
     let context = nixos::flake::discovery_context()?;
+
+    if let Some(option) = edited_option {
+        return verify_explicit_service_option(action, service, option, |option| {
+            nixos::provenance::evaluate_boolean_option(
+                context.flake_root(),
+                context.configuration_name(),
+                option,
+            )
+        });
+    }
     let provenance = nixos::provenance::evaluate_service_provenance(
         context.flake_root(),
         context.configuration_name(),
@@ -226,6 +244,20 @@ fn verify_service_state(action: &Action, service: &str) -> Result<(), String> {
         service,
         evaluation_errors.join("; ")
     ))
+}
+
+/// Verify only the option that the service writer actually changed.
+fn verify_explicit_service_option<F>(
+    action: &Action,
+    service: &str,
+    option: &str,
+    evaluate: F,
+) -> Result<(), String>
+where
+    F: FnOnce(&str) -> Result<bool, String>,
+{
+    let enabled = evaluate(option)?;
+    verify_service_option_value(action, service, option, enabled)
 }
 
 /// Compare an evaluated service option with the requested enable/disable state.
@@ -409,4 +441,29 @@ mod tests {
         assert!(error.contains("effective NixOS option 'services.openssh.enable'"));
         assert!(error.contains("expected false"));
     }
+
+    #[test]
+    fn verifies_only_the_selected_option_when_both_service_options_are_available() {
+        let mut evaluated_options = Vec::new();
+        let error = verify_explicit_service_option(
+            &Action::DisableService,
+            "custom",
+            "systemd.services.custom.enable",
+            |option| {
+                evaluated_options.push(option.to_string());
+                // The other option could evaluate to false, but it was not edited.
+                if option == "services.custom.enable" {
+                    Ok(false)
+                } else {
+                    Ok(true)
+                }
+            },
+        )
+        .unwrap_err();
+
+        assert_eq!(evaluated_options, vec!["systemd.services.custom.enable"]);
+        assert!(error.contains("systemd.services.custom.enable"));
+        assert!(error.contains("expected false"));
+    }
+
 }

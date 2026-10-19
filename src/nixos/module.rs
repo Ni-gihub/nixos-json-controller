@@ -541,8 +541,10 @@ pub fn add_service_to_content(
     enabled: bool,
 ) -> Result<String, String> {
     let attributes = [
-        format!("systemd.services.{service}.enable"),
+        // Prefer the high-level NixOS service option when it is declared.
+        // Fall back to the systemd option for custom units without a service module.
         format!("services.{service}.enable"),
+        format!("systemd.services.{service}.enable"),
     ];
 
     for attribute in &attributes {

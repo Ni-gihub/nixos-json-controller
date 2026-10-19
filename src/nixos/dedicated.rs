@@ -1710,7 +1710,6 @@ mod tests {
         let _ = fs::remove_dir_all(directory);
     }
 
-
     #[cfg(unix)]
     #[test]
     fn refuses_to_restore_backup_after_symlink_target_changes() {

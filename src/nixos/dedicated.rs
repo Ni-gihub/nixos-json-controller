@@ -599,11 +599,6 @@ fn attribute_list_references_module(
     let code = nix_code_mask(content);
 
     for (list_start, list_end) in list_ranges {
-        // Paths in an unparenthesized conditional expression are only branch
-        // candidates, not unconditional imports. Keep static paths before the
-        // expression eligible, but ignore the condition and both branches.
-        let conditional_start =
-            find_top_level_if_expression_start(content, &code, list_start, list_end);
         let mut cursor = list_start + 1;
         let mut curly_depth = 0usize;
         let mut paren_depth = 0usize;
@@ -637,10 +632,27 @@ fn attribute_list_references_module(
                             list_end,
                             &paren_stack,
                         );
+                    let expression_start = if is_plain_parenthesized_path {
+                        paren_stack.first().copied().unwrap_or(cursor)
+                    } else {
+                        cursor
+                    };
                     if curly_depth == 0
                         && list_depth == 0
-                        && conditional_start.map_or(true, |start| cursor < start)
+                        && !path_is_in_let_binding(
+                            content,
+                            &code,
+                            list_start,
+                            cursor,
+                            list_end,
+                        )
                         && (paren_depth == 0 || is_plain_parenthesized_path)
+                        && has_standalone_path_prefix(
+                            content,
+                            &code,
+                            list_start,
+                            expression_start,
+                        )
                     {
                         if let Some(candidate) =
                             resolve_static_import_path(base, &content[cursor..path_end])
@@ -833,50 +845,97 @@ fn find_nixos_system_modules_list_ranges(content: &str) -> Vec<(usize, usize)> {
     ranges
 }
 
-/// Find an unparenthesized conditional expression at the list-element level.
-///
-/// Once an `if` expression begins, paths in its condition and branches are not
-/// unconditional imports. Returning its start offset also lets earlier, separate
-/// static list entries remain eligible for import detection.
-fn find_top_level_if_expression_start(
+/// Return true when the path occurs in a `let` binding, rather than in the
+/// expression following the matching `in`. Nested let expressions are tracked
+/// so their bindings do not make the outer expression look complete too early.
+fn path_is_in_let_binding(
     content: &str,
     code: &[bool],
     list_start: usize,
+    path_start: usize,
     list_end: usize,
-) -> Option<usize> {
-    let bytes = content.as_bytes();
+) -> bool {
     let mut cursor = list_start + 1;
-    let mut curly_depth = 0usize;
-    let mut list_depth = 0usize;
-    let mut paren_depth = 0usize;
+    let mut let_depth = 0usize;
 
-    while cursor < list_end {
+    while cursor < path_start.min(list_end) {
         if !code[cursor] {
             cursor = next_char_boundary(content, cursor);
             continue;
         }
 
-        if curly_depth == 0
-            && list_depth == 0
-            && paren_depth == 0
-            && active_keyword_at(content, code, cursor, "if")
-        {
-            return Some(cursor);
+        if active_keyword_at(content, code, cursor, "let") {
+            let_depth += 1;
+            cursor += "let".len();
+            continue;
         }
 
-        match bytes[cursor] {
-            b'{' => curly_depth += 1,
-            b'}' => curly_depth = curly_depth.saturating_sub(1),
-            b'[' => list_depth += 1,
-            b']' => list_depth = list_depth.saturating_sub(1),
-            b'(' => paren_depth += 1,
-            b')' => paren_depth = paren_depth.saturating_sub(1),
-            _ => {}
+        if let_depth > 0 && active_keyword_at(content, code, cursor, "in") {
+            let_depth -= 1;
+            cursor += "in".len();
+            continue;
         }
+
         cursor = next_char_boundary(content, cursor);
     }
 
-    None
+    let_depth > 0
+}
+
+/// A path can stand for an import only when it is itself a list element (or
+/// a path literal wrapped by parentheses). Reject paths used as operands or
+/// arguments to expressions such as `if`, `let`, comparisons, and function calls.
+fn has_standalone_path_prefix(
+    content: &str,
+    code: &[bool],
+    list_start: usize,
+    expression_start: usize,
+) -> bool {
+    let lower_bound = list_start + 1;
+    let bytes = content.as_bytes();
+    let mut cursor = expression_start;
+
+    // Skip whitespace and comments between the preceding element and this one.
+    loop {
+        while cursor > lower_bound && bytes[cursor - 1].is_ascii_whitespace() {
+            cursor -= 1;
+        }
+        if cursor <= lower_bound {
+            return true;
+        }
+
+        if !code[cursor - 1] {
+            cursor -= 1;
+            continue;
+        }
+        break;
+    }
+
+    let previous = bytes[cursor - 1];
+    if matches!(previous, b']' | b')' | b'}' | b'"') {
+        return true;
+    }
+
+    // A prior static path may be followed by another list item. Identifiers and
+    // operators instead indicate that this path is part of a larger expression.
+    let mut token_start = cursor;
+    while token_start > lower_bound {
+        let ch = content[..token_start].chars().next_back().unwrap();
+        if ch.is_whitespace()
+            || matches!(
+                ch,
+                '[' | ']' | '(' | ')' | '{' | '}' | ';' | ',' | '#' | '+' | '=' | '?' | '!'
+                    | '<' | '>' | '&' | '|'
+            )
+        {
+            break;
+        }
+        token_start -= ch.len_utf8();
+    }
+    let previous_token = &content[token_start..cursor];
+    previous_token == "in"
+        || previous_token.starts_with("./")
+        || previous_token.starts_with("../")
 }
 
 fn active_keyword_at(content: &str, code: &[bool], start: usize, keyword: &str) -> bool {
@@ -1751,6 +1810,39 @@ mod tests {
         assert_eq!(
             find_importing_file(&directory, &config, &module_path).unwrap(),
             None
+        );
+
+        // A later independent list entry must still be detected after an if expression.
+        fs::write(
+            &config_path,
+            "{ imports = [ if builtins.pathExists ./condition.nix then ./other.nix else ./alternate.nix ./nxc/packages.nix ]; }\\n",
+        )
+        .unwrap();
+        assert_eq!(
+            find_importing_file(&directory, &config, &module_path).unwrap(),
+            Some(config_path.clone())
+        );
+
+        // A path used only in a let binding is not the evaluated import expression.
+        fs::write(
+            &config_path,
+            "{ imports = [ let unused = ./nxc/packages.nix; in ./other.nix ]; }\\n",
+        )
+        .unwrap();
+        assert_eq!(
+            find_importing_file(&directory, &config, &module_path).unwrap(),
+            None
+        );
+
+        // The literal after `in` is the value of the let expression and is an import.
+        fs::write(
+            &config_path,
+            "{ imports = [ let unused = ./condition.nix; in ./nxc/packages.nix ]; }\\n",
+        )
+        .unwrap();
+        assert_eq!(
+            find_importing_file(&directory, &config, &module_path).unwrap(),
+            Some(config_path.clone())
         );
 
         let _ = fs::remove_dir_all(directory);

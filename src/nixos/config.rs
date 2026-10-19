@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -29,8 +29,25 @@ pub struct ConfigState {
 
 impl ConfigState {
     pub fn discover(flake_root: &Path) -> Result<Self, String> {
+        let flake_root = fs::canonicalize(flake_root).map_err(|error| {
+            format!(
+                "failed to resolve flake root {}: {}",
+                flake_root.display(),
+                error
+            )
+        })?;
         let mut paths = Vec::new();
-        collect_nix_files(flake_root, 0, &mut paths)?;
+        let mut visited_directories = HashSet::new();
+        let mut seen_files = HashSet::new();
+        visited_directories.insert(flake_root.clone());
+        collect_nix_files(
+            &flake_root,
+            &flake_root,
+            0,
+            &mut paths,
+            &mut visited_directories,
+            &mut seen_files,
+        )?;
 
         let mut files = Vec::new();
         for path in paths {
@@ -87,7 +104,12 @@ impl ConfigState {
     }
 
     pub fn file(&self, path: &Path) -> Option<&ConfigFile> {
-        self.files.iter().find(|file| file.path == path)
+        if let Some(file) = self.files.iter().find(|file| file.path == path) {
+            return Some(file);
+        }
+
+        let resolved = fs::canonicalize(path).ok()?;
+        self.files.iter().find(|file| file.path == resolved)
     }
 
     pub fn is_safe_write_target(&self, path: &Path) -> bool {
@@ -97,9 +119,12 @@ impl ConfigState {
 }
 
 fn collect_nix_files(
+    flake_root: &Path,
     directory: &Path,
     depth: usize,
     paths: &mut Vec<PathBuf>,
+    visited_directories: &mut HashSet<PathBuf>,
+    seen_files: &mut HashSet<PathBuf>,
 ) -> Result<(), String> {
     if depth > MAX_DEPTH {
         return Ok(());
@@ -120,13 +145,104 @@ fn collect_nix_files(
             .map_err(|e| format!("failed to inspect {}: {}", path.display(), e))?;
 
         if metadata.file_type().is_symlink() {
+            let is_nix_file = path.extension().and_then(|ext| ext.to_str()) == Some("nix");
+            if !is_nix_file {
+                // Non-Nix file symlinks are irrelevant to the module graph.
+                // Directory symlinks are followed only when their targets stay
+                // inside the flake, and canonical tracking prevents cycles.
+                let Ok(target_metadata) = fs::metadata(&path) else {
+                    continue;
+                };
+                if !target_metadata.is_dir() {
+                    continue;
+                }
+            }
+
+            // Follow Nix file and directory symlinks only after resolving their
+            // target and proving it remains inside this flake. Canonical file
+            // paths avoid discovering the same module through multiple aliases.
+            let target = fs::canonicalize(&path).map_err(|error| {
+                format!(
+                    "refusing to follow symbolic link {}: target is broken or cyclic: {}",
+                    path.display(),
+                    error
+                )
+            })?;
+            if !target.starts_with(flake_root) {
+                if !is_nix_file {
+                    // External directory symlinks such as result/ or .direnv/
+                    // are unrelated to the flake's Nix module graph.
+                    continue;
+                }
+                return Err(format!(
+                    "refusing to follow symbolic link {}: target {} is outside flake root {}",
+                    path.display(),
+                    target.display(),
+                    flake_root.display()
+                ));
+            }
+
+            let target_metadata = fs::metadata(&target).map_err(|e| {
+                format!(
+                    "failed to inspect symlink target {}: {}",
+                    target.display(),
+                    e
+                )
+            })?;
+            if target_metadata.is_dir() {
+                if is_nix_file {
+                    return Err(format!(
+                        "refusing to inspect Nix symlink {}: target {} is a directory, not a file",
+                        path.display(),
+                        target.display()
+                    ));
+                }
+                if visited_directories.insert(target.clone()) {
+                    collect_nix_files(
+                        flake_root,
+                        &target,
+                        depth + 1,
+                        paths,
+                        visited_directories,
+                        seen_files,
+                    )?;
+                }
+            } else if target_metadata.is_file() && is_nix_file && seen_files.insert(target.clone())
+            {
+                paths.push(target);
+            }
             continue;
         }
 
         if metadata.file_type().is_dir() {
-            collect_nix_files(&path, depth + 1, paths)?;
-        } else if path.extension().and_then(|ext| ext.to_str()) == Some("nix") {
-            paths.push(path);
+            let resolved_directory = fs::canonicalize(&path)
+                .map_err(|e| format!("failed to resolve directory {}: {}", path.display(), e))?;
+            if visited_directories.insert(resolved_directory.clone()) {
+                collect_nix_files(
+                    flake_root,
+                    &resolved_directory,
+                    depth + 1,
+                    paths,
+                    visited_directories,
+                    seen_files,
+                )?;
+            }
+        } else if metadata.file_type().is_file()
+            && path.extension().and_then(|ext| ext.to_str()) == Some("nix")
+        {
+            let resolved_file = fs::canonicalize(&path)
+                .map_err(|e| format!("failed to resolve Nix file {}: {}", path.display(), e))?;
+            if !resolved_file.starts_with(flake_root) {
+                return Err(format!(
+                    "refusing to inspect Nix file {}: resolved path {} is outside flake root {}",
+                    path.display(),
+                    resolved_file.display(),
+                    flake_root.display()
+                ));
+            }
+            if seen_files.insert(resolved_file.clone()) {
+                paths.push(resolved_file);
+            }
         }
     }
 
@@ -344,20 +460,20 @@ fn resolve_import_path(base: &Path, relative: &str) -> Option<PathBuf> {
     let path = normalize_relative_path(base, relative);
 
     if path.is_file() {
-        return Some(path);
+        return Some(fs::canonicalize(&path).unwrap_or(path));
     }
 
     if path.extension().is_none() {
         let nix_path = path.with_extension("nix");
         if nix_path.is_file() {
-            return Some(nix_path);
+            return Some(fs::canonicalize(&nix_path).unwrap_or(nix_path));
         }
     }
 
     if path.is_dir() {
         let default_path = path.join("default.nix");
         if default_path.is_file() {
-            return Some(default_path);
+            return Some(fs::canonicalize(&default_path).unwrap_or(default_path));
         }
     }
 
@@ -575,6 +691,179 @@ environment.systemPackages = lib.mkAfter [
                 PathBuf::from("/tmp/modules/desktop.nix")
             ]
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn discovers_in_flake_symlinked_nix_module_once_by_canonical_target() {
+        use std::os::unix::fs::symlink;
+
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "nxc-symlink-discovery-{}-{}",
+            std::process::id(),
+            unique
+        ));
+        fs::create_dir_all(root.join("modules")).unwrap();
+        let root = fs::canonicalize(root).unwrap();
+        let target = root.join("modules/packages.nix");
+        let link = root.join("linked-packages.nix");
+        let configuration = root.join("configuration.nix");
+        fs::write(
+            &target,
+            "{ ... }: { environment.systemPackages = [ pkgs.git ]; }\n",
+        )
+        .unwrap();
+        fs::write(&configuration, "{ imports = [ ./linked-packages.nix ]; }\n").unwrap();
+        symlink(&target, &link).unwrap();
+
+        let state = ConfigState::discover(&root).unwrap();
+        assert_eq!(
+            state
+                .files
+                .iter()
+                .filter(|file| file.path == target)
+                .count(),
+            1
+        );
+        assert!(
+            state
+                .package_declarations("git")
+                .contains(&target.as_path())
+        );
+        assert_eq!(state.package_write_targets(), vec![target.as_path()]);
+        assert!(
+            state
+                .file(&configuration)
+                .unwrap()
+                .imports
+                .contains(&target)
+        );
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_nix_symlink_target_outside_flake_root() {
+        use std::os::unix::fs::symlink;
+
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let parent = std::env::temp_dir().join(format!(
+            "nxc-symlink-outside-{}-{}",
+            std::process::id(),
+            unique
+        ));
+        let root = parent.join("flake");
+        let outside = parent.join("shared.nix");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(&outside, "{ environment.systemPackages = [ pkgs.git ]; }\n").unwrap();
+        symlink(&outside, root.join("linked.nix")).unwrap();
+
+        let error = ConfigState::discover(&root).unwrap_err();
+        assert!(error.contains("outside flake root"));
+        assert!(error.contains("linked.nix"));
+
+        let _ = fs::remove_dir_all(parent);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn skips_directory_symlink_targets_outside_flake_root() {
+        use std::os::unix::fs::symlink;
+
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let parent = std::env::temp_dir().join(format!(
+            "nxc-external-directory-symlink-{}-{}",
+            std::process::id(),
+            unique
+        ));
+        let root = parent.join("flake");
+        let external = parent.join("result");
+        fs::create_dir_all(&root).unwrap();
+        fs::create_dir_all(&external).unwrap();
+        fs::write(
+            external.join("module.nix"),
+            "{ environment.systemPackages = [ pkgs.git ]; }\n",
+        )
+        .unwrap();
+        symlink(&external, root.join("result")).unwrap();
+
+        let state = ConfigState::discover(&root).unwrap();
+
+        assert!(state.files.is_empty());
+        let _ = fs::remove_dir_all(parent);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_cyclic_nix_symlink_with_explicit_error() {
+        use std::os::unix::fs::symlink;
+
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "nxc-symlink-loop-{}-{}",
+            std::process::id(),
+            unique
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let link = root.join("loop.nix");
+        symlink(&link, &link).unwrap();
+
+        let error = ConfigState::discover(&root).unwrap_err();
+        assert!(error.contains("broken or cyclic"));
+        assert!(error.contains("loop.nix"));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn follows_in_flake_symlinked_directory_without_revisiting_cycles() {
+        use std::os::unix::fs::symlink;
+
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "nxc-symlink-directory-{}-{}",
+            std::process::id(),
+            unique
+        ));
+        fs::create_dir_all(root.join("real")).unwrap();
+        let root = fs::canonicalize(root).unwrap();
+        fs::write(
+            root.join("real/module.nix"),
+            "{ environment.systemPackages = [ pkgs.git ]; }\n",
+        )
+        .unwrap();
+        symlink(root.join("real"), root.join("alias")).unwrap();
+        symlink(&root, root.join("real/back-to-root")).unwrap();
+
+        let state = ConfigState::discover(&root).unwrap();
+        assert_eq!(
+            state
+                .files
+                .iter()
+                .filter(|file| file.path == root.join("real/module.nix"))
+                .count(),
+            1
+        );
+
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]

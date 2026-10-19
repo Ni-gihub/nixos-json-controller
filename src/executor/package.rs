@@ -69,9 +69,14 @@ pub fn execute_with_change(plan: ExecutionPlan) -> Result<PackageChange, Executo
 
             match install_package_strategy(&config, &system, &plan.target.name) {
                 PackageInstallStrategy::ExistingFile { path } => {
-                    let backup = FileBackup::capture(&path).map_err(ExecutorError::NixosError)?;
+                    let backup = FileBackup::capture(context.flake_root(), &path)
+                        .map_err(ExecutorError::NixosError)?;
 
-                    if let Err(error) = nixos::writer::install_package(&path, &plan.target.name) {
+                    if let Err(error) = nixos::writer::install_package(
+                        context.flake_root(),
+                        &path,
+                        &plan.target.name,
+                    ) {
                         return install_package_in_dedicated_module(
                             context.flake_root(),
                             &config,
@@ -114,6 +119,7 @@ pub fn execute_with_change(plan: ExecutionPlan) -> Result<PackageChange, Executo
 
             if !paths.is_empty() {
                 let backups = nixos::dedicated::apply_file_changes(
+                    context.flake_root(),
                     &paths,
                     |path| {
                         if config.is_safe_write_target(path) {
@@ -126,7 +132,7 @@ pub fn execute_with_change(plan: ExecutionPlan) -> Result<PackageChange, Executo
                             ))
                         }
                     },
-                    |path| nixos::writer::remove_package(path, &plan.target.name),
+                    |path| nixos::writer::remove_package(context.flake_root(), path, &plan.target.name),
                 )
                 .map_err(ExecutorError::NixosError)?;
 
@@ -138,6 +144,7 @@ pub fn execute_with_change(plan: ExecutionPlan) -> Result<PackageChange, Executo
                 match remove_package_strategy(&config, &system, &plan.target.name) {
                     PackageRemoveStrategy::Declared { paths } => {
                         let backups = nixos::dedicated::apply_file_changes(
+                            context.flake_root(),
                             &paths,
                             |path| {
                                 if config.is_safe_write_target(path) {
@@ -150,7 +157,7 @@ pub fn execute_with_change(plan: ExecutionPlan) -> Result<PackageChange, Executo
                                     ))
                                 }
                             },
-                            |path| nixos::writer::remove_package(path, &plan.target.name),
+                            |path| nixos::writer::remove_package(context.flake_root(), path, &plan.target.name),
                         )
                         .map_err(ExecutorError::NixosError)?;
 

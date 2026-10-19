@@ -84,12 +84,12 @@ pub fn execute(plan: ExecutionPlan) -> Result<ServiceChange, ExecutorError> {
                     )));
                 }
 
-                return write_service_file(path, &plan.target.name, true);
+                return write_service_file(context.flake_root(), path, &plan.target.name, true);
             }
 
             match enable_service_strategy(&config, &system, &plan.target.name) {
                 ServiceEnableStrategy::ExistingFile { path } => {
-                    write_service_file(&path, &plan.target.name, true)
+                    write_service_file(context.flake_root(), &path, &plan.target.name, true)
                 }
                 ServiceEnableStrategy::AlreadyDeclared { .. }
                 | ServiceEnableStrategy::AlreadyEnabledInSystem => Ok(ServiceChange::default()),
@@ -137,13 +137,15 @@ pub fn execute(plan: ExecutionPlan) -> Result<ServiceChange, ExecutorError> {
                     )));
                 }
 
-                return write_service_file(path, &plan.target.name, false);
+                return write_service_file(context.flake_root(), path, &plan.target.name, false);
             }
 
             match disable_service_strategy(&config, &system, &plan.target.name) {
                 ServiceDisableStrategy::Declared { paths } => {
-                    let verification_option = service_option_for_paths(&paths, &plan.target.name)?;
+                    let verification_option =
+                        service_option_for_paths(context.flake_root(), &paths, &plan.target.name)?;
                     let backups = nixos::dedicated::apply_file_changes(
+                        context.flake_root(),
                         &paths,
                         |path| {
                             if config.is_safe_write_target(path) {
@@ -156,7 +158,7 @@ pub fn execute(plan: ExecutionPlan) -> Result<ServiceChange, ExecutorError> {
                                 ))
                             }
                         },
-                        |path| nixos::writer::disable_service(path, &plan.target.name),
+                        |path| nixos::writer::disable_service(context.flake_root(), path, &plan.target.name),
                     )
                     .map_err(ExecutorError::NixosError)?;
 
@@ -167,7 +169,7 @@ pub fn execute(plan: ExecutionPlan) -> Result<ServiceChange, ExecutorError> {
                     })
                 }
                 ServiceDisableStrategy::ExistingFile { path } => {
-                    write_service_file(&path, &plan.target.name, false)
+                    write_service_file(context.flake_root(), &path, &plan.target.name, false)
                 }
                 ServiceDisableStrategy::NotDeclared => Ok(ServiceChange::default()),
                 ServiceDisableStrategy::Ambiguous { candidates } => {
@@ -185,21 +187,25 @@ pub fn execute(plan: ExecutionPlan) -> Result<ServiceChange, ExecutorError> {
 
 /// Safely update one service declaration and retain its original file contents.
 fn write_service_file(
+    flake_root: &std::path::Path,
     path: &std::path::Path,
     service: &str,
     enabled: bool,
 ) -> Result<ServiceChange, ExecutorError> {
-    let content = std::fs::read_to_string(path).map_err(|error| {
-        ExecutorError::NixosError(format!("failed to read {}: {}", path.display(), error))
+    let target =
+        nixos::writer::resolve_write_target(flake_root, path).map_err(ExecutorError::NixosError)?;
+    let content = std::fs::read_to_string(&target).map_err(|error| {
+        ExecutorError::NixosError(format!("failed to read {}: {}", target.display(), error))
     })?;
     let verification_option = nixos::module::service_option_for_content(&content, service)
         .map_err(ExecutorError::NixosError)?;
-    let backup = nixos::dedicated::FileBackup::capture(path).map_err(ExecutorError::NixosError)?;
+    let backup = nixos::dedicated::FileBackup::capture(flake_root, path)
+        .map_err(ExecutorError::NixosError)?;
 
     let result = if enabled {
-        nixos::writer::enable_service(path, service)
+        nixos::writer::enable_service(flake_root, path, service)
     } else {
-        nixos::writer::disable_service(path, service)
+        nixos::writer::disable_service(flake_root, path, service)
     };
 
     if let Err(error) = result {
@@ -241,14 +247,17 @@ fn install_service_in_dedicated_module(
 }
 
 fn service_option_for_paths(
+    flake_root: &std::path::Path,
     paths: &[std::path::PathBuf],
     service: &str,
 ) -> Result<String, ExecutorError> {
     let mut selected: Option<String> = None;
 
     for path in paths {
-        let content = std::fs::read_to_string(path).map_err(|error| {
-            ExecutorError::NixosError(format!("failed to read {}: {}", path.display(), error))
+        let target = nixos::writer::resolve_write_target(flake_root, path)
+            .map_err(ExecutorError::NixosError)?;
+        let content = std::fs::read_to_string(&target).map_err(|error| {
+            ExecutorError::NixosError(format!("failed to read {}: {}", target.display(), error))
         })?;
         let option = nixos::module::service_option_for_content(&content, service)
             .map_err(ExecutorError::NixosError)?;

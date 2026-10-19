@@ -33,14 +33,25 @@ fn read(path: &Path) -> Result<String, String> {
 }
 
 pub(crate) fn write_atomic(path: &Path, content: &str) -> Result<(), String> {
-    let parent = path.parent().unwrap_or_else(|| Path::new("."));
-    let file_name = path
+    // Resolve the destination before creating and renaming the temporary file.
+    // Renaming over the lexical symlink path would replace the symlink itself;
+    // renaming over the canonical target updates its contents and preserves the
+    // link for both normal writes and rollback.
+    let destination = fs::canonicalize(path).map_err(|error| {
+        format!(
+            "failed to resolve write target {} (broken or cyclic symlink?): {}",
+            path.display(),
+            error
+        )
+    })?;
+    let parent = destination.parent().unwrap_or_else(|| Path::new("."));
+    let file_name = destination
         .file_name()
         .and_then(|name| name.to_str())
-        .ok_or_else(|| format!("invalid output path: {}", path.display()))?;
+        .ok_or_else(|| format!("invalid output path: {}", destination.display()))?;
 
-    let metadata =
-        fs::metadata(path).map_err(|e| format!("failed to inspect {}: {}", path.display(), e))?;
+    let metadata = fs::metadata(&destination)
+        .map_err(|e| format!("failed to inspect {}: {}", destination.display(), e))?;
 
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -70,9 +81,14 @@ pub(crate) fn write_atomic(path: &Path, content: &str) -> Result<(), String> {
         }
     }
 
-    if let Err(error) = fs::rename(&temporary, path) {
+    if let Err(error) = fs::rename(&temporary, &destination) {
         let _ = fs::remove_file(&temporary);
-        return Err(format!("failed to replace {}: {}", path.display(), error));
+        return Err(format!(
+            "failed to replace {} (resolved from {}): {}",
+            destination.display(),
+            path.display(),
+            error
+        ));
     }
 
     Ok(())
@@ -116,6 +132,32 @@ mod tests {
         let content = fs::read_to_string(&path).unwrap();
         assert!(!content.contains("\nfirefox\n"));
         assert!(content.contains("\ngit\n"));
+
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn atomically_updates_symlink_target_without_replacing_the_link() {
+        use std::os::unix::fs::{symlink, symlink_metadata};
+
+        let directory = std::env::temp_dir().join(format!(
+            "nxc-writer-symlink-{}-{}",
+            std::process::id(),
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()
+        ));
+        fs::create_dir_all(directory.join("real")).unwrap();
+
+        let target = directory.join("real/packages.nix");
+        let link = directory.join("packages.nix");
+        fs::write(&target, "environment.systemPackages = with pkgs; [\\n];\\n").unwrap();
+        symlink(&target, &link).unwrap();
+
+        install_package(&link, "firefox").unwrap();
+
+        assert!(symlink_metadata(&link).unwrap().file_type().is_symlink());
+        assert_eq!(fs::read_link(&link).unwrap(), target);
+        assert!(fs::read_to_string(&target).unwrap().contains("firefox"));
 
         let _ = fs::remove_dir_all(directory);
     }

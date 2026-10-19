@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use super::config::ConfigState;
-use super::module::find_matching_delimiter;
+use super::module::{find_matching_delimiter, nix_code_mask};
 use super::writer;
 
 pub const DEDICATED_PACKAGE_MODULE: &str = "nxc/packages.nix";
@@ -546,37 +546,654 @@ fn find_importing_file(
     for file in &config.files {
         let content = fs::read_to_string(&file.path)
             .map_err(|e| format!("failed to read {}: {}", file.path.display(), e))?;
-
         let Some(parent) = file.path.parent() else {
             continue;
         };
 
-        for import in &file.imports {
-            if fs::canonicalize(import).ok().as_ref() == Some(&module_path) {
-                return Ok(Some(file.path.clone()));
-            }
-
-            let candidate = parent.join(import);
-            if fs::canonicalize(candidate).ok().as_ref() == Some(&module_path) {
-                return Ok(Some(file.path.clone()));
-            }
-        }
-
-        if content.contains(&relative_import_path(&file.path, &module_path)?) {
+        // Only paths inside an active NixOS imports list establish an import.
+        // Do not trust a raw path occurrence or a path inferred from comments
+        // and strings by the lightweight discovery parser.
+        if attribute_list_references_module(&content, "imports", parent, &module_path) {
             return Ok(Some(file.path.clone()));
         }
     }
 
+    // Flakes may attach NixOS modules directly through nixosSystem's modules
+    // list rather than through a module-level imports list.
     let flake_file = flake_root.join("flake.nix");
     if flake_file.is_file() {
         let content = fs::read_to_string(&flake_file)
             .map_err(|e| format!("failed to read {}: {}", flake_file.display(), e))?;
-        if content.contains(&relative_import_path(&flake_file, &module_path)?) {
+        let parent = flake_file.parent().unwrap_or(flake_root);
+        if attribute_list_references_module(&content, "modules", parent, &module_path) {
             return Ok(Some(flake_file));
         }
     }
 
     Ok(None)
+}
+
+/// Find literal paths only in the relevant NixOS module lists.
+/// imports is read from the module body's attribute set; modules is read only
+/// from an argument set passed directly to nixosSystem.
+fn attribute_list_references_module(
+    content: &str,
+    attribute: &str,
+    base: &Path,
+    target: &Path,
+) -> bool {
+    let target = match fs::canonicalize(target) {
+        Ok(target) => target,
+        Err(_) => return false,
+    };
+
+    let list_ranges = match attribute {
+        "imports" => find_module_body_set_range(content)
+            .map(|(set_start, set_end)| {
+                find_attribute_list_ranges(content, attribute, set_start, set_end)
+            })
+            .unwrap_or_default(),
+        "modules" => find_nixos_system_modules_list_ranges(content),
+        _ => Vec::new(),
+    };
+    let code = nix_code_mask(content);
+
+    for (list_start, list_end) in list_ranges {
+        let mut cursor = list_start + 1;
+        let mut curly_depth = 0usize;
+        let mut paren_depth = 0usize;
+        let mut paren_stack = Vec::new();
+        let mut list_depth = 0usize;
+
+        while cursor < list_end {
+            if !code[cursor] {
+                cursor = next_char_boundary(content, cursor);
+                continue;
+            }
+
+            let bytes = content.as_bytes();
+            let is_relative_path = bytes[cursor] == b'.'
+                && (bytes.get(cursor + 1) == Some(&b'/')
+                    || (bytes.get(cursor + 1) == Some(&b'.')
+                        && bytes.get(cursor + 2) == Some(&b'/')));
+
+            if is_relative_path && is_path_token_boundary_before(content, cursor) {
+                let path_end = read_relative_path_token(content, &code, cursor, list_end);
+                if path_end > cursor {
+                    let is_plain_parenthesized_path = curly_depth == 0
+                        && list_depth == 0
+                        && paren_depth > 0
+                        && is_plain_parenthesized_path_literal(
+                            content,
+                            &code,
+                            cursor,
+                            path_end,
+                            list_start + 1,
+                            list_end,
+                            &paren_stack,
+                        );
+                    let expression_start = if is_plain_parenthesized_path {
+                        paren_stack.first().copied().unwrap_or(cursor)
+                    } else {
+                        cursor
+                    };
+                    if curly_depth == 0
+                        && list_depth == 0
+                        && !path_is_in_let_binding(content, &code, list_start, cursor, list_end)
+                        && (paren_depth == 0 || is_plain_parenthesized_path)
+                        && has_standalone_path_prefix(content, &code, list_start, expression_start)
+                        && has_standalone_path_suffix(content, &code, path_end, list_end)
+                    {
+                        if let Some(candidate) =
+                            resolve_static_import_path(base, &content[cursor..path_end])
+                        {
+                            if candidate == target {
+                                return true;
+                            }
+                        }
+                    }
+                    cursor = path_end;
+                    continue;
+                }
+            }
+
+            match bytes[cursor] {
+                b'{' => curly_depth += 1,
+                b'}' => curly_depth = curly_depth.saturating_sub(1),
+                b'(' => {
+                    paren_depth += 1;
+                    paren_stack.push(cursor);
+                }
+                b')' => {
+                    paren_depth = paren_depth.saturating_sub(1);
+                    paren_stack.pop();
+                }
+                b'[' => list_depth += 1,
+                b']' => list_depth = list_depth.saturating_sub(1),
+                _ => {}
+            }
+            cursor = next_char_boundary(content, cursor);
+        }
+    }
+
+    false
+}
+
+/// Find the trailing attribute set that represents a module expression.
+/// A lambda argument set such as { ... }: is not selected because the colon
+/// follows its closing brace.
+fn find_module_body_set_range(content: &str) -> Option<(usize, usize)> {
+    let code = nix_code_mask(content);
+    let bytes = content.as_bytes();
+
+    for open in 0..content.len() {
+        if !code[open] || bytes[open] != b'{' {
+            continue;
+        }
+
+        let Some(close) = find_matching_delimiter(content, open, '{', '}') else {
+            continue;
+        };
+        if skip_source_trivia(content, close + 1, content.len()) == content.len() {
+            return Some((open, close));
+        }
+    }
+
+    None
+}
+
+/// Find direct attribute assignments inside one Nix attribute set.
+/// Nested sets, lists, and parenthesized expressions are not searched.
+fn find_attribute_list_ranges(
+    content: &str,
+    attribute: &str,
+    set_start: usize,
+    set_end: usize,
+) -> Vec<(usize, usize)> {
+    let code = nix_code_mask(content);
+    let bytes = content.as_bytes();
+    let mut ranges = Vec::new();
+    let mut cursor = set_start + 1;
+    let mut statement_start = cursor;
+    let mut curly_depth = 0usize;
+    let mut list_depth = 0usize;
+    let mut paren_depth = 0usize;
+    let mut let_depth = 0usize;
+
+    while cursor < set_end {
+        if !code[cursor] {
+            cursor = next_char_boundary(content, cursor);
+            continue;
+        }
+
+        if curly_depth == 0
+            && list_depth == 0
+            && paren_depth == 0
+            && let_depth == 0
+            && content[cursor..].starts_with(attribute)
+        {
+            let end = cursor + attribute.len();
+            let before = content[..cursor].chars().next_back();
+            let after = content[end..].chars().next();
+            let token_boundary = !before.is_some_and(is_nix_attribute_char)
+                && before != Some('.')
+                && !after.is_some_and(is_nix_attribute_char)
+                && after != Some('.');
+            let at_attribute_boundary =
+                skip_source_trivia(content, statement_start, cursor) == cursor;
+
+            if token_boundary
+                && at_attribute_boundary
+                && code[cursor..end].iter().all(|active| *active)
+            {
+                let equals = skip_source_trivia(content, end, set_end);
+                if equals < set_end
+                    && bytes[equals] == b'='
+                    && code[equals]
+                    && !matches!(bytes.get(equals + 1), Some(b'=' | b'>'))
+                {
+                    let list_start = skip_source_trivia(content, equals + 1, set_end);
+                    if list_start < set_end && bytes[list_start] == b'[' && code[list_start] {
+                        if let Some(list_end) =
+                            find_matching_delimiter(content, list_start, '[', ']')
+                        {
+                            if list_end < set_end {
+                                ranges.push((list_start, list_end));
+                                cursor = list_end + 1;
+                                continue;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if active_keyword_at(content, &code, cursor, "let") {
+            let_depth += 1;
+        } else if active_keyword_at(content, &code, cursor, "in") && let_depth > 0 {
+            let_depth -= 1;
+        }
+
+        match bytes[cursor] {
+            b'{' => curly_depth += 1,
+            b'}' => curly_depth = curly_depth.saturating_sub(1),
+            b'[' => list_depth += 1,
+            b']' => list_depth = list_depth.saturating_sub(1),
+            b'(' => paren_depth += 1,
+            b')' => paren_depth = paren_depth.saturating_sub(1),
+            b';' if curly_depth == 0 && list_depth == 0 && paren_depth == 0 && let_depth == 0 => {
+                statement_start = cursor + 1;
+            }
+            _ => {}
+        }
+
+        cursor = next_char_boundary(content, cursor);
+    }
+
+    ranges
+}
+
+/// Find active nixosSystem calls and inspect only their direct argument sets.
+fn find_nixos_system_modules_list_ranges(content: &str) -> Vec<(usize, usize)> {
+    let code = nix_code_mask(content);
+    let bytes = content.as_bytes();
+    let token = "nixosSystem";
+    let mut ranges = Vec::new();
+    let mut search_from = 0usize;
+
+    while search_from < content.len() {
+        let Some(relative) = content[search_from..].find(token) else {
+            break;
+        };
+        let start = search_from + relative;
+        let end = start + token.len();
+        search_from = end;
+
+        if !code[start..end].iter().all(|active| *active) {
+            continue;
+        }
+        let before = content[..start].chars().next_back();
+        let after = content[end..].chars().next();
+        if before.is_some_and(is_nix_attribute_char) || after.is_some_and(is_nix_attribute_char) {
+            continue;
+        }
+
+        let args_start = skip_source_trivia(content, end, content.len());
+        if args_start >= content.len() || bytes[args_start] != b'{' || !code[args_start] {
+            continue;
+        }
+        let Some(args_end) = find_matching_delimiter(content, args_start, '{', '}') else {
+            continue;
+        };
+
+        ranges.extend(find_attribute_list_ranges(
+            content, "modules", args_start, args_end,
+        ));
+        search_from = args_end + 1;
+    }
+
+    ranges
+}
+
+/// Return true when the path occurs in a `let` binding, rather than in the
+/// expression following the matching `in`. Nested let expressions are tracked
+/// so their bindings do not make the outer expression look complete too early.
+fn path_is_in_let_binding(
+    content: &str,
+    code: &[bool],
+    list_start: usize,
+    path_start: usize,
+    list_end: usize,
+) -> bool {
+    let mut cursor = list_start + 1;
+    let mut let_depth = 0usize;
+
+    while cursor < path_start.min(list_end) {
+        if !code[cursor] {
+            cursor = next_char_boundary(content, cursor);
+            continue;
+        }
+
+        if active_keyword_at(content, code, cursor, "let") {
+            let_depth += 1;
+            cursor += "let".len();
+            continue;
+        }
+
+        if let_depth > 0 && active_keyword_at(content, code, cursor, "in") {
+            let_depth -= 1;
+            cursor += "in".len();
+            continue;
+        }
+
+        cursor = next_char_boundary(content, cursor);
+    }
+
+    let_depth > 0
+}
+
+/// A path can stand for an import only when it is itself a list element (or
+/// a path literal wrapped by parentheses). Reject paths used as operands or
+/// arguments to expressions such as `if`, `let`, comparisons, and function calls.
+fn has_standalone_path_prefix(
+    content: &str,
+    code: &[bool],
+    list_start: usize,
+    expression_start: usize,
+) -> bool {
+    let lower_bound = list_start + 1;
+    let bytes = content.as_bytes();
+    let mut cursor = expression_start;
+
+    // Skip whitespace and comments between the preceding element and this one.
+    loop {
+        while cursor > lower_bound && bytes[cursor - 1].is_ascii_whitespace() {
+            cursor -= 1;
+        }
+        if cursor <= lower_bound {
+            return true;
+        }
+
+        if !code[cursor - 1] {
+            cursor -= 1;
+            continue;
+        }
+        break;
+    }
+
+    let previous = bytes[cursor - 1];
+    if matches!(previous, b']' | b')' | b'}' | b'"') {
+        return true;
+    }
+
+    // A prior static path may be followed by another list item. Identifiers and
+    // operators instead indicate that this path is part of a larger expression.
+    let mut token_start = cursor;
+    while token_start > lower_bound {
+        let ch = content[..token_start].chars().next_back().unwrap();
+        if ch.is_whitespace()
+            || matches!(
+                ch,
+                '[' | ']'
+                    | '('
+                    | ')'
+                    | '{'
+                    | '}'
+                    | ';'
+                    | ','
+                    | '#'
+                    | '+'
+                    | '='
+                    | '?'
+                    | '!'
+                    | '<'
+                    | '>'
+                    | '&'
+                    | '|'
+            )
+        {
+            break;
+        }
+        token_start -= ch.len_utf8();
+    }
+    let previous_token = &content[token_start..cursor];
+    previous_token == "in" || previous_token.starts_with("./") || previous_token.starts_with("../")
+}
+
+/// Reject a path immediately followed by an operator or a control keyword,
+/// since the path then participates in a larger expression rather than standing
+/// alone as a list element.
+fn has_standalone_path_suffix(
+    content: &str,
+    code: &[bool],
+    path_end: usize,
+    list_end: usize,
+) -> bool {
+    let suffix = skip_source_trivia(content, path_end, list_end);
+    if suffix >= list_end {
+        return true;
+    }
+
+    let bytes = content.as_bytes();
+    if matches!(
+        bytes[suffix],
+        b'+' | b'-' | b'*' | b'/' | b'?' | b'!' | b'<' | b'>' | b'=' | b'&' | b'|' | b':'
+    ) {
+        return false;
+    }
+
+    !["then", "else", "in", "or", "and"]
+        .iter()
+        .any(|keyword| active_keyword_at(content, code, suffix, keyword))
+}
+
+fn active_keyword_at(content: &str, code: &[bool], start: usize, keyword: &str) -> bool {
+    let end = start.saturating_add(keyword.len());
+    if end > content.len()
+        || !content[start..].starts_with(keyword)
+        || !code[start..end].iter().all(|active| *active)
+    {
+        return false;
+    }
+
+    let before = content[..start].chars().next_back();
+    let after = content[end..].chars().next();
+    !before.is_some_and(is_nix_attribute_char)
+        && before != Some('.')
+        && !after.is_some_and(is_nix_attribute_char)
+        && after != Some('.')
+}
+
+fn skip_source_trivia(content: &str, mut cursor: usize, limit: usize) -> usize {
+    let bytes = content.as_bytes();
+
+    loop {
+        while cursor < limit && bytes[cursor].is_ascii_whitespace() {
+            cursor += 1;
+        }
+
+        if cursor >= limit {
+            return cursor;
+        }
+
+        if bytes[cursor] == b'#' {
+            while cursor < limit && bytes[cursor] != b'\n' {
+                cursor += 1;
+            }
+            continue;
+        }
+
+        if cursor + 1 < limit && bytes[cursor] == b'/' && bytes[cursor + 1] == b'*' {
+            cursor += 2;
+            let mut depth = 1usize;
+            while cursor < limit && depth > 0 {
+                if cursor + 1 < limit && bytes[cursor] == b'/' && bytes[cursor + 1] == b'*' {
+                    depth += 1;
+                    cursor += 2;
+                } else if cursor + 1 < limit && bytes[cursor] == b'*' && bytes[cursor + 1] == b'/' {
+                    depth -= 1;
+                    cursor += 2;
+                } else {
+                    cursor += 1;
+                }
+            }
+            continue;
+        }
+
+        return cursor;
+    }
+}
+
+fn is_nix_attribute_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '\'')
+}
+
+fn is_path_token_boundary_before(content: &str, start: usize) -> bool {
+    !content[..start]
+        .chars()
+        .next_back()
+        .is_some_and(|ch| is_nix_attribute_char(ch) || matches!(ch, '.' | '/'))
+}
+
+fn read_relative_path_token(content: &str, code: &[bool], start: usize, limit: usize) -> usize {
+    let mut cursor = start;
+
+    while cursor < limit && code[cursor] {
+        let Some(ch) = content[cursor..].chars().next() else {
+            break;
+        };
+        if ch.is_whitespace()
+            || matches!(
+                ch,
+                '[' | ']' | '(' | ')' | '{' | '}' | ';' | ',' | '#' | '+'
+            )
+        {
+            break;
+        }
+        cursor += ch.len_utf8();
+    }
+
+    cursor
+}
+
+/// Return true only when a static path literal is surrounded by parentheses
+/// that contain nothing but that path. Reject surrounding conditional/operator
+/// expressions so their branch paths are not mistaken for unconditional imports.
+fn is_plain_parenthesized_path_literal(
+    content: &str,
+    code: &[bool],
+    path_start: usize,
+    path_end: usize,
+    list_start: usize,
+    list_end: usize,
+    paren_stack: &[usize],
+) -> bool {
+    if paren_stack.is_empty() {
+        return false;
+    }
+
+    let bytes = content.as_bytes();
+    let mut inner_start = path_start;
+    for open in paren_stack.iter().rev() {
+        if *open < list_start
+            || *open >= inner_start
+            || bytes[*open] != b'('
+            || !code[*open]
+            || skip_source_trivia(content, open + 1, inner_start) != inner_start
+        {
+            return false;
+        }
+        inner_start = *open;
+    }
+
+    let mut suffix = path_end;
+    for _ in paren_stack {
+        suffix = skip_source_trivia(content, suffix, list_end);
+        if suffix >= list_end || bytes[suffix] != b')' || !code[suffix] {
+            return false;
+        }
+        suffix += 1;
+    }
+
+    // A path after a control keyword or operator belongs to a larger expression.
+    let mut prefix_end = inner_start;
+    while prefix_end > list_start && bytes[prefix_end - 1].is_ascii_whitespace() {
+        prefix_end -= 1;
+    }
+    let mut token_start = prefix_end;
+    while token_start > list_start {
+        let ch = content[..token_start].chars().next_back().unwrap();
+        if !is_nix_attribute_char(ch) {
+            break;
+        }
+        token_start -= ch.len_utf8();
+    }
+    let previous_token = &content[token_start..prefix_end];
+    if matches!(
+        previous_token,
+        "if" | "then" | "else" | "let" | "in" | "with" | "assert"
+    ) {
+        return false;
+    }
+    if prefix_end > list_start
+        && matches!(
+            bytes[prefix_end - 1],
+            b'&' | b'|'
+                | b'='
+                | b'!'
+                | b'<'
+                | b'>'
+                | b'?'
+                | b'+'
+                | b'-'
+                | b'*'
+                | b'/'
+                | b':'
+                | b';'
+        )
+    {
+        return false;
+    }
+
+    let suffix = skip_source_trivia(content, suffix, list_end);
+    if suffix < list_end {
+        if matches!(
+            bytes[suffix],
+            b'&' | b'|' | b'=' | b'!' | b'<' | b'>' | b'?' | b'+' | b'-' | b'*' | b'/' | b':'
+        ) {
+            return false;
+        }
+        let mut token_end = suffix;
+        while token_end < list_end {
+            let ch = content[token_end..].chars().next().unwrap();
+            if !is_nix_attribute_char(ch) {
+                break;
+            }
+            token_end += ch.len_utf8();
+        }
+        if matches!(&content[suffix..token_end], "then" | "else" | "in" | "or") {
+            return false;
+        }
+    }
+
+    true
+}
+
+fn next_char_boundary(content: &str, cursor: usize) -> usize {
+    cursor
+        + content[cursor..]
+            .chars()
+            .next()
+            .map(char::len_utf8)
+            .unwrap_or(1)
+}
+
+fn resolve_static_import_path(base: &Path, literal: &str) -> Option<PathBuf> {
+    let path = base.join(literal);
+
+    // Nix resolves a directory import to its default.nix even when a sibling
+    // file with the same stem (for example, packages.nix) also exists.
+    if path.is_dir() {
+        let default_path = path.join("default.nix");
+        return if default_path.is_file() {
+            fs::canonicalize(default_path).ok()
+        } else {
+            None
+        };
+    }
+
+    if path.is_file() {
+        return fs::canonicalize(path).ok();
+    }
+
+    if path.extension().is_none() {
+        let nix_path = path.with_extension("nix");
+        if nix_path.is_file() {
+            return fs::canonicalize(nix_path).ok();
+        }
+    }
+
+    fs::canonicalize(path).ok()
 }
 
 /// Select the NixOS module that should connect a newly-created NXC module.
@@ -673,118 +1290,15 @@ fn root_score(path: &Path) -> u8 {
 }
 
 fn find_import_list(content: &str) -> Option<usize> {
-    let bytes = content.as_bytes();
-    let mut index = 0usize;
-    let mut in_comment = false;
-    let mut in_string = false;
-    let mut in_indented_string = false;
-    let mut escaped = false;
-    let mut found = None;
+    let (set_start, set_end) = find_module_body_set_range(content)?;
+    let ranges = find_attribute_list_ranges(content, "imports", set_start, set_end);
 
-    while index < bytes.len() {
-        if in_comment {
-            if bytes[index] == b'\n' {
-                in_comment = false;
-            }
-            index += 1;
-            continue;
-        }
-
-        if in_indented_string {
-            if bytes[index..].starts_with(b"''") {
-                in_indented_string = false;
-                index += 2;
-            } else {
-                index += 1;
-            }
-            continue;
-        }
-
-        if in_string {
-            if escaped {
-                escaped = false;
-            } else if bytes[index] == b'\\' {
-                escaped = true;
-            } else if bytes[index] == b'"' {
-                in_string = false;
-            }
-            index += 1;
-            continue;
-        }
-
-        if bytes[index] == b'#' {
-            in_comment = true;
-            index += 1;
-            continue;
-        }
-
-        if bytes[index] == b'"' {
-            in_string = true;
-            index += 1;
-            continue;
-        }
-
-        if bytes[index..].starts_with(b"''") {
-            in_indented_string = true;
-            index += 2;
-            continue;
-        }
-
-        if !bytes[index..].starts_with(b"imports") {
-            index += 1;
-            continue;
-        }
-
-        let before_ok = index == 0
-            || !matches!(
-                bytes[index - 1],
-                b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_' | b'-'
-            );
-        let after_name = index + "imports".len();
-        let after_ok = after_name == bytes.len()
-            || !matches!(
-                bytes[after_name],
-                b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_' | b'-'
-            );
-
-        if !before_ok || !after_ok {
-            index += "imports".len();
-            continue;
-        }
-
-        let mut cursor = after_name;
-        while cursor < bytes.len() && bytes[cursor].is_ascii_whitespace() {
-            cursor += 1;
-        }
-
-        if cursor >= bytes.len() || bytes[cursor] != b'=' {
-            index += "imports".len();
-            continue;
-        }
-
-        cursor += 1;
-        while cursor < bytes.len() && bytes[cursor].is_ascii_whitespace() {
-            cursor += 1;
-        }
-
-        if cursor >= bytes.len() || bytes[cursor] != b'[' {
-            index += "imports".len();
-            continue;
-        }
-
-        if find_matching_delimiter(content, cursor, '[', ']').is_none() {
-            index += "imports".len();
-            continue;
-        }
-
-        if found.replace(cursor).is_some() {
-            return None;
-        }
-
-        index = cursor + 1;
+    // Import detection and insertion must use the same module-body scope.
+    // Refuse to edit when there is no unique direct imports list.
+    match ranges.as_slice() {
+        [(list_start, _)] => Some(*list_start),
+        _ => None,
     }
-
-    found
 }
 
 fn add_import_to_content(content: &str, import_path: &str) -> Result<String, String> {
@@ -1209,6 +1723,322 @@ mod tests {
 "#;
 
         assert!(find_import_list(content).is_none());
+    }
+
+    #[test]
+    fn ensure_import_does_not_duplicate_an_active_import_path() {
+        let directory = test_directory("nxc-import-existing-path");
+        fs::create_dir_all(directory.join("nxc")).unwrap();
+        let config_path = directory.join("configuration.nix");
+        let module_path = dedicated_package_path(&directory);
+        fs::write(&module_path, "{ ... }: { }\n").unwrap();
+        let original = "{ imports = [ ./nxc/packages.nix ]; }\n";
+        fs::write(&config_path, original).unwrap();
+
+        let config = ConfigState {
+            files: vec![config_file(config_path.to_str().unwrap(), &[])],
+        };
+        let mut backups = Vec::new();
+        ensure_import(&directory, &config, &module_path, &mut backups).unwrap();
+
+        assert_eq!(fs::read_to_string(&config_path).unwrap(), original);
+        assert!(backups.is_empty());
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn ensure_import_adds_path_when_it_appears_only_in_comment_or_string() {
+        let directory = test_directory("nxc-import-comment-string");
+        fs::create_dir_all(directory.join("nxc")).unwrap();
+        let config_path = directory.join("configuration.nix");
+        let module_path = dedicated_package_path(&directory);
+        fs::write(&module_path, "{ ... }: { }\n").unwrap();
+        let original = r#"{ 
+  imports = [ ];
+  # old import: ./nxc/packages.nix
+  description = "old path ./nxc/packages.nix";
+}
+"#;
+        fs::write(&config_path, original).unwrap();
+
+        let config = ConfigState {
+            files: vec![config_file(config_path.to_str().unwrap(), &[])],
+        };
+        let mut backups = Vec::new();
+        ensure_import(&directory, &config, &module_path, &mut backups).unwrap();
+
+        let updated = fs::read_to_string(&config_path).unwrap();
+        assert_ne!(updated, original);
+        assert!(updated.contains("description = \"old path ./nxc/packages.nix\";"));
+        assert!(updated.contains("# old import: ./nxc/packages.nix"));
+        assert!(attribute_list_references_module(
+            &updated,
+            "imports",
+            &directory,
+            &module_path
+        ));
+        assert_eq!(backups.len(), 1);
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn recognizes_extensionless_import_paths() {
+        let directory = test_directory("nxc-import-extensionless");
+        fs::create_dir_all(directory.join("nxc")).unwrap();
+        let config_path = directory.join("configuration.nix");
+        let module_path = dedicated_package_path(&directory);
+        fs::write(&module_path, "{ ... }: { }\n").unwrap();
+        fs::write(&config_path, "{ imports = [ ./nxc/packages ]; }\n").unwrap();
+
+        let config = ConfigState {
+            files: vec![config_file(config_path.to_str().unwrap(), &[])],
+        };
+
+        assert_eq!(
+            find_importing_file(&directory, &config, &module_path).unwrap(),
+            Some(config_path.clone())
+        );
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn recognizes_parenthesized_static_import_path_but_ignores_conditional_branch() {
+        let directory = test_directory("nxc-import-parenthesized-path");
+        fs::create_dir_all(directory.join("nxc")).unwrap();
+        let config_path = directory.join("configuration.nix");
+        let module_path = dedicated_package_path(&directory);
+        fs::write(&module_path, "{ ... }: { }\n").unwrap();
+
+        fs::write(&config_path, "{ imports = [ (./nxc/packages.nix) ]; }\n").unwrap();
+        let config = ConfigState {
+            files: vec![config_file(config_path.to_str().unwrap(), &[])],
+        };
+        assert_eq!(
+            find_importing_file(&directory, &config, &module_path).unwrap(),
+            Some(config_path.clone())
+        );
+
+        // Do not treat a path in a conditional expression as an unconditional import.
+        fs::write(
+            &config_path,
+            "{ imports = [ (if condition then (./nxc/packages.nix) else ./other.nix) ]; }\n",
+        )
+        .unwrap();
+        assert_eq!(
+            find_importing_file(&directory, &config, &module_path).unwrap(),
+            None
+        );
+
+        // Unparenthesized if expressions are conditional too: neither a path in
+        // the predicate nor a path in either branch proves this module is active.
+        fs::write(
+            &config_path,
+            "{ imports = [ if builtins.pathExists ./condition.nix then ./nxc/packages.nix else ./other.nix ]; }\n",
+        )
+        .unwrap();
+        assert_eq!(
+            find_importing_file(&directory, &config, &module_path).unwrap(),
+            None
+        );
+
+        // A later independent list entry must still be detected after an if expression.
+        fs::write(
+            &config_path,
+            "{ imports = [ if builtins.pathExists ./condition.nix then ./other.nix else ./alternate.nix ./nxc/packages.nix ]; }\n",
+        )
+        .unwrap();
+        assert_eq!(
+            find_importing_file(&directory, &config, &module_path).unwrap(),
+            Some(config_path.clone())
+        );
+
+        // A path used only in a let binding is not the evaluated import expression.
+        fs::write(
+            &config_path,
+            "{ imports = [ let unused = ./nxc/packages.nix; in ./other.nix ]; }\n",
+        )
+        .unwrap();
+        assert_eq!(
+            find_importing_file(&directory, &config, &module_path).unwrap(),
+            None
+        );
+
+        // The literal after `in` is the value of the let expression and is an import.
+        fs::write(
+            &config_path,
+            "{ imports = [ let unused = ./condition.nix; in ./nxc/packages.nix ]; }\n",
+        )
+        .unwrap();
+        assert_eq!(
+            find_importing_file(&directory, &config, &module_path).unwrap(),
+            Some(config_path.clone())
+        );
+
+        // A path used as an operand in a larger expression is not itself imported.
+        fs::write(
+            &config_path,
+            "{ imports = [ ./nxc/packages.nix + \"/suffix\" ]; }\n",
+        )
+        .unwrap();
+        assert_eq!(
+            find_importing_file(&directory, &config, &module_path).unwrap(),
+            None
+        );
+
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn prefers_directory_default_nix_over_same_stem_nix_file() {
+        let directory = test_directory("nxc-import-directory-priority");
+        fs::create_dir_all(directory.join("nxc/packages")).unwrap();
+        let config_path = directory.join("configuration.nix");
+        let module_path = directory.join("nxc/packages/default.nix");
+
+        // Both paths can exist, but ./nxc/packages denotes the directory import.
+        fs::write(&module_path, "{ ... }: { }\n").unwrap();
+        fs::write(
+            directory.join("nxc/packages.nix"),
+            "{ ... }: { description = \"sibling file\"; }\n",
+        )
+        .unwrap();
+        fs::write(&config_path, "{ imports = [ ./nxc/packages ]; }\n").unwrap();
+
+        let config = ConfigState {
+            files: vec![config_file(config_path.to_str().unwrap(), &[])],
+        };
+
+        assert_eq!(
+            find_importing_file(&directory, &config, &module_path).unwrap(),
+            Some(config_path.clone())
+        );
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn does_not_fall_back_to_sibling_nix_when_directory_lacks_default_nix() {
+        let directory = test_directory("nxc-import-directory-without-default");
+        fs::create_dir_all(directory.join("nxc/packages")).unwrap();
+        let config_path = directory.join("configuration.nix");
+        let module_path = dedicated_package_path(&directory);
+
+        fs::write(
+            &module_path,
+            "{ ... }: { description = \"sibling file\"; }\n",
+        )
+        .unwrap();
+        fs::write(&config_path, "{ imports = [ ./nxc/packages ]; }\n").unwrap();
+
+        let config = ConfigState {
+            files: vec![config_file(config_path.to_str().unwrap(), &[])],
+        };
+
+        assert_eq!(
+            find_importing_file(&directory, &config, &module_path).unwrap(),
+            None
+        );
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn ignores_nested_imports_attribute_sets() {
+        let directory = test_directory("nxc-import-nested-attribute-set");
+        fs::create_dir_all(directory.join("nxc")).unwrap();
+        let config_path = directory.join("configuration.nix");
+        let module_path = dedicated_package_path(&directory);
+        fs::write(&module_path, "{ ... }: { }\n").unwrap();
+        fs::write(
+            &config_path,
+            r#"{
+  example = {
+    imports = [ ./nxc/packages.nix ];
+  };
+}
+"#,
+        )
+        .unwrap();
+
+        let config = ConfigState {
+            files: vec![config_file(config_path.to_str().unwrap(), &[])],
+        };
+        assert_eq!(
+            find_importing_file(&directory, &config, &module_path).unwrap(),
+            None
+        );
+
+        // An import list nested inside an unrelated attribute set must not be
+        // used as the insertion target. Failure must leave the file untouched.
+        let original = fs::read_to_string(&config_path).unwrap();
+        let mut backups = Vec::new();
+        let error = ensure_import(&directory, &config, &module_path, &mut backups).unwrap_err();
+        assert!(error.contains("imports list not found"));
+        assert_eq!(fs::read_to_string(&config_path).unwrap(), original);
+        assert!(backups.is_empty());
+
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn recognizes_nixos_system_modules_but_ignores_unrelated_module_lists() {
+        let directory = test_directory("nxc-flake-modules-list");
+        fs::create_dir_all(directory.join("nxc")).unwrap();
+        let config_path = directory.join("configuration.nix");
+        let flake_path = directory.join("flake.nix");
+        let module_path = dedicated_package_path(&directory);
+        fs::write(&module_path, "{ ... }: { }\n").unwrap();
+        fs::write(&config_path, "{ imports = [ ]; }\n").unwrap();
+        let config = ConfigState {
+            files: vec![config_file(config_path.to_str().unwrap(), &[])],
+        };
+
+        fs::write(
+            &flake_path,
+            r#"{
+  # modules = [ ./nxc/packages.nix ];
+  description = "modules = [ ./nxc/packages.nix ]";
+}
+"#,
+        )
+        .unwrap();
+        assert_eq!(
+            find_importing_file(&directory, &config, &module_path).unwrap(),
+            None
+        );
+
+        // A modules list elsewhere in the flake is not a nixosSystem argument.
+        fs::write(
+            &flake_path,
+            r#"{
+  tooling = {
+    modules = [ ./nxc/packages.nix ];
+  };
+  nixosConfigurations.laptop = nixpkgs.lib.nixosSystem {
+    modules = [ ];
+  };
+}
+"#,
+        )
+        .unwrap();
+        assert_eq!(
+            find_importing_file(&directory, &config, &module_path).unwrap(),
+            None
+        );
+
+        fs::write(
+            &flake_path,
+            r#"{ outputs = { self, nixpkgs, ... }: {
+  nixosConfigurations.laptop = nixpkgs.lib.nixosSystem {
+    modules = [ ./nxc/packages.nix ];
+  };
+}; }
+"#,
+        )
+        .unwrap();
+        assert_eq!(
+            find_importing_file(&directory, &config, &module_path).unwrap(),
+            Some(flake_path.clone())
+        );
+        let _ = fs::remove_dir_all(directory);
     }
 
     fn config_file(path: &str, imports: &[&str]) -> ConfigFile {

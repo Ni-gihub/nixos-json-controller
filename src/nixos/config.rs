@@ -145,10 +145,22 @@ fn collect_nix_files(
             .map_err(|e| format!("failed to inspect {}: {}", path.display(), e))?;
 
         if metadata.file_type().is_symlink() {
-            // Follow symlinks only after resolving their target and proving it
-            // remains inside this flake. Canonical directory tracking prevents
-            // loops; canonical file paths avoid discovering the same target
-            // multiple times through aliases.
+            let is_nix_file = path.extension().and_then(|ext| ext.to_str()) == Some("nix");
+            if !is_nix_file {
+                // Non-Nix file symlinks are irrelevant to the module graph.
+                // Directory symlinks are followed only when their targets stay
+                // inside the flake, and canonical tracking prevents cycles.
+                let Ok(target_metadata) = fs::metadata(&path) else {
+                    continue;
+                };
+                if !target_metadata.is_dir() {
+                    continue;
+                }
+            }
+
+            // Follow Nix file and directory symlinks only after resolving their
+            // target and proving it remains inside this flake. Canonical file
+            // paths avoid discovering the same module through multiple aliases.
             let target = fs::canonicalize(&path).map_err(|error| {
                 format!(
                     "refusing to follow symbolic link {}: target is broken or cyclic: {}",
@@ -165,9 +177,21 @@ fn collect_nix_files(
                 ));
             }
 
-            let target_metadata = fs::metadata(&target)
-                .map_err(|e| format!("failed to inspect symlink target {}: {}", target.display(), e))?;
+            let target_metadata = fs::metadata(&target).map_err(|e| {
+                format!(
+                    "failed to inspect symlink target {}: {}",
+                    target.display(),
+                    e
+                )
+            })?;
             if target_metadata.is_dir() {
+                if is_nix_file {
+                    return Err(format!(
+                        "refusing to inspect Nix symlink {}: target {} is a directory, not a file",
+                        path.display(),
+                        target.display()
+                    ));
+                }
                 if visited_directories.insert(target.clone()) {
                     collect_nix_files(
                         flake_root,
@@ -178,9 +202,7 @@ fn collect_nix_files(
                         seen_files,
                     )?;
                 }
-            } else if target_metadata.is_file()
-                && path.extension().and_then(|ext| ext.to_str()) == Some("nix")
-                && seen_files.insert(target.clone())
+            } else if target_metadata.is_file() && is_nix_file && seen_files.insert(target.clone())
             {
                 paths.push(target);
             }
@@ -683,11 +705,13 @@ environment.systemPackages = lib.mkAfter [
         fs::create_dir_all(root.join("modules")).unwrap();
         let target = root.join("modules/packages.nix");
         let link = root.join("linked-packages.nix");
+        let configuration = root.join("configuration.nix");
         fs::write(
             &target,
             "{ ... }: { environment.systemPackages = [ pkgs.git ]; }\\n",
         )
         .unwrap();
+        fs::write(&configuration, "{ imports = [ ./linked-packages.nix ]; }\\n").unwrap();
         symlink(&target, &link).unwrap();
 
         let state = ConfigState::discover(&root).unwrap();
@@ -695,8 +719,13 @@ environment.systemPackages = lib.mkAfter [
             state.files.iter().filter(|file| file.path == target).count(),
             1
         );
-        assert!(state.package_declarations("git").contains(&root.join("modules/packages.nix").as_path()));
-        assert_eq!(state.package_write_targets(), vec![root.join("modules/packages.nix").as_path()]);
+        assert!(state.package_declarations("git").contains(&target.as_path()));
+        assert_eq!(state.package_write_targets(), vec![target.as_path()]);
+        assert!(state
+            .file(&configuration)
+            .unwrap()
+            .imports
+            .contains(&target));
 
         let _ = fs::remove_dir_all(root);
     }

@@ -4,46 +4,87 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::module;
 
-pub fn install_package(path: &Path, package: &str) -> Result<(), String> {
-    let content = read(path)?;
+pub fn install_package(flake_root: &Path, path: &Path, package: &str) -> Result<(), String> {
+    let content = read(flake_root, path)?;
     let updated = module::add_package_to_content(&content, package)?;
-    write_atomic(path, &updated)
+    write_atomic(flake_root, path, &updated)
 }
 
-pub fn remove_package(path: &Path, package: &str) -> Result<(), String> {
-    let content = read(path)?;
+pub fn remove_package(flake_root: &Path, path: &Path, package: &str) -> Result<(), String> {
+    let content = read(flake_root, path)?;
     let updated = module::remove_package_from_content(&content, package)?;
-    write_atomic(path, &updated)
+    write_atomic(flake_root, path, &updated)
 }
 
-pub fn enable_service(path: &Path, service: &str) -> Result<(), String> {
-    let content = read(path)?;
+pub fn enable_service(flake_root: &Path, path: &Path, service: &str) -> Result<(), String> {
+    let content = read(flake_root, path)?;
     let updated = module::add_service_to_content(&content, service, true)?;
-    write_atomic(path, &updated)
+    write_atomic(flake_root, path, &updated)
 }
 
-pub fn disable_service(path: &Path, service: &str) -> Result<(), String> {
-    let content = read(path)?;
+pub fn disable_service(flake_root: &Path, path: &Path, service: &str) -> Result<(), String> {
+    let content = read(flake_root, path)?;
     let updated = module::add_service_to_content(&content, service, false)?;
-    write_atomic(path, &updated)
+    write_atomic(flake_root, path, &updated)
 }
 
-fn read(path: &Path) -> Result<String, String> {
-    fs::read_to_string(path).map_err(|e| format!("failed to read {}: {}", path.display(), e))
+fn read(flake_root: &Path, path: &Path) -> Result<String, String> {
+    let target = resolve_write_target(flake_root, path)?;
+    fs::read_to_string(&target)
+        .map_err(|e| format!("failed to read {}: {}", target.display(), e))
 }
 
-pub(crate) fn write_atomic(path: &Path, content: &str) -> Result<(), String> {
-    // Resolve the destination before creating and renaming the temporary file.
-    // Renaming over the lexical symlink path would replace the symlink itself;
-    // renaming over the canonical target updates its contents and preserves the
-    // link for both normal writes and rollback.
-    let destination = fs::canonicalize(path).map_err(|error| {
+/// Resolve a path and enforce the same flake-root boundary used by discovery.
+/// Both the read and the later atomic replacement call this check so a symlink
+/// retargeted after discovery cannot redirect a write outside the flake.
+pub(crate) fn resolve_write_target(flake_root: &Path, path: &Path) -> Result<std::path::PathBuf, String> {
+    let root = fs::canonicalize(flake_root).map_err(|error| {
+        format!(
+            "failed to resolve flake root {}: {}",
+            flake_root.display(),
+            error
+        )
+    })?;
+    let target = fs::canonicalize(path).map_err(|error| {
         format!(
             "failed to resolve write target {} (broken or cyclic symlink?): {}",
             path.display(),
             error
         )
     })?;
+
+    if !target.starts_with(&root) {
+        return Err(format!(
+            "refusing to write {}: resolved target {} is outside flake root {}",
+            path.display(),
+            target.display(),
+            root.display()
+        ));
+    }
+
+    let metadata = fs::metadata(&target)
+        .map_err(|error| format!("failed to inspect {}: {}", target.display(), error))?;
+    if !metadata.is_file() {
+        return Err(format!(
+            "refusing to write {}: resolved target {} is not a regular file",
+            path.display(),
+            target.display()
+        ));
+    }
+
+    Ok(target)
+}
+
+pub(crate) fn write_atomic(
+    flake_root: &Path,
+    path: &Path,
+    content: &str,
+) -> Result<(), String> {
+    // Resolve the destination before creating and renaming the temporary file.
+    // Renaming over the lexical symlink path would replace the symlink itself;
+    // renaming over the canonical target updates its contents and preserves the
+    // link for both normal writes and rollback.
+    let destination = resolve_write_target(flake_root, path)?;
     let parent = destination.parent().unwrap_or_else(|| Path::new("."));
     let file_name = destination
         .file_name()
@@ -106,7 +147,7 @@ mod tests {
         let path = directory.join("packages.nix");
         fs::write(&path, "environment.systemPackages = with pkgs; [\n];\n").unwrap();
 
-        install_package(&path, "firefox").unwrap();
+        install_package(&directory, &path, "firefox").unwrap();
 
         let content = fs::read_to_string(&path).unwrap();
         assert!(content.contains("firefox"));
@@ -127,7 +168,7 @@ mod tests {
         )
         .unwrap();
 
-        remove_package(&path, "firefox").unwrap();
+        remove_package(&directory, &path, "firefox").unwrap();
 
         let content = fs::read_to_string(&path).unwrap();
         assert!(!content.contains("\nfirefox\n"));
@@ -153,7 +194,7 @@ mod tests {
         fs::write(&target, "environment.systemPackages = with pkgs; [\n];\n").unwrap();
         symlink(&target, &link).unwrap();
 
-        install_package(&link, "firefox").unwrap();
+        install_package(&directory, &link, "firefox").unwrap();
 
         assert!(symlink_metadata(&link).unwrap().file_type().is_symlink());
         assert_eq!(fs::read_link(&link).unwrap(), target);
@@ -175,7 +216,7 @@ mod tests {
         fs::write(&path, "{\n}\n").unwrap();
         fs::set_permissions(&path, fs::Permissions::from_mode(0o640)).unwrap();
 
-        enable_service(&path, "openssh").unwrap();
+        enable_service(&directory, &path, "openssh").unwrap();
 
         assert_eq!(
             fs::metadata(&path).unwrap().permissions().mode() & 0o777,

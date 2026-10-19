@@ -139,6 +139,7 @@ pub fn execute_with_change(plan: ExecutionPlan) -> Result<PackageChange, Executo
                 match remove_package_strategy(&config, &system, &plan.target.name) {
                     PackageRemoveStrategy::Declared { paths } => {
                         let backups = nixos::dedicated::apply_file_changes(
+                            context.flake_root(),
                             &paths,
                             |path| {
                                 if config.is_safe_write_target(path) {

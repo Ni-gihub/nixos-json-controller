@@ -716,16 +716,26 @@ environment.systemPackages = lib.mkAfter [
 
         let state = ConfigState::discover(&root).unwrap();
         assert_eq!(
-            state.files.iter().filter(|file| file.path == target).count(),
+            state
+                .files
+                .iter()
+                .filter(|file| file.path == target)
+                .count(),
             1
         );
-        assert!(state.package_declarations("git").contains(&target.as_path()));
+        assert!(
+            state
+                .package_declarations("git")
+                .contains(&target.as_path())
+        );
         assert_eq!(state.package_write_targets(), vec![target.as_path()]);
-        assert!(state
-            .file(&configuration)
-            .unwrap()
-            .imports
-            .contains(&target));
+        assert!(
+            state
+                .file(&configuration)
+                .unwrap()
+                .imports
+                .contains(&target)
+        );
 
         let _ = fs::remove_dir_all(root);
     }
@@ -807,7 +817,11 @@ environment.systemPackages = lib.mkAfter [
 
         let state = ConfigState::discover(&root).unwrap();
         assert_eq!(
-            state.files.iter().filter(|file| file.path == root.join("real/module.nix")).count(),
+            state
+                .files
+                .iter()
+                .filter(|file| file.path == root.join("real/module.nix"))
+                .count(),
             1
         );
 

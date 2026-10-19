@@ -630,13 +630,9 @@ fn returned_module_attrset(content: &str, code: &[bool]) -> Result<(usize, usize
         if bytes.get(after_first) == Some(&b':') && code[after_first] {
             let expression_start = skip_nix_trivia(content, after_first + 1, content.len());
             if active_token_at(content, code, expression_start, "let") {
-                let in_pos = find_top_level_keyword(
-                    content,
-                    code,
-                    expression_start + "let".len(),
-                    "in",
-                )
-                .ok_or("Nix let expression has no top-level 'in'")?;
+                let in_pos =
+                    find_top_level_keyword(content, code, expression_start + "let".len(), "in")
+                        .ok_or("Nix let expression has no top-level 'in'")?;
                 let body = skip_nix_trivia(content, in_pos + "in".len(), content.len());
                 if bytes.get(body) != Some(&b'{') || !code[body] {
                     return Err("Nix let expression does not return an attribute set".to_string());
@@ -690,7 +686,11 @@ fn find_top_level_keyword(
                 _ => {}
             }
         }
-        cursor += content[cursor..].chars().next().map(char::len_utf8).unwrap_or(1);
+        cursor += content[cursor..]
+            .chars()
+            .next()
+            .map(char::len_utf8)
+            .unwrap_or(1);
     }
 
     None
@@ -767,12 +767,10 @@ fn find_boolean_assignment(
     }
 
     match assignments.as_slice() {
-        [] if nested_assignment_found => {
-            Err(format!(
-                "found '{}' only in a nested attribute set; refusing to add a conflicting top-level declaration",
-                attribute
-            ))
-        }
+        [] if nested_assignment_found => Err(format!(
+            "found '{}' only in a nested attribute set; refusing to add a conflicting top-level declaration",
+            attribute
+        )),
         [] => Ok(None),
         [equals] => {
             let value_start = skip_nix_trivia(content, equals + 1, body_end);

@@ -1010,12 +1010,13 @@ mod tests {
     }
 
     #[test]
-    fn ignores_nested_home_manager_service_options() {
+    fn refuses_to_add_a_top_level_option_when_only_nested_option_exists() {
         let content = "{\n  home-manager.users.bob = {\n    services.foo.enable = false;\n  };\n}\n";
-        let result = add_service_to_content(content, "foo", true).unwrap();
+        let error = add_service_to_content(content, "foo", true).unwrap_err();
 
-        assert!(result.contains("home-manager.users.bob = {\n    services.foo.enable = false;"));
-        assert!(result.contains("services.foo.enable = true;"));
+        assert!(error.contains("only in a nested attribute set"));
+        assert!(content.contains("services.foo.enable = false;"));
+        assert!(!content.contains("services.foo.enable = true;"));
     }
 
     #[test]

@@ -1202,118 +1202,15 @@ fn root_score(path: &Path) -> u8 {
 }
 
 fn find_import_list(content: &str) -> Option<usize> {
-    let bytes = content.as_bytes();
-    let mut index = 0usize;
-    let mut in_comment = false;
-    let mut in_string = false;
-    let mut in_indented_string = false;
-    let mut escaped = false;
-    let mut found = None;
+    let (set_start, set_end) = find_module_body_set_range(content)?;
+    let ranges = find_attribute_list_ranges(content, "imports", set_start, set_end);
 
-    while index < bytes.len() {
-        if in_comment {
-            if bytes[index] == b'\n' {
-                in_comment = false;
-            }
-            index += 1;
-            continue;
-        }
-
-        if in_indented_string {
-            if bytes[index..].starts_with(b"''") {
-                in_indented_string = false;
-                index += 2;
-            } else {
-                index += 1;
-            }
-            continue;
-        }
-
-        if in_string {
-            if escaped {
-                escaped = false;
-            } else if bytes[index] == b'\\' {
-                escaped = true;
-            } else if bytes[index] == b'"' {
-                in_string = false;
-            }
-            index += 1;
-            continue;
-        }
-
-        if bytes[index] == b'#' {
-            in_comment = true;
-            index += 1;
-            continue;
-        }
-
-        if bytes[index] == b'"' {
-            in_string = true;
-            index += 1;
-            continue;
-        }
-
-        if bytes[index..].starts_with(b"''") {
-            in_indented_string = true;
-            index += 2;
-            continue;
-        }
-
-        if !bytes[index..].starts_with(b"imports") {
-            index += 1;
-            continue;
-        }
-
-        let before_ok = index == 0
-            || !matches!(
-                bytes[index - 1],
-                b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_' | b'-'
-            );
-        let after_name = index + "imports".len();
-        let after_ok = after_name == bytes.len()
-            || !matches!(
-                bytes[after_name],
-                b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_' | b'-'
-            );
-
-        if !before_ok || !after_ok {
-            index += "imports".len();
-            continue;
-        }
-
-        let mut cursor = after_name;
-        while cursor < bytes.len() && bytes[cursor].is_ascii_whitespace() {
-            cursor += 1;
-        }
-
-        if cursor >= bytes.len() || bytes[cursor] != b'=' {
-            index += "imports".len();
-            continue;
-        }
-
-        cursor += 1;
-        while cursor < bytes.len() && bytes[cursor].is_ascii_whitespace() {
-            cursor += 1;
-        }
-
-        if cursor >= bytes.len() || bytes[cursor] != b'[' {
-            index += "imports".len();
-            continue;
-        }
-
-        if find_matching_delimiter(content, cursor, '[', ']').is_none() {
-            index += "imports".len();
-            continue;
-        }
-
-        if found.replace(cursor).is_some() {
-            return None;
-        }
-
-        index = cursor + 1;
+    // Import detection and insertion must use the same module-body scope.
+    // Refuse to edit when there is no unique direct imports list.
+    match ranges.as_slice() {
+        [(list_start, _)] => Some(*list_start),
+        _ => None,
     }
-
-    found
 }
 
 fn add_import_to_content(content: &str, import_path: &str) -> Result<String, String> {
@@ -1936,6 +1833,16 @@ mod tests {
             find_importing_file(&directory, &config, &module_path).unwrap(),
             None
         );
+
+        // An import list nested inside an unrelated attribute set must not be
+        // used as the insertion target. Failure must leave the file untouched.
+        let original = fs::read_to_string(&config_path).unwrap();
+        let mut backups = Vec::new();
+        let error = ensure_import(&directory, &config, &module_path, &mut backups).unwrap_err();
+        assert!(error.contains("imports list not found"));
+        assert_eq!(fs::read_to_string(&config_path).unwrap(), original);
+        assert!(backups.is_empty());
+
         let _ = fs::remove_dir_all(directory);
     }
 

@@ -97,10 +97,48 @@ pub fn rollback_changes(
     }
 
     for path in created_files.iter().rev() {
-        if path.is_file() {
-            if let Err(error) = fs::remove_file(path) {
-                errors.push(format!("failed to remove {}: {}", path.display(), error));
+        let metadata = match fs::symlink_metadata(path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => {
+                errors.push(format!("failed to inspect created file {}: {}", path.display(), error));
+                continue;
             }
+        };
+
+        let current_target = match fs::canonicalize(path) {
+            Ok(target) => target,
+            Err(error) => {
+                errors.push(format!(
+                    "refusing to remove {}: target no longer resolves: {}",
+                    path.display(),
+                    error
+                ));
+                continue;
+            }
+        };
+        if current_target != *path {
+            errors.push(format!(
+                "refusing to remove {}: target changed to {}",
+                path.display(),
+                current_target.display()
+            ));
+            continue;
+        }
+        if !metadata.file_type().is_file() {
+            errors.push(format!(
+                "refusing to remove {}: created path is no longer a regular file",
+                path.display()
+            ));
+            continue;
+        }
+
+        if let Err(error) = fs::remove_file(&current_target) {
+            errors.push(format!(
+                "failed to remove {}: {}",
+                current_target.display(),
+                error
+            ));
         }
     }
 
@@ -109,6 +147,86 @@ pub fn rollback_changes(
     } else {
         Err(errors.join("; "))
     }
+}
+
+/// Resolve and validate a dedicated module's parent before creating a file there.
+///
+/// Inspecting the nearest existing ancestor with symlink_metadata also catches
+/// dangling symlinks, which Path::exists would incorrectly treat as missing.
+fn prepare_dedicated_module_creation(
+    flake_root: &Path,
+    module_path: &Path,
+) -> Result<PathBuf, String> {
+    let root = fs::canonicalize(flake_root).map_err(|error| {
+        format!(
+            "failed to resolve flake root {}: {}",
+            flake_root.display(),
+            error
+        )
+    })?;
+    let parent = module_path
+        .parent()
+        .ok_or_else(|| format!("invalid dedicated module path: {}", module_path.display()))?;
+    let file_name = module_path
+        .file_name()
+        .ok_or_else(|| format!("invalid dedicated module path: {}", module_path.display()))?;
+
+    let mut existing_ancestor = parent.to_path_buf();
+    loop {
+        match fs::symlink_metadata(&existing_ancestor) {
+            Ok(_) => break,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                existing_ancestor = existing_ancestor.parent().map(Path::to_path_buf).ok_or_else(
+                    || format!("failed to find an existing parent for {}", parent.display()),
+                )?;
+            }
+            Err(error) => {
+                return Err(format!(
+                    "failed to inspect parent {}: {}",
+                    existing_ancestor.display(),
+                    error
+                ));
+            }
+        }
+    }
+
+    let resolved_ancestor = fs::canonicalize(&existing_ancestor).map_err(|error| {
+        format!(
+            "refusing to create {}: existing parent {} cannot be resolved: {}",
+            module_path.display(),
+            existing_ancestor.display(),
+            error
+        )
+    })?;
+    if !resolved_ancestor.starts_with(&root) {
+        return Err(format!(
+            "refusing to create {}: existing parent {} resolves outside flake root {}",
+            module_path.display(),
+            resolved_ancestor.display(),
+            root.display()
+        ));
+    }
+
+    fs::create_dir_all(parent)
+        .map_err(|error| format!("failed to create {}: {}", parent.display(), error))?;
+
+    let resolved_parent = fs::canonicalize(parent).map_err(|error| {
+        format!(
+            "failed to resolve created parent {}: {}",
+            parent.display(),
+            error
+        )
+    })?;
+    if !resolved_parent.starts_with(&root) {
+        return Err(format!(
+            "refusing to create {}: parent {} resolves outside flake root {}",
+            module_path.display(),
+            resolved_parent.display(),
+            root.display()
+        ));
+    }
+
+    Ok(resolved_parent.join(file_name))
 }
 
 /// Validate and back up all target files before applying any mutation.
@@ -163,52 +281,50 @@ pub fn install_package(
 ) -> Result<DedicatedPackageChange, String> {
     let module_path = flake_root.join(DEDICATED_PACKAGE_MODULE);
     let mut change = DedicatedPackageChange::default();
+    let module_target: PathBuf;
 
     if module_path.is_file() {
         change
             .backups
             .push(FileBackup::capture(flake_root, &module_path)?);
         validate_dedicated_package_module(&module_path)?;
+        module_target = writer::resolve_write_target(flake_root, &module_path)?;
     } else {
-        let parent = module_path
-            .parent()
-            .ok_or_else(|| format!("invalid dedicated module path: {}", module_path.display()))?;
-
-        fs::create_dir_all(parent)
-            .map_err(|e| format!("failed to create {}: {}", parent.display(), e))?;
-
+        let creation_path = prepare_dedicated_module_creation(flake_root, &module_path)?;
         let mut file = match OpenOptions::new()
             .write(true)
             .create_new(true)
-            .open(&module_path)
+            .open(&creation_path)
         {
             Ok(file) => file,
             Err(error) => {
                 return Err(combine_operation_and_rollback_error(
-                    format!("failed to create {}: {}", module_path.display(), error),
+                    format!("failed to create {}: {}", creation_path.display(), error),
                     change.rollback(),
                 ));
             }
         };
-        change.created_files.push(module_path.clone());
+        // Record the canonical path so a later symlink change cannot redirect cleanup.
+        change.created_files.push(creation_path.clone());
         if let Err(error) = file.write_all(
             b"{ pkgs, ... }:\n\n{\n  environment.systemPackages = with pkgs; [\n  ];\n}\n",
         ) {
             return Err(combine_operation_and_rollback_error(
-                format!("failed to write {}: {}", module_path.display(), error),
+                format!("failed to write {}: {}", creation_path.display(), error),
                 change.rollback(),
             ));
         }
+        module_target = creation_path;
     }
 
-    if let Err(error) = ensure_import(flake_root, config, &module_path, &mut change.backups) {
+    if let Err(error) = ensure_import(flake_root, config, &module_target, &mut change.backups) {
         return Err(combine_operation_and_rollback_error(
             error,
             change.rollback(),
         ));
     }
 
-    if let Err(error) = writer::install_package(flake_root, &module_path, package) {
+    if let Err(error) = writer::install_package(flake_root, &module_target, package) {
         return Err(combine_operation_and_rollback_error(
             error,
             change.rollback(),
@@ -269,43 +385,41 @@ fn write_service(
 ) -> Result<DedicatedServiceChange, String> {
     let module_path = flake_root.join(DEDICATED_SERVICE_MODULE);
     let mut change = DedicatedServiceChange::default();
+    let module_target: PathBuf;
 
     if module_path.is_file() {
         change
             .backups
             .push(FileBackup::capture(flake_root, &module_path)?);
         validate_dedicated_service_module(&module_path)?;
+        module_target = writer::resolve_write_target(flake_root, &module_path)?;
     } else {
-        let parent = module_path
-            .parent()
-            .ok_or_else(|| format!("invalid dedicated module path: {}", module_path.display()))?;
-
-        fs::create_dir_all(parent)
-            .map_err(|e| format!("failed to create {}: {}", parent.display(), e))?;
-
+        let creation_path = prepare_dedicated_module_creation(flake_root, &module_path)?;
         let mut file = match OpenOptions::new()
             .write(true)
             .create_new(true)
-            .open(&module_path)
+            .open(&creation_path)
         {
             Ok(file) => file,
             Err(error) => {
                 return Err(combine_operation_and_rollback_error(
-                    format!("failed to create {}: {}", module_path.display(), error),
+                    format!("failed to create {}: {}", creation_path.display(), error),
                     change.rollback(),
                 ));
             }
         };
-        change.created_files.push(module_path.clone());
+        // Record the canonical path so a later symlink change cannot redirect cleanup.
+        change.created_files.push(creation_path.clone());
         if let Err(error) = file.write_all(b"{ ... }:\n\n{\n}\n") {
             return Err(combine_operation_and_rollback_error(
-                format!("failed to write {}: {}", module_path.display(), error),
+                format!("failed to write {}: {}", creation_path.display(), error),
                 change.rollback(),
             ));
         }
+        module_target = creation_path;
     }
 
-    if let Err(error) = ensure_import(flake_root, config, &module_path, &mut change.backups) {
+    if let Err(error) = ensure_import(flake_root, config, &module_target, &mut change.backups) {
         return Err(combine_operation_and_rollback_error(
             error,
             change.rollback(),
@@ -313,9 +427,9 @@ fn write_service(
     }
 
     if let Err(error) = if enabled {
-        writer::enable_service(flake_root, &module_path, service)
+        writer::enable_service(flake_root, &module_target, service)
     } else {
-        writer::disable_service(flake_root, &module_path, service)
+        writer::disable_service(flake_root, &module_target, service)
     } {
         return Err(combine_operation_and_rollback_error(
             error,
@@ -401,9 +515,26 @@ pub fn stage_new_file(flake_root: &Path, path: &Path) -> Result<Option<StagedFil
         return Ok(None);
     }
 
-    let relative = path
-        .strip_prefix(flake_root)
-        .map_err(|e| format!("failed to determine Git path for {}: {}", path.display(), e))?;
+    let canonical_root = fs::canonicalize(flake_root).map_err(|error| {
+        format!(
+            "failed to resolve flake root {}: {}",
+            flake_root.display(),
+            error
+        )
+    })?;
+    let canonical_path = fs::canonicalize(path)
+        .map_err(|error| format!("failed to resolve new file {}: {}", path.display(), error))?;
+    if !canonical_path.starts_with(&canonical_root) {
+        return Err(format!(
+            "refusing to stage {}: resolved path {} is outside flake root {}",
+            path.display(),
+            canonical_path.display(),
+            canonical_root.display()
+        ));
+    }
+    let relative = canonical_path
+        .strip_prefix(&canonical_root)
+        .map_err(|e| format!("failed to determine Git path for {}: {}", canonical_path.display(), e))?;
 
     let index_state = Command::new("git")
         .args([
@@ -430,7 +561,7 @@ pub fn stage_new_file(flake_root: &Path, path: &Path) -> Result<Option<StagedFil
     let previous_index = (!previous_index.is_empty()).then_some(previous_index);
 
     let staged = StagedFile {
-        path: path.to_path_buf(),
+        path: canonical_path,
         previous_index,
     };
 

@@ -205,6 +205,35 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    fn refuses_to_write_through_symlink_outside_flake_root() {
+        use std::os::unix::fs::{symlink, symlink_metadata};
+
+        let unique = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let parent = std::env::temp_dir().join(format!(
+            "nxc-writer-outside-symlink-{}-{}",
+            std::process::id(),
+            unique
+        ));
+        let root = parent.join("flake");
+        let outside = parent.join("outside.nix");
+        fs::create_dir_all(&root).unwrap();
+        let original = "environment.systemPackages = with pkgs; [\n];\n";
+        fs::write(&outside, original).unwrap();
+        let link = root.join("packages.nix");
+        symlink(&outside, &link).unwrap();
+
+        let error = install_package(&root, &link, "firefox").unwrap_err();
+
+        assert!(error.contains("outside flake root"));
+        assert_eq!(fs::read_to_string(&outside).unwrap(), original);
+        assert!(symlink_metadata(&link).unwrap().file_type().is_symlink());
+        assert_eq!(fs::read_link(&link).unwrap(), outside);
+
+        let _ = fs::remove_dir_all(parent);
+    }
+
+    #[cfg(unix)]
+    #[test]
     fn preserves_file_permissions() {
         use std::os::unix::fs::PermissionsExt;
 

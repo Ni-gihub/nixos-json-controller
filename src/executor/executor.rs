@@ -109,8 +109,27 @@ fn rollback_after_verification_failure(
     service_change: Option<&super::service::ServiceChange>,
     password: Option<&str>,
 ) -> Result<(), ExecutorError> {
-    let rollback_result = rollback_change(package_change, service_change);
-    if let Err(rollback_error) = rollback_result {
+    rollback_after_verification_failure_with(
+        error,
+        || rollback_change(package_change, service_change),
+        || nixos::rebuild::switch_with_password(password),
+    )
+}
+
+/// Restore the previous configuration and rebuild it after a failed verification.
+///
+/// The closures keep the failure handling testable without changing system state
+/// from unit tests.
+fn rollback_after_verification_failure_with<R, B>(
+    error: String,
+    rollback: R,
+    rebuild_restored_system: B,
+) -> Result<(), ExecutorError>
+where
+    R: FnOnce() -> Result<(), String>,
+    B: FnOnce() -> Result<(), String>,
+{
+    if let Err(rollback_error) = rollback() {
         return Err(ExecutorError::NixosError(format!(
             "{}; rollback also failed: {}",
             error, rollback_error
@@ -119,7 +138,7 @@ fn rollback_after_verification_failure(
 
     // The active system was already switched, so rebuild once more from the
     // restored configuration to return the machine to the previous state.
-    if let Err(rebuild_error) = nixos::rebuild::switch_with_password(password) {
+    if let Err(rebuild_error) = rebuild_restored_system() {
         return Err(ExecutorError::NixosError(format!(
             "{}; rollback succeeded but restoring the previous system failed: {}",
             error, rebuild_error
@@ -258,6 +277,32 @@ mod tests {
                 reason: "test".to_string(),
             }),
         }
+    }
+
+    #[test]
+    fn reports_verification_and_rollback_errors_together() {
+        let result = rollback_after_verification_failure_with(
+            "service verification failed".to_string(),
+            || Err("backup restore failed".to_string()),
+            || Ok(()),
+        );
+
+        let error = result.unwrap_err().to_string();
+        assert!(error.contains("service verification failed"));
+        assert!(error.contains("backup restore failed"));
+    }
+
+    #[test]
+    fn reports_verification_and_restored_rebuild_errors_together() {
+        let result = rollback_after_verification_failure_with(
+            "service verification failed".to_string(),
+            || Ok(()),
+            || Err("restored system rebuild failed".to_string()),
+        );
+
+        let error = result.unwrap_err().to_string();
+        assert!(error.contains("service verification failed"));
+        assert!(error.contains("restored system rebuild failed"));
     }
 
     #[test]

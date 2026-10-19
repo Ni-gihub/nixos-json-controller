@@ -180,7 +180,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn atomically_updates_symlink_target_without_replacing_the_link() {
-        use std::os::unix::fs::{symlink, symlink_metadata};
+        use std::os::unix::fs::symlink;
 
         let directory = std::env::temp_dir().join(format!(
             "nxc-writer-symlink-{}-{}",
@@ -196,7 +196,7 @@ mod tests {
 
         install_package(&directory, &link, "firefox").unwrap();
 
-        assert!(symlink_metadata(&link).unwrap().file_type().is_symlink());
+        assert!(fs::symlink_metadata(&link).unwrap().file_type().is_symlink());
         assert_eq!(fs::read_link(&link).unwrap(), target);
         assert!(fs::read_to_string(&target).unwrap().contains("firefox"));
 
@@ -206,7 +206,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn refuses_to_write_through_symlink_outside_flake_root() {
-        use std::os::unix::fs::{symlink, symlink_metadata};
+        use std::os::unix::fs::symlink;
 
         let unique = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
         let parent = std::env::temp_dir().join(format!(
@@ -226,7 +226,7 @@ mod tests {
 
         assert!(error.contains("outside flake root"));
         assert_eq!(fs::read_to_string(&outside).unwrap(), original);
-        assert!(symlink_metadata(&link).unwrap().file_type().is_symlink());
+        assert!(fs::symlink_metadata(&link).unwrap().file_type().is_symlink());
         assert_eq!(fs::read_link(&link).unwrap(), outside);
 
         let _ = fs::remove_dir_all(parent);

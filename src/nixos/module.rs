@@ -1020,6 +1020,15 @@ mod tests {
     }
 
     #[test]
+    fn finds_the_returned_attribute_set_after_a_let_expression() {
+        let content = "let helper = 1; in {\\n  services.foo.enable = false;\\n}\\n";
+        let result = add_service_to_content(content, "foo", true).unwrap();
+
+        assert!(result.contains("services.foo.enable = true;"));
+        assert!(result.contains("let helper = 1;"));
+    }
+
+    #[test]
     fn edits_direct_option_when_nested_option_appears_first() {
         let content = "{\n  home-manager.users.bob = {\n    services.foo.enable = false;\n  };\n  services.foo.enable = false;\n}\n";
         let result = add_service_to_content(content, "foo", true).unwrap();

@@ -15,11 +15,13 @@ pub fn remove_package(package: &str) -> Result<String, String> {
 }
 
 pub fn enable_service(service: &str) -> Result<String, String> {
+    validate_service_name(service)?;
     let content = flake::read_core()?;
     add_service_to_content(&content, service, true)
 }
 
 pub fn disable_service(service: &str) -> Result<String, String> {
+    validate_service_name(service)?;
     let content = flake::read_core()?;
     add_service_to_content(&content, service, false)
 }
@@ -535,11 +537,35 @@ fn nix_code_mask(content: &str) -> Vec<bool> {
     active
 }
 
+/// Validate a service name before it is interpolated into a Nix attribute path.
+fn validate_service_name(service: &str) -> Result<(), String> {
+    let mut chars = service.chars();
+    let valid = chars
+        .next()
+        .is_some_and(|first| first.is_ascii_alphabetic() || first == '_')
+        && chars.all(is_nix_identifier_char)
+        && !is_nix_keyword(service);
+
+    if !valid {
+        return Err(format!(
+            "service '{}' is not a simple Nix attribute name; refusing to edit",
+            service
+        ));
+    }
+
+    Ok(())
+}
+
+/// Add or update a service enable option in the module's returned attribute set.
+///
+/// Only simple Nix attribute names are accepted. Nested attribute sets are not
+/// treated as direct NixOS options, and unsupported existing values are rejected.
 pub fn add_service_to_content(
     content: &str,
     service: &str,
     enabled: bool,
 ) -> Result<String, String> {
+    validate_service_name(service)?;
     let attributes = [
         // Prefer the high-level NixOS service option when it is declared.
         // Fall back to the systemd option for custom units without a service module.
@@ -574,26 +600,101 @@ pub fn add_service_to_content(
     Ok(result)
 }
 
+/// Locate the attribute set returned by a NixOS module function.
+///
+/// Supports the common `{ ... }: { ... }` form and `let ... in { ... }`.
+/// If the module body cannot be identified unambiguously, editing is refused.
+fn returned_module_attrset(content: &str, code: &[bool]) -> Result<(usize, usize), String> {
+    let bytes = content.as_bytes();
+
+    // For the standard module-function form, skip the argument attribute set.
+    let first_open = (0..bytes.len()).find(|&i| bytes[i] == b'{' && code[i])
+        .ok_or("Nix module attribute set not found")?;
+    let first_close = find_matching_delimiter(content, first_open, '{', '}')
+        .ok_or("Nix module attribute set is not balanced")?;
+    let after_first = skip_nix_trivia(content, first_close + 1, content.len());
+
+    let body_open = if bytes.get(after_first) == Some(&b':') && code[after_first] {
+        (after_first + 1..bytes.len())
+            .find(|&i| bytes[i] == b'{' && code[i])
+            .ok_or("returned Nix module attribute set not found")?
+    } else {
+        // A let expression may define values before returning its attribute set.
+        // Prefer the first active `in` token followed by an attribute set.
+        let mut in_positions = Vec::new();
+        let mut cursor = 0usize;
+        while cursor < first_open {
+            if active_token_at(content, code, cursor, "in") {
+                in_positions.push(cursor);
+                cursor += 2;
+            } else {
+                cursor += content[cursor..].chars().next().map(char::len_utf8).unwrap_or(1);
+            }
+        }
+        if let Some(in_pos) = in_positions.last() {
+            let after_in = skip_nix_trivia(content, in_pos + 2, content.len());
+            if bytes.get(after_in) == Some(&b'{') && code[after_in] {
+                after_in
+            } else {
+                first_open
+            }
+        } else {
+            first_open
+        }
+    };
+
+    let body_close = find_matching_delimiter(content, body_open, '{', '}')
+        .ok_or("returned Nix module attribute set is not balanced")?;
+    Ok((body_open, body_close))
+}
+
+/// Return whether a token occurs at the direct attribute-set level of the module body.
+fn is_direct_module_attribute(
+    content: &str,
+    code: &[bool],
+    body_open: usize,
+    token_start: usize,
+) -> bool {
+    let mut depth = 0usize;
+    for index in body_open..token_start {
+        if !code[index] {
+            continue;
+        }
+        match content.as_bytes()[index] {
+            b'{' => depth += 1,
+            b'}' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+    }
+    depth == 1
+}
+
 fn find_boolean_assignment(
     content: &str,
     attribute: &str,
 ) -> Result<Option<(usize, usize)>, String> {
     let code = nix_code_mask(content);
+    let (body_start, body_end) = returned_module_attrset(content, &code)?;
     let mut assignments = Vec::new();
-    let mut search_from = 0usize;
+    let mut search_from = body_start;
 
-    while let Some(relative) = content[search_from..].find(attribute) {
+    while search_from < body_end {
+        let Some(relative) = content[search_from..body_end].find(attribute) else {
+            break;
+        };
         let start = search_from + relative;
         let end = start + attribute.len();
         search_from = end;
 
         // Match the complete attribute path, not a prefix such as
         // services.openssh.enableExtra, and ignore comments/strings.
-        if !active_token_at(content, &code, start, attribute) {
+        if !active_token_at(content, &code, start, attribute)
+            || !is_direct_module_attribute(content, &code, body_start, start)
+        {
             continue;
         }
 
-        let equals = skip_nix_trivia(content, end, content.len());
+        let equals = skip_nix_trivia(content, end, body_end);
         if equals >= content.len() || content.as_bytes()[equals] != b'=' || !code[equals] {
             continue;
         }
@@ -609,7 +710,7 @@ fn find_boolean_assignment(
     match assignments.as_slice() {
         [] => return Ok(None),
         [equals] => {
-            let value_start = skip_nix_trivia(content, equals + 1, content.len());
+            let value_start = skip_nix_trivia(content, equals + 1, body_end);
 
             let value_end = if active_token_at(content, &code, value_start, "true") {
                 value_start + "true".len()
@@ -882,6 +983,31 @@ mod tests {
         assert!(result.contains("services.xserver.enable = false;"));
         assert!(result.contains("services.openssh.enable = false;"));
     }
+    #[test]
+    fn rejects_service_names_that_are_not_simple_nix_identifiers() {
+        for service in ["foo.bar", "foo; services.nginx.enable = true", "if", ""] {
+            assert!(add_service_to_content("{ }", service, true).is_err());
+        }
+    }
+
+    #[test]
+    fn ignores_nested_home_manager_service_options() {
+        let content = "{\n  home-manager.users.bob = {\n    services.foo.enable = false;\n  };\n}\n";
+        let result = add_service_to_content(content, "foo", true).unwrap();
+
+        assert!(result.contains("home-manager.users.bob = {\n    services.foo.enable = false;"));
+        assert!(result.contains("services.foo.enable = true;"));
+    }
+
+    #[test]
+    fn edits_direct_option_when_nested_option_appears_first() {
+        let content = "{\n  home-manager.users.bob = {\n    services.foo.enable = false;\n  };\n  services.foo.enable = false;\n}\n";
+        let result = add_service_to_content(content, "foo", true).unwrap();
+
+        assert!(result.contains("home-manager.users.bob = {\n    services.foo.enable = false;"));
+        assert!(result.contains("services.foo.enable = true;"));
+    }
+
     #[test]
     fn refuses_to_append_over_a_mkforce_service_definition() {
         let content = "{\n  services.openssh.enable = lib.mkForce true;\n}\n";

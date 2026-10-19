@@ -1848,7 +1848,7 @@ mod tests {
         // the predicate nor a path in either branch proves this module is active.
         fs::write(
             &config_path,
-            "{ imports = [ if builtins.pathExists ./condition.nix then ./nxc/packages.nix else ./other.nix ]; }\\n",
+            "{ imports = [ if builtins.pathExists ./condition.nix then ./nxc/packages.nix else ./other.nix ]; }\n",
         )
         .unwrap();
         assert_eq!(

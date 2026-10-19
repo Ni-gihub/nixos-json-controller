@@ -924,8 +924,7 @@ fn has_standalone_path_prefix(
         if ch.is_whitespace()
             || matches!(
                 ch,
-                '['
-                    | ']'
+                '[' | ']'
                     | '('
                     | ')'
                     | '{'

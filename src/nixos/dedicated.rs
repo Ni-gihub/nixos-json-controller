@@ -16,6 +16,7 @@ const DEDICATED_SERVICE_MARKER: &str = "{ ... }:";
 #[derive(Debug, Clone)]
 pub struct FileBackup {
     pub path: PathBuf,
+    pub target: PathBuf,
     pub content: String,
     pub flake_root: PathBuf,
 }
@@ -35,13 +36,27 @@ impl FileBackup {
 
         Ok(Self {
             path: path.to_path_buf(),
+            target,
             content,
             flake_root,
         })
     }
 
     pub fn restore(&self) -> Result<(), String> {
-        writer::write_atomic(&self.flake_root, &self.path, &self.content)
+        let current_target = writer::resolve_write_target(&self.flake_root, &self.path)
+            .map_err(|error| format!("failed to restore {}: {}", self.path.display(), error))?;
+        if current_target != self.target {
+            return Err(format!(
+                "failed to restore {}: symlink target changed since backup (expected {}, found {})",
+                self.path.display(),
+                self.target.display(),
+                current_target.display()
+            ));
+        }
+
+        // Write to the target captured with the backup, not through the lexical
+        // path, so a retargeted symlink cannot redirect rollback to another file.
+        writer::write_atomic(&self.flake_root, &self.target, &self.content)
             .map_err(|e| format!("failed to restore {}: {}", self.path.display(), e))
     }
 }
@@ -1691,6 +1706,39 @@ mod tests {
                 .is_symlink()
         );
         assert_eq!(fs::read_link(&link).unwrap(), target);
+
+        let _ = fs::remove_dir_all(directory);
+    }
+
+
+    #[cfg(unix)]
+    #[test]
+    fn refuses_to_restore_backup_after_symlink_target_changes() {
+        use std::os::unix::fs::symlink;
+
+        let directory = test_directory("nxc-rollback-symlink-retarget");
+        fs::create_dir_all(&directory).unwrap();
+        let original_target = directory.join("a.nix");
+        let replacement_target = directory.join("b.nix");
+        let link = directory.join("config.nix");
+        fs::write(&original_target, "original A\\n").unwrap();
+        fs::write(&replacement_target, "original B\\n").unwrap();
+        symlink(&original_target, &link).unwrap();
+
+        let backup = FileBackup::capture(&directory, &link).unwrap();
+        fs::write(&original_target, "mutated A\\n").unwrap();
+        fs::remove_file(&link).unwrap();
+        symlink(&replacement_target, &link).unwrap();
+
+        let error = backup.restore().unwrap_err();
+
+        assert!(error.contains("symlink target changed since backup"));
+        assert_eq!(fs::read_to_string(&original_target).unwrap(), "mutated A\\n");
+        assert_eq!(
+            fs::read_to_string(&replacement_target).unwrap(),
+            "original B\\n"
+        );
+        assert_eq!(fs::read_link(&link).unwrap(), replacement_target);
 
         let _ = fs::remove_dir_all(directory);
     }

@@ -43,10 +43,20 @@ pub fn add_package_to_content(content: &str, package: &str) -> Result<String, St
     }
 
     let indentation = indentation_for_list_item(content, list_start);
-    let insertion = format!("\n{}{}", indentation, package);
+    let line_start = content[..list_end]
+        .rfind('\n')
+        .map(|offset| offset + 1)
+        .unwrap_or(0);
+    let closing_prefix = &content[line_start..list_end];
+
+    let (insert_at, insertion) = if closing_prefix.trim().is_empty() {
+        (line_start, format!("{}{}\n", indentation, package))
+    } else {
+        (list_end, format!(" {}", package))
+    };
 
     let mut result = content.to_string();
-    result.insert_str(list_end, &insertion);
+    result.insert_str(insert_at, &insertion);
     Ok(result)
 }
 
@@ -633,16 +643,6 @@ mod tests {
         let result = add_package_to_content(content, "firefox").unwrap();
 
         assert!(result.contains("pkgs.git"));
-      #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn adds_package_to_a_nonstandard_system_package_expression() {
-        let content = "{\n  environment.systemPackages = lib.mkAfter [\n    pkgs.git\n  ];\n}\n";
-        let result = add_package_to_content(content, "firefox").unwrap();
-
-        assert!(result.contains("pkgs.git"));
         assert!(result.contains("firefox"));
     }
 
@@ -663,6 +663,17 @@ mod tests {
         assert_eq!(result, "{ environment.systemPackages = [  git ]; }");
         assert!(result.contains("git"));
         assert!(!result.contains("firefox"));
+    }
+
+    #[test]
+    fn adds_package_to_an_inline_simple_list() {
+        let content = "{ environment.systemPackages = [ pkgs.git ]; }";
+        let result = add_package_to_content(content, "firefox").unwrap();
+
+        assert_eq!(
+            result,
+            "{ environment.systemPackages = [ pkgs.git firefox ]; }"
+        );
     }
 
     #[test]
@@ -705,18 +716,17 @@ mod tests {
 
     #[test]
     fn ignores_attribute_markers_inside_indented_strings() {
-        let content = "{
+        let content = r#"{
   description = ''
     environment.systemPackages = [ notADeclaration ];
   '';
   environment.systemPackages = [ pkgs.git ];
 }
-";
+"#;
         let result = add_package_to_content(content, "firefox").unwrap();
 
         assert!(result.contains("environment.systemPackages = [ notADeclaration ];"));
-        assert!(result.contains("environment.systemPackages = [ pkgs.git \nfirefox];")
-            || result.contains("environment.systemPackages = [ pkgs.git \n  firefox];"));
+        assert!(result.contains("[ pkgs.git firefox ]"));
     }
 
     #[test]

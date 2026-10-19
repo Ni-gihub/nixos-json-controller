@@ -1771,6 +1771,46 @@ mod tests {
         let _ = fs::remove_dir_all(directory);
     }
 
+
+    #[cfg(unix)]
+    #[test]
+    fn refuses_to_create_dedicated_modules_under_external_directory_symlinks() {
+        use std::os::unix::fs::symlink;
+
+        let parent = test_directory("nxc-dedicated-external-parent");
+        fs::create_dir_all(&parent).unwrap();
+        let external_directory = parent.join("external-directory");
+        let dangling_target = parent.join("missing-external-directory");
+        fs::create_dir_all(&external_directory).unwrap();
+
+        for (name, target) in [
+            ("existing", external_directory.clone()),
+            ("dangling", dangling_target.clone()),
+        ] {
+            let root = parent.join(format!("flake-{name}"));
+            fs::create_dir_all(&root).unwrap();
+            symlink(&target, root.join("nxc")).unwrap();
+            let config = ConfigState::default();
+
+            let package_error = install_package(&root, &config, "firefox").unwrap_err();
+            assert!(package_error.contains("outside flake root") || package_error.contains("cannot be resolved"));
+            assert!(!target.join("packages.nix").exists());
+
+            let service_error = enable_service(&root, &config, "openssh").unwrap_err();
+            assert!(service_error.contains("outside flake root") || service_error.contains("cannot be resolved"));
+            assert!(!target.join("services.nix").exists());
+            assert!(
+                fs::symlink_metadata(root.join("nxc"))
+                    .unwrap()
+                    .file_type()
+                    .is_symlink()
+            );
+        }
+
+        assert!(!dangling_target.exists());
+        let _ = fs::remove_dir_all(parent);
+    }
+
     #[test]
     fn removes_new_module_when_import_update_fails() {
         let directory = test_directory("nxc-rollback-new-module-import");
@@ -1810,6 +1850,42 @@ mod tests {
         assert!(result.unwrap_err().contains("already present"));
         assert_eq!(fs::read_to_string(&module_path).unwrap(), original_module);
         assert_eq!(fs::read_to_string(&config_path).unwrap(), original_config);
+        let _ = fs::remove_dir_all(directory);
+    }
+
+
+    #[cfg(unix)]
+    #[test]
+    fn rollback_removes_created_module_from_original_target_after_parent_symlink_retarget() {
+        use std::os::unix::fs::symlink;
+
+        let directory = test_directory("nxc-rollback-created-symlink-retarget");
+        let original_directory = directory.join("original-nxc");
+        let replacement_directory = directory.join("replacement-nxc");
+        let parent_link = directory.join("nxc");
+        fs::create_dir_all(&original_directory).unwrap();
+        fs::create_dir_all(&replacement_directory).unwrap();
+
+        let original_module = original_directory.join("packages.nix");
+        let replacement_module = replacement_directory.join("packages.nix");
+        fs::write(&original_module, "created by NXC\\n").unwrap();
+        fs::write(&replacement_module, "unrelated file\\n").unwrap();
+        symlink(&original_directory, &parent_link).unwrap();
+
+        // Store the canonical target, as the creation path does.
+        let created_target = fs::canonicalize(&original_module).unwrap();
+        fs::remove_file(&parent_link).unwrap();
+        symlink(&replacement_directory, &parent_link).unwrap();
+
+        rollback_changes(&[], &[], &[created_target]).unwrap();
+
+        assert!(!original_module.exists());
+        assert_eq!(
+            fs::read_to_string(&replacement_module).unwrap(),
+            "unrelated file\\n"
+        );
+        assert_eq!(fs::read_link(&parent_link).unwrap(), replacement_directory);
+
         let _ = fs::remove_dir_all(directory);
     }
 

@@ -913,9 +913,11 @@ fn resolve_static_import_path(base: &Path, literal: &str) -> Option<PathBuf> {
     // file with the same stem (for example, packages.nix) also exists.
     if path.is_dir() {
         let default_path = path.join("default.nix");
-        if default_path.is_file() {
-            return fs::canonicalize(default_path).ok();
-        }
+        return if default_path.is_file() {
+            fs::canonicalize(default_path).ok()
+        } else {
+            None
+        };
     }
 
     if path.is_file() {
@@ -1667,6 +1669,35 @@ mod tests {
         assert_eq!(
             find_importing_file(&directory, &config, &module_path).unwrap(),
             Some(config_path.clone())
+        );
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn does_not_fall_back_to_sibling_nix_when_directory_lacks_default_nix() {
+        let directory = test_directory("nxc-import-directory-without-default");
+        fs::create_dir_all(directory.join("nxc/packages")).unwrap();
+        let config_path = directory.join("configuration.nix");
+        let module_path = dedicated_package_path(&directory);
+
+        fs::write(
+            &module_path,
+            "{ ... }: { description = \"sibling file\"; }\n",
+        )
+        .unwrap();
+        fs::write(
+            &config_path,
+            "{ imports = [ ./nxc/packages ]; }\n",
+        )
+        .unwrap();
+
+        let config = ConfigState {
+            files: vec![config_file(config_path.to_str().unwrap(), &[])],
+        };
+
+        assert_eq!(
+            find_importing_file(&directory, &config, &module_path).unwrap(),
+            None
         );
         let _ = fs::remove_dir_all(directory);
     }

@@ -150,7 +150,7 @@ mod tests {
 
         let target = directory.join("real/packages.nix");
         let link = directory.join("packages.nix");
-        fs::write(&target, "environment.systemPackages = with pkgs; [\\n];\\n").unwrap();
+        fs::write(&target, "environment.systemPackages = with pkgs; [\n];\n").unwrap();
         symlink(&target, &link).unwrap();
 
         install_package(&link, "firefox").unwrap();

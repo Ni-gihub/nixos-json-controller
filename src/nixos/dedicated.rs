@@ -1575,8 +1575,8 @@ mod tests {
         fs::create_dir_all(directory.join("nxc")).unwrap();
         let config_path = directory.join("configuration.nix");
         let module_path = dedicated_package_path(&directory);
-        fs::write(&module_path, "{ ... }: { }\\n").unwrap();
-        let original = "{ imports = [ ./nxc/packages.nix ]; }\\n";
+        fs::write(&module_path, "{ ... }: { }\n").unwrap();
+        let original = "{ imports = [ ./nxc/packages.nix ]; }\n";
         fs::write(&config_path, original).unwrap();
 
         let config = ConfigState {
@@ -1596,7 +1596,7 @@ mod tests {
         fs::create_dir_all(directory.join("nxc")).unwrap();
         let config_path = directory.join("configuration.nix");
         let module_path = dedicated_package_path(&directory);
-        fs::write(&module_path, "{ ... }: { }\\n").unwrap();
+        fs::write(&module_path, "{ ... }: { }\n").unwrap();
         let original = r#"{ 
   imports = [ ];
   # old import: ./nxc/packages.nix
@@ -1631,8 +1631,8 @@ mod tests {
         fs::create_dir_all(directory.join("nxc")).unwrap();
         let config_path = directory.join("configuration.nix");
         let module_path = dedicated_package_path(&directory);
-        fs::write(&module_path, "{ ... }: { }\\n").unwrap();
-        fs::write(&config_path, "{ imports = [ ./nxc/packages ]; }\\n").unwrap();
+        fs::write(&module_path, "{ ... }: { }\n").unwrap();
+        fs::write(&config_path, "{ imports = [ ./nxc/packages ]; }\n").unwrap();
 
         let config = ConfigState {
             files: vec![config_file(config_path.to_str().unwrap(), &[])],
@@ -1651,7 +1651,7 @@ mod tests {
         fs::create_dir_all(directory.join("nxc")).unwrap();
         let config_path = directory.join("configuration.nix");
         let module_path = dedicated_package_path(&directory);
-        fs::write(&module_path, "{ ... }: { }\\n").unwrap();
+        fs::write(&module_path, "{ ... }: { }\n").unwrap();
         fs::write(
             &config_path,
             r#"{
@@ -1680,8 +1680,8 @@ mod tests {
         let config_path = directory.join("configuration.nix");
         let flake_path = directory.join("flake.nix");
         let module_path = dedicated_package_path(&directory);
-        fs::write(&module_path, "{ ... }: { }\\n").unwrap();
-        fs::write(&config_path, "{ imports = [ ]; }\\n").unwrap();
+        fs::write(&module_path, "{ ... }: { }\n").unwrap();
+        fs::write(&config_path, "{ imports = [ ]; }\n").unwrap();
         let config = ConfigState {
             files: vec![config_file(config_path.to_str().unwrap(), &[])],
         };

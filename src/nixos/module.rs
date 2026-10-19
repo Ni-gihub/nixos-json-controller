@@ -594,10 +594,7 @@ fn find_boolean_assignment(
         }
 
         let equals = skip_nix_trivia(content, end, content.len());
-        if equals >= content.len()
-            || content.as_bytes()[equals] != b'='
-            || !code[equals]
-        {
+        if equals >= content.len() || content.as_bytes()[equals] != b'=' || !code[equals] {
             continue;
         }
 
@@ -931,7 +928,8 @@ mod tests {
 
     #[test]
     fn refuses_to_edit_duplicate_service_assignments() {
-        let content = "{\n  services.openssh.enable = true;\n  services.openssh.enable = false;\n}\n";
+        let content =
+            "{\n  services.openssh.enable = true;\n  services.openssh.enable = false;\n}\n";
         let result = add_service_to_content(content, "openssh", true);
 
         assert!(result.unwrap_err().contains("multiple assignments"));
@@ -942,7 +940,10 @@ mod tests {
         let content = "{\n  services.openssh.enable = true && condition;\n}\n";
         let result = add_service_to_content(content, "openssh", false);
 
-        assert!(result.unwrap_err().contains("standalone true/false literal"));
+        assert!(
+            result
+                .unwrap_err()
+                .contains("standalone true/false literal")
+        );
     }
-
 }

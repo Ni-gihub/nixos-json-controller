@@ -642,6 +642,7 @@ fn attribute_list_references_module(
                         && !path_is_in_let_binding(content, &code, list_start, cursor, list_end)
                         && (paren_depth == 0 || is_plain_parenthesized_path)
                         && has_standalone_path_prefix(content, &code, list_start, expression_start)
+                        && has_standalone_path_suffix(content, &code, path_end, list_end)
                     {
                         if let Some(candidate) =
                             resolve_static_import_path(base, &content[cursor..path_end])
@@ -937,6 +938,33 @@ fn has_standalone_path_prefix(
     }
     let previous_token = &content[token_start..cursor];
     previous_token == "in" || previous_token.starts_with("./") || previous_token.starts_with("../")
+}
+
+/// Reject a path immediately followed by an operator or a control keyword,
+/// since the path then participates in a larger expression rather than standing
+/// alone as a list element.
+fn has_standalone_path_suffix(
+    content: &str,
+    code: &[bool],
+    path_end: usize,
+    list_end: usize,
+) -> bool {
+    let suffix = skip_source_trivia(content, path_end, list_end);
+    if suffix >= list_end {
+        return true;
+    }
+
+    let bytes = content.as_bytes();
+    if matches!(
+        bytes[suffix],
+        b'+' | b'-' | b'*' | b'/' | b'?' | b'!' | b'<' | b'>' | b'=' | b'&' | b'|' | b':'
+    ) {
+        return false;
+    }
+
+    !["then", "else", "in", "or", "and"]
+        .iter()
+        .any(|keyword| active_keyword_at(content, code, suffix, keyword))
 }
 
 fn active_keyword_at(content: &str, code: &[bool], start: usize, keyword: &str) -> bool {
@@ -1844,6 +1872,17 @@ mod tests {
         assert_eq!(
             find_importing_file(&directory, &config, &module_path).unwrap(),
             Some(config_path.clone())
+        );
+
+        // A path used as an operand in a larger expression is not itself imported.
+        fs::write(
+            &config_path,
+            "{ imports = [ ./nxc/packages.nix + \"/suffix\" ]; }\n",
+        )
+        .unwrap();
+        assert_eq!(
+            find_importing_file(&directory, &config, &module_path).unwrap(),
+            None
         );
 
         let _ = fs::remove_dir_all(directory);

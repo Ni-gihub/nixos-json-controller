@@ -708,10 +708,10 @@ environment.systemPackages = lib.mkAfter [
         let configuration = root.join("configuration.nix");
         fs::write(
             &target,
-            "{ ... }: { environment.systemPackages = [ pkgs.git ]; }\\n",
+            "{ ... }: { environment.systemPackages = [ pkgs.git ]; }\n",
         )
         .unwrap();
-        fs::write(&configuration, "{ imports = [ ./linked-packages.nix ]; }\\n").unwrap();
+        fs::write(&configuration, "{ imports = [ ./linked-packages.nix ]; }\n").unwrap();
         symlink(&target, &link).unwrap();
 
         let state = ConfigState::discover(&root).unwrap();
@@ -747,7 +747,7 @@ environment.systemPackages = lib.mkAfter [
         let root = parent.join("flake");
         let outside = parent.join("shared.nix");
         fs::create_dir_all(&root).unwrap();
-        fs::write(&outside, "{ environment.systemPackages = [ pkgs.git ]; }\\n").unwrap();
+        fs::write(&outside, "{ environment.systemPackages = [ pkgs.git ]; }\n").unwrap();
         symlink(&outside, root.join("linked.nix")).unwrap();
 
         let error = ConfigState::discover(&root).unwrap_err();
@@ -799,7 +799,7 @@ environment.systemPackages = lib.mkAfter [
         fs::create_dir_all(root.join("real")).unwrap();
         fs::write(
             root.join("real/module.nix"),
-            "{ environment.systemPackages = [ pkgs.git ]; }\\n",
+            "{ environment.systemPackages = [ pkgs.git ]; }\n",
         )
         .unwrap();
         symlink(root.join("real"), root.join("alias")).unwrap();

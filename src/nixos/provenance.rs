@@ -119,6 +119,7 @@ pub fn evaluate_boolean_option(
     parse_boolean_option_value(option, &output.stdout)
 }
 
+/// Parse the JSON boolean returned by `nix eval`.
 fn parse_boolean_option_value(option: &str, output: &[u8]) -> Result<bool, String> {
     let value: Value = serde_json::from_slice(output)
         .map_err(|error| format!("failed to parse effective option '{}': {}", option, error))?;
@@ -145,6 +146,7 @@ pub fn evaluate_package_provenance(
     }
 }
 
+/// Locate the local definitions of a service-level or raw systemd enable option.
 pub fn evaluate_service_provenance(
     flake_root: &Path,
     configuration_name: &str,
@@ -171,6 +173,7 @@ fn is_missing_option_error(error: &str) -> bool {
     error.contains("does not provide attribute")
 }
 
+/// Evaluate a service option while treating an undefined option as empty provenance.
 fn evaluate_optional_service_option(
     flake_root: &Path,
     configuration_name: &str,

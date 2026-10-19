@@ -150,7 +150,9 @@ pub fn install_package(
     let mut change = DedicatedPackageChange::default();
 
     if module_path.is_file() {
-        change.backups.push(FileBackup::capture(flake_root, &module_path)?);
+        change
+            .backups
+            .push(FileBackup::capture(flake_root, &module_path)?);
         validate_dedicated_package_module(&module_path)?;
     } else {
         let parent = module_path
@@ -254,7 +256,9 @@ fn write_service(
     let mut change = DedicatedServiceChange::default();
 
     if module_path.is_file() {
-        change.backups.push(FileBackup::capture(flake_root, &module_path)?);
+        change
+            .backups
+            .push(FileBackup::capture(flake_root, &module_path)?);
         validate_dedicated_service_module(&module_path)?;
     } else {
         let parent = module_path
@@ -1680,7 +1684,12 @@ mod tests {
         backup.restore().unwrap();
 
         assert_eq!(fs::read_to_string(&target).unwrap(), "original\n");
-        assert!(fs::symlink_metadata(&link).unwrap().file_type().is_symlink());
+        assert!(
+            fs::symlink_metadata(&link)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
         assert_eq!(fs::read_link(&link).unwrap(), target);
 
         let _ = fs::remove_dir_all(directory);

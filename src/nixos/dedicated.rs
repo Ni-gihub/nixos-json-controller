@@ -599,6 +599,11 @@ fn attribute_list_references_module(
     let code = nix_code_mask(content);
 
     for (list_start, list_end) in list_ranges {
+        // Paths in an unparenthesized conditional expression are only branch
+        // candidates, not unconditional imports. Keep static paths before the
+        // expression eligible, but ignore the condition and both branches.
+        let conditional_start =
+            find_top_level_if_expression_start(content, &code, list_start, list_end);
         let mut cursor = list_start + 1;
         let mut curly_depth = 0usize;
         let mut paren_depth = 0usize;
@@ -634,6 +639,7 @@ fn attribute_list_references_module(
                         );
                     if curly_depth == 0
                         && list_depth == 0
+                        && conditional_start.map_or(true, |start| cursor < start)
                         && (paren_depth == 0 || is_plain_parenthesized_path)
                     {
                         if let Some(candidate) =
@@ -825,6 +831,52 @@ fn find_nixos_system_modules_list_ranges(content: &str) -> Vec<(usize, usize)> {
     }
 
     ranges
+}
+
+/// Find an unparenthesized conditional expression at the list-element level.
+///
+/// Once an `if` expression begins, paths in its condition and branches are not
+/// unconditional imports. Returning its start offset also lets earlier, separate
+/// static list entries remain eligible for import detection.
+fn find_top_level_if_expression_start(
+    content: &str,
+    code: &[bool],
+    list_start: usize,
+    list_end: usize,
+) -> Option<usize> {
+    let bytes = content.as_bytes();
+    let mut cursor = list_start + 1;
+    let mut curly_depth = 0usize;
+    let mut list_depth = 0usize;
+    let mut paren_depth = 0usize;
+
+    while cursor < list_end {
+        if !code[cursor] {
+            cursor = next_char_boundary(content, cursor);
+            continue;
+        }
+
+        if curly_depth == 0
+            && list_depth == 0
+            && paren_depth == 0
+            && active_keyword_at(content, code, cursor, "if")
+        {
+            return Some(cursor);
+        }
+
+        match bytes[cursor] {
+            b'{' => curly_depth += 1,
+            b'}' => curly_depth = curly_depth.saturating_sub(1),
+            b'[' => list_depth += 1,
+            b']' => list_depth = list_depth.saturating_sub(1),
+            b'(' => paren_depth += 1,
+            b')' => paren_depth = paren_depth.saturating_sub(1),
+            _ => {}
+        }
+        cursor = next_char_boundary(content, cursor);
+    }
+
+    None
 }
 
 fn active_keyword_at(content: &str, code: &[bool], start: usize, keyword: &str) -> bool {
@@ -1785,6 +1837,18 @@ mod tests {
         fs::write(
             &config_path,
             "{ imports = [ (if condition then (./nxc/packages.nix) else ./other.nix) ]; }\n",
+        )
+        .unwrap();
+        assert_eq!(
+            find_importing_file(&directory, &config, &module_path).unwrap(),
+            None
+        );
+
+        // Unparenthesized if expressions are conditional too: neither a path in
+        // the predicate nor a path in either branch proves this module is active.
+        fs::write(
+            &config_path,
+            "{ imports = [ if builtins.pathExists ./condition.nix then ./nxc/packages.nix else ./other.nix ]; }\\n",
         )
         .unwrap();
         assert_eq!(

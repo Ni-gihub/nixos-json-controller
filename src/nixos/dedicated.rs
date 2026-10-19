@@ -1721,22 +1721,22 @@ mod tests {
         let original_target = directory.join("a.nix");
         let replacement_target = directory.join("b.nix");
         let link = directory.join("config.nix");
-        fs::write(&original_target, "original A\\n").unwrap();
-        fs::write(&replacement_target, "original B\\n").unwrap();
+        fs::write(&original_target, "original A\n").unwrap();
+        fs::write(&replacement_target, "original B\n").unwrap();
         symlink(&original_target, &link).unwrap();
 
         let backup = FileBackup::capture(&directory, &link).unwrap();
-        fs::write(&original_target, "mutated A\\n").unwrap();
+        fs::write(&original_target, "mutated A\n").unwrap();
         fs::remove_file(&link).unwrap();
         symlink(&replacement_target, &link).unwrap();
 
         let error = backup.restore().unwrap_err();
 
         assert!(error.contains("symlink target changed since backup"));
-        assert_eq!(fs::read_to_string(&original_target).unwrap(), "mutated A\\n");
+        assert_eq!(fs::read_to_string(&original_target).unwrap(), "mutated A\n");
         assert_eq!(
             fs::read_to_string(&replacement_target).unwrap(),
-            "original B\\n"
+            "original B\n"
         );
         assert_eq!(fs::read_link(&link).unwrap(), replacement_target);
 

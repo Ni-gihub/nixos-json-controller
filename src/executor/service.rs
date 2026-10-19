@@ -142,7 +142,8 @@ pub fn execute(plan: ExecutionPlan) -> Result<ServiceChange, ExecutorError> {
 
             match disable_service_strategy(&config, &system, &plan.target.name) {
                 ServiceDisableStrategy::Declared { paths } => {
-                    let verification_option = service_option_for_paths(&paths, &plan.target.name)?;
+                    let verification_option =
+                        service_option_for_paths(context.flake_root(), &paths, &plan.target.name)?;
                     let backups = nixos::dedicated::apply_file_changes(
                         context.flake_root(),
                         &paths,
@@ -191,8 +192,10 @@ fn write_service_file(
     service: &str,
     enabled: bool,
 ) -> Result<ServiceChange, ExecutorError> {
-    let content = std::fs::read_to_string(path).map_err(|error| {
-        ExecutorError::NixosError(format!("failed to read {}: {}", path.display(), error))
+    let target = nixos::writer::resolve_write_target(flake_root, path)
+        .map_err(ExecutorError::NixosError)?;
+    let content = std::fs::read_to_string(&target).map_err(|error| {
+        ExecutorError::NixosError(format!("failed to read {}: {}", target.display(), error))
     })?;
     let verification_option = nixos::module::service_option_for_content(&content, service)
         .map_err(ExecutorError::NixosError)?;
@@ -243,14 +246,17 @@ fn install_service_in_dedicated_module(
 }
 
 fn service_option_for_paths(
+    flake_root: &std::path::Path,
     paths: &[std::path::PathBuf],
     service: &str,
 ) -> Result<String, ExecutorError> {
     let mut selected: Option<String> = None;
 
     for path in paths {
-        let content = std::fs::read_to_string(path).map_err(|error| {
-            ExecutorError::NixosError(format!("failed to read {}: {}", path.display(), error))
+        let target = nixos::writer::resolve_write_target(flake_root, path)
+            .map_err(ExecutorError::NixosError)?;
+        let content = std::fs::read_to_string(&target).map_err(|error| {
+            ExecutorError::NixosError(format!("failed to read {}: {}", target.display(), error))
         })?;
         let option = nixos::module::service_option_for_content(&content, service)
             .map_err(ExecutorError::NixosError)?;

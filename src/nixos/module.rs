@@ -646,9 +646,7 @@ fn returned_module_attrset(content: &str, code: &[bool]) -> Result<(usize, usize
             let argument_start = skip_nix_trivia(content, after_first + 1, content.len());
             let argument_end = read_nix_identifier_end(content, argument_start, content.len());
             let colon = skip_nix_trivia(content, argument_end, content.len());
-            (argument_end > argument_start
-                && bytes.get(colon) == Some(&b':')
-                && code[colon])
+            (argument_end > argument_start && bytes.get(colon) == Some(&b':') && code[colon])
                 .then_some(colon)
         } else {
             None
@@ -1282,7 +1280,8 @@ mod tests {
 
     #[test]
     fn selects_the_existing_service_option_when_both_option_paths_exist() {
-        let content = "{ services.openssh.enable = false; systemd.services.openssh.enable = true; }";
+        let content =
+            "{ services.openssh.enable = false; systemd.services.openssh.enable = true; }";
         assert_eq!(
             service_option_for_content(content, "openssh").unwrap(),
             "services.openssh.enable"
@@ -1294,5 +1293,4 @@ mod tests {
             "systemd.services.custom.enable"
         );
     }
-
 }

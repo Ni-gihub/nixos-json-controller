@@ -465,5 +465,4 @@ mod tests {
         assert!(error.contains("systemd.services.custom.enable"));
         assert!(error.contains("expected false"));
     }
-
 }

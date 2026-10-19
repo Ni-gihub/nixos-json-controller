@@ -189,8 +189,9 @@ fn write_service_file(
     service: &str,
     enabled: bool,
 ) -> Result<ServiceChange, ExecutorError> {
-    let content = std::fs::read_to_string(path)
-        .map_err(|error| ExecutorError::NixosError(format!("failed to read {}: {}", path.display(), error)))?;
+    let content = std::fs::read_to_string(path).map_err(|error| {
+        ExecutorError::NixosError(format!("failed to read {}: {}", path.display(), error))
+    })?;
     let verification_option = nixos::module::service_option_for_content(&content, service)
         .map_err(ExecutorError::NixosError)?;
     let backup = nixos::dedicated::FileBackup::capture(path).map_err(ExecutorError::NixosError)?;
@@ -221,12 +222,17 @@ fn install_service_in_dedicated_module(
 ) -> Result<ServiceChange, ExecutorError> {
     println!("Using the NXC dedicated service module for '{}'.", service);
 
-    let mut change = nixos::dedicated::enable_service(flake_root, config, service)
+    let mut change: ServiceChange = nixos::dedicated::enable_service(flake_root, config, service)
         .map(Into::into)
         .map_err(ExecutorError::NixosError)?;
     let module_path = flake_root.join(nixos::dedicated::DEDICATED_SERVICE_MODULE);
-    let content = std::fs::read_to_string(&module_path)
-        .map_err(|error| ExecutorError::NixosError(format!("failed to read {}: {}", module_path.display(), error)))?;
+    let content = std::fs::read_to_string(&module_path).map_err(|error| {
+        ExecutorError::NixosError(format!(
+            "failed to read {}: {}",
+            module_path.display(),
+            error
+        ))
+    })?;
     change.verification_option = Some(
         nixos::module::service_option_for_content(&content, service)
             .map_err(ExecutorError::NixosError)?,

@@ -331,7 +331,8 @@ fn read_nix_identifier_end(content: &str, start: usize, limit: usize) -> usize {
 
     let mut end = start + 1;
     while end < limit
-        && (bytes[end].is_ascii_alphanumeric() || matches!(bytes[end], b'_' | b'-' | b'\'')) {
+        && (bytes[end].is_ascii_alphanumeric() || matches!(bytes[end], b'_' | b'-' | b'\''))
+    {
         end += 1;
     }
     end

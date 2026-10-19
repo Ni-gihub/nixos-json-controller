@@ -30,14 +30,16 @@ pub fn disable_service(flake_root: &Path, path: &Path, service: &str) -> Result<
 
 fn read(flake_root: &Path, path: &Path) -> Result<String, String> {
     let target = resolve_write_target(flake_root, path)?;
-    fs::read_to_string(&target)
-        .map_err(|e| format!("failed to read {}: {}", target.display(), e))
+    fs::read_to_string(&target).map_err(|e| format!("failed to read {}: {}", target.display(), e))
 }
 
 /// Resolve a path and enforce the same flake-root boundary used by discovery.
 /// Both the read and the later atomic replacement call this check so a symlink
 /// retargeted after discovery cannot redirect a write outside the flake.
-pub(crate) fn resolve_write_target(flake_root: &Path, path: &Path) -> Result<std::path::PathBuf, String> {
+pub(crate) fn resolve_write_target(
+    flake_root: &Path,
+    path: &Path,
+) -> Result<std::path::PathBuf, String> {
     let root = fs::canonicalize(flake_root).map_err(|error| {
         format!(
             "failed to resolve flake root {}: {}",
@@ -75,11 +77,7 @@ pub(crate) fn resolve_write_target(flake_root: &Path, path: &Path) -> Result<std
     Ok(target)
 }
 
-pub(crate) fn write_atomic(
-    flake_root: &Path,
-    path: &Path,
-    content: &str,
-) -> Result<(), String> {
+pub(crate) fn write_atomic(flake_root: &Path, path: &Path, content: &str) -> Result<(), String> {
     // Resolve the destination before creating and renaming the temporary file.
     // Renaming over the lexical symlink path would replace the symlink itself;
     // renaming over the canonical target updates its contents and preserves the
@@ -185,7 +183,10 @@ mod tests {
         let directory = std::env::temp_dir().join(format!(
             "nxc-writer-symlink-{}-{}",
             std::process::id(),
-            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
         ));
         fs::create_dir_all(directory.join("real")).unwrap();
 
@@ -196,7 +197,12 @@ mod tests {
 
         install_package(&directory, &link, "firefox").unwrap();
 
-        assert!(fs::symlink_metadata(&link).unwrap().file_type().is_symlink());
+        assert!(
+            fs::symlink_metadata(&link)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
         assert_eq!(fs::read_link(&link).unwrap(), target);
         assert!(fs::read_to_string(&target).unwrap().contains("firefox"));
 
@@ -208,7 +214,10 @@ mod tests {
     fn refuses_to_write_through_symlink_outside_flake_root() {
         use std::os::unix::fs::symlink;
 
-        let unique = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
         let parent = std::env::temp_dir().join(format!(
             "nxc-writer-outside-symlink-{}-{}",
             std::process::id(),
@@ -226,7 +235,12 @@ mod tests {
 
         assert!(error.contains("outside flake root"));
         assert_eq!(fs::read_to_string(&outside).unwrap(), original);
-        assert!(fs::symlink_metadata(&link).unwrap().file_type().is_symlink());
+        assert!(
+            fs::symlink_metadata(&link)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
         assert_eq!(fs::read_link(&link).unwrap(), outside);
 
         let _ = fs::remove_dir_all(parent);

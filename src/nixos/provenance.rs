@@ -99,9 +99,7 @@ pub fn evaluate_boolean_option(
     configuration_name: &str,
     option: &str,
 ) -> Result<bool, String> {
-    let expression = format!(
-        ".#nixosConfigurations.{configuration_name}.config.{option}"
-    );
+    let expression = format!(".#nixosConfigurations.{configuration_name}.config.{option}");
 
     let output = Command::new("nix")
         .args(["eval", "--json", &expression])
@@ -278,9 +276,11 @@ mod tests {
     fn parses_effective_boolean_option_values() {
         assert!(parse_boolean_option_value("services.openssh.enable", b"true").unwrap());
         assert!(!parse_boolean_option_value("services.openssh.enable", b"false").unwrap());
-        assert!(parse_boolean_option_value("services.openssh.enable", b"null")
-            .unwrap_err()
-            .contains("did not evaluate to a boolean"));
+        assert!(
+            parse_boolean_option_value("services.openssh.enable", b"null")
+                .unwrap_err()
+                .contains("did not evaluate to a boolean")
+        );
     }
 
     #[test]

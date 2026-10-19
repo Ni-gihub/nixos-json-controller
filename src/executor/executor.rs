@@ -306,24 +306,28 @@ mod tests {
     }
     #[test]
     fn accepts_service_enable_when_effective_option_is_true() {
-        assert!(verify_service_option_value(
-            &Action::EnableService,
-            "openssh",
-            "services.openssh.enable",
-            true
-        )
-        .is_ok());
+        assert!(
+            verify_service_option_value(
+                &Action::EnableService,
+                "openssh",
+                "services.openssh.enable",
+                true
+            )
+            .is_ok()
+        );
     }
 
     #[test]
     fn accepts_service_disable_when_effective_option_is_false() {
-        assert!(verify_service_option_value(
-            &Action::DisableService,
-            "openssh",
-            "services.openssh.enable",
-            false
-        )
-        .is_ok());
+        assert!(
+            verify_service_option_value(
+                &Action::DisableService,
+                "openssh",
+                "services.openssh.enable",
+                false
+            )
+            .is_ok()
+        );
     }
 
     #[test]
@@ -353,5 +357,4 @@ mod tests {
         assert!(error.contains("effective NixOS option 'services.openssh.enable'"));
         assert!(error.contains("expected false"));
     }
-
 }

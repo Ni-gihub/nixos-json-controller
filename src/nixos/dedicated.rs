@@ -978,7 +978,18 @@ fn is_plain_parenthesized_path_literal(
     if prefix_end > list_start
         && matches!(
             bytes[prefix_end - 1],
-            b'&' | b'|' | b'=' | b'!' | b'<' | b'>' | b'?' | b'+' | b'-' | b'*' | b'/' | b':' | b';'
+            b'&' | b'|'
+                | b'='
+                | b'!'
+                | b'<'
+                | b'>'
+                | b'?'
+                | b'+'
+                | b'-'
+                | b'*'
+                | b'/'
+                | b':'
+                | b';'
         )
     {
         return false;

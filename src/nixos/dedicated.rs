@@ -1868,8 +1868,8 @@ mod tests {
 
         let original_module = original_directory.join("packages.nix");
         let replacement_module = replacement_directory.join("packages.nix");
-        fs::write(&original_module, "created by NXC\\n").unwrap();
-        fs::write(&replacement_module, "unrelated file\\n").unwrap();
+        fs::write(&original_module, "created by NXC\n").unwrap();
+        fs::write(&replacement_module, "unrelated file\n").unwrap();
         symlink(&original_directory, &parent_link).unwrap();
 
         // Store the canonical target, as the creation path does.
@@ -1882,7 +1882,7 @@ mod tests {
         assert!(!original_module.exists());
         assert_eq!(
             fs::read_to_string(&replacement_module).unwrap(),
-            "unrelated file\\n"
+            "unrelated file\n"
         );
         assert_eq!(fs::read_link(&parent_link).unwrap(), replacement_directory);
 

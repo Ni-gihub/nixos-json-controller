@@ -192,14 +192,15 @@ fn write_service_file(
     service: &str,
     enabled: bool,
 ) -> Result<ServiceChange, ExecutorError> {
-    let target = nixos::writer::resolve_write_target(flake_root, path)
-        .map_err(ExecutorError::NixosError)?;
+    let target =
+        nixos::writer::resolve_write_target(flake_root, path).map_err(ExecutorError::NixosError)?;
     let content = std::fs::read_to_string(&target).map_err(|error| {
         ExecutorError::NixosError(format!("failed to read {}: {}", target.display(), error))
     })?;
     let verification_option = nixos::module::service_option_for_content(&content, service)
         .map_err(ExecutorError::NixosError)?;
-    let backup = nixos::dedicated::FileBackup::capture(flake_root, path).map_err(ExecutorError::NixosError)?;
+    let backup = nixos::dedicated::FileBackup::capture(flake_root, path)
+        .map_err(ExecutorError::NixosError)?;
 
     let result = if enabled {
         nixos::writer::enable_service(flake_root, path, service)

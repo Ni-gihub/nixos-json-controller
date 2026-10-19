@@ -546,15 +546,24 @@ pub fn add_service_to_content(
     ];
 
     for attribute in &attributes {
-        if let Some((start, end)) = find_boolean_assignment(content, attribute) {
-            let mut result = content.to_string();
-            result.replace_range(start..end, if enabled { "true" } else { "false" });
-            return Ok(result);
+        match find_boolean_assignment(content, attribute)? {
+            Some((start, end)) => {
+                let mut result = content.to_string();
+                result.replace_range(start..end, if enabled { "true" } else { "false" });
+                return Ok(result);
+            }
+            None => continue,
         }
     }
 
+    // No exact assignment exists. Insert a new declaration only in this case;
+    // if an existing declaration uses an unsupported expression, the finder
+    // returns an error instead of silently appending a lower-priority value.
+    let code = nix_code_mask(content);
     let closing_brace = content
-        .rfind('}')
+        .char_indices()
+        .rev()
+        .find_map(|(index, ch)| (ch == '}' && code[index]).then_some(index))
         .ok_or("Nix module closing brace not found")?;
 
     let setting = format!("  services.{service}.enable = {enabled};\n");
@@ -563,33 +572,75 @@ pub fn add_service_to_content(
     Ok(result)
 }
 
-fn find_boolean_assignment(content: &str, attribute: &str) -> Option<(usize, usize)> {
-    let mut offset = 0usize;
+fn find_boolean_assignment(
+    content: &str,
+    attribute: &str,
+) -> Result<Option<(usize, usize)>, String> {
+    let code = nix_code_mask(content);
+    let mut assignments = Vec::new();
+    let mut search_from = 0usize;
 
-    for line in content.split_inclusive('\n') {
-        let code = line.split_once('#').map_or(line, |(code, _)| code);
+    while let Some(relative) = content[search_from..].find(attribute) {
+        let start = search_from + relative;
+        let end = start + attribute.len();
+        search_from = end;
 
-        if let Some(attribute_pos) = code.find(attribute) {
-            let after_attribute = &code[attribute_pos + attribute.len()..];
-            let equals = after_attribute.find('=')?;
-            let value_part = &after_attribute[equals + 1..];
-            let value_start = value_part.len() - value_part.trim_start().len();
-            let value = value_part.trim_start();
-            let start = offset + attribute_pos + attribute.len() + equals + 1 + value_start;
-
-            if value.starts_with("true") {
-                return Some((start, start + 4));
-            }
-
-            if value.starts_with("false") {
-                return Some((start, start + 5));
-            }
+        // Match the complete attribute path, not a prefix such as
+        // services.openssh.enableExtra, and ignore comments/strings.
+        if !active_token_at(content, &code, start, attribute) {
+            continue;
         }
 
-        offset += line.len();
+        let equals = skip_nix_trivia(content, end, content.len());
+        if equals >= content.len()
+            || content.as_bytes()[equals] != b'='
+            || !code[equals]
+        {
+            continue;
+        }
+
+        let next = content.as_bytes().get(equals + 1).copied();
+        if matches!(next, Some(b'=' | b'>')) {
+            continue;
+        }
+
+        assignments.push(equals);
     }
 
-    None
+    match assignments.as_slice() {
+        [] => return Ok(None),
+        [equals] => {
+            let value_start = skip_nix_trivia(content, equals + 1, content.len());
+
+            let value_end = if active_token_at(content, &code, value_start, "true") {
+                value_start + "true".len()
+            } else if active_token_at(content, &code, value_start, "false") {
+                value_start + "false".len()
+            } else {
+                return Err(format!(
+                    "existing assignment to '{}' uses an unsupported expression; refusing to edit it or append a conflicting declaration",
+                    attribute
+                ));
+            };
+
+            let terminator = skip_nix_trivia(content, value_end, content.len());
+            if terminator >= content.len()
+                || content.as_bytes()[terminator] != b';'
+                || !code[terminator]
+            {
+                return Err(format!(
+                    "existing assignment to '{}' is not a standalone true/false literal; refusing to edit it or append a conflicting declaration",
+                    attribute
+                ));
+            }
+
+            Ok(Some((value_start, value_end)))
+        }
+        _ => Err(format!(
+            "found multiple assignments to '{}'; refusing to guess which definition to edit",
+            attribute
+        )),
+    }
 }
 
 fn indentation_for_list_item(content: &str, list_start: usize) -> String {
@@ -832,4 +883,64 @@ mod tests {
         assert!(result.contains("services.xserver.enable = false;"));
         assert!(result.contains("services.openssh.enable = false;"));
     }
+    #[test]
+    fn refuses_to_append_over_a_mkforce_service_definition() {
+        let content = "{\n  services.openssh.enable = lib.mkForce true;\n}\n";
+        let result = add_service_to_content(content, "openssh", false);
+
+        let error = result.unwrap_err();
+        assert!(error.contains("unsupported expression"));
+        assert!(error.contains("services.openssh.enable"));
+        assert!(content.contains("lib.mkForce true"));
+        assert!(!content.contains("services.openssh.enable = false;"));
+    }
+
+    #[test]
+    fn refuses_to_edit_a_conditional_service_definition() {
+        let content = "{\n  services.openssh.enable = if condition then true else false;\n}\n";
+        let result = add_service_to_content(content, "openssh", false);
+
+        assert!(result.unwrap_err().contains("unsupported expression"));
+        assert!(content.contains("if condition then true else false"));
+    }
+
+    #[test]
+    fn service_assignment_match_requires_exact_attribute_boundary() {
+        let content = "{\n  services.openssh.enableExtra = true;\n}\n";
+        let result = add_service_to_content(content, "openssh", false).unwrap();
+
+        assert!(result.contains("services.openssh.enableExtra = true;"));
+        assert!(result.contains("services.openssh.enable = false;"));
+    }
+
+    #[test]
+    fn ignores_service_option_mentions_in_comments_and_strings() {
+        let content = r#"{
+  # services.openssh.enable = true;
+  description = "services.openssh.enable = true;";
+}
+"#;
+        let result = add_service_to_content(content, "openssh", false).unwrap();
+
+        assert!(result.contains("# services.openssh.enable = true;"));
+        assert!(result.contains("\"services.openssh.enable = true;\""));
+        assert!(result.contains("services.openssh.enable = false;"));
+    }
+
+    #[test]
+    fn refuses_to_edit_duplicate_service_assignments() {
+        let content = "{\n  services.openssh.enable = true;\n  services.openssh.enable = false;\n}\n";
+        let result = add_service_to_content(content, "openssh", true);
+
+        assert!(result.unwrap_err().contains("multiple assignments"));
+    }
+
+    #[test]
+    fn refuses_to_edit_a_boolean_followed_by_an_expression() {
+        let content = "{\n  services.openssh.enable = true && condition;\n}\n";
+        let result = add_service_to_content(content, "openssh", false);
+
+        assert!(result.unwrap_err().contains("standalone true/false literal"));
+    }
+
 }

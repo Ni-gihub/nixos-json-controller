@@ -602,6 +602,7 @@ fn attribute_list_references_module(
         let mut cursor = list_start + 1;
         let mut curly_depth = 0usize;
         let mut paren_depth = 0usize;
+        let mut paren_stack = Vec::new();
         let mut list_depth = 0usize;
 
         while cursor < list_end {
@@ -616,19 +617,31 @@ fn attribute_list_references_module(
                     || (bytes.get(cursor + 1) == Some(&b'.')
                         && bytes.get(cursor + 2) == Some(&b'/')));
 
-            if curly_depth == 0
-                && paren_depth == 0
-                && list_depth == 0
-                && is_relative_path
-                && is_path_token_boundary_before(content, cursor)
-            {
+            if is_relative_path && is_path_token_boundary_before(content, cursor) {
                 let path_end = read_relative_path_token(content, &code, cursor, list_end);
                 if path_end > cursor {
-                    if let Some(candidate) =
-                        resolve_static_import_path(base, &content[cursor..path_end])
+                    let is_plain_parenthesized_path = curly_depth == 0
+                        && list_depth == 0
+                        && paren_depth > 0
+                        && is_plain_parenthesized_path_literal(
+                            content,
+                            &code,
+                            cursor,
+                            path_end,
+                            list_start + 1,
+                            list_end,
+                            &paren_stack,
+                        );
+                    if curly_depth == 0
+                        && list_depth == 0
+                        && (paren_depth == 0 || is_plain_parenthesized_path)
                     {
-                        if candidate == target {
-                            return true;
+                        if let Some(candidate) =
+                            resolve_static_import_path(base, &content[cursor..path_end])
+                        {
+                            if candidate == target {
+                                return true;
+                            }
                         }
                     }
                     cursor = path_end;
@@ -639,8 +652,14 @@ fn attribute_list_references_module(
             match bytes[cursor] {
                 b'{' => curly_depth += 1,
                 b'}' => curly_depth = curly_depth.saturating_sub(1),
-                b'(' => paren_depth += 1,
-                b')' => paren_depth = paren_depth.saturating_sub(1),
+                b'(' => {
+                    paren_depth += 1;
+                    paren_stack.push(cursor);
+                }
+                b')' => {
+                    paren_depth = paren_depth.saturating_sub(1);
+                    paren_stack.pop();
+                }
                 b'[' => list_depth += 1,
                 b']' => list_depth = list_depth.saturating_sub(1),
                 _ => {}
@@ -895,6 +914,98 @@ fn read_relative_path_token(content: &str, code: &[bool], start: usize, limit: u
     }
 
     cursor
+}
+
+/// Return true only when a static path literal is surrounded by parentheses
+/// that contain nothing but that path. Reject surrounding conditional/operator
+/// expressions so their branch paths are not mistaken for unconditional imports.
+fn is_plain_parenthesized_path_literal(
+    content: &str,
+    code: &[bool],
+    path_start: usize,
+    path_end: usize,
+    list_start: usize,
+    list_end: usize,
+    paren_stack: &[usize],
+) -> bool {
+    if paren_stack.is_empty() {
+        return false;
+    }
+
+    let bytes = content.as_bytes();
+    let mut inner_start = path_start;
+    for open in paren_stack.iter().rev() {
+        if *open < list_start
+            || *open >= inner_start
+            || bytes[*open] != b'('
+            || !code[*open]
+            || skip_source_trivia(content, open + 1, inner_start) != inner_start
+        {
+            return false;
+        }
+        inner_start = *open;
+    }
+
+    let mut suffix = path_end;
+    for _ in paren_stack {
+        suffix = skip_source_trivia(content, suffix, list_end);
+        if suffix >= list_end || bytes[suffix] != b')' || !code[suffix] {
+            return false;
+        }
+        suffix += 1;
+    }
+
+    // A path after a control keyword or operator belongs to a larger expression.
+    let mut prefix_end = inner_start;
+    while prefix_end > list_start && bytes[prefix_end - 1].is_ascii_whitespace() {
+        prefix_end -= 1;
+    }
+    let mut token_start = prefix_end;
+    while token_start > list_start {
+        let ch = content[..token_start].chars().next_back().unwrap();
+        if !is_nix_attribute_char(ch) {
+            break;
+        }
+        token_start -= ch.len_utf8();
+    }
+    let previous_token = &content[token_start..prefix_end];
+    if matches!(
+        previous_token,
+        "if" | "then" | "else" | "let" | "in" | "with" | "assert"
+    ) {
+        return false;
+    }
+    if prefix_end > list_start
+        && matches!(
+            bytes[prefix_end - 1],
+            b'&' | b'|' | b'=' | b'!' | b'<' | b'>' | b'?' | b'+' | b'-' | b'*' | b'/' | b':' | b';'
+        )
+    {
+        return false;
+    }
+
+    let suffix = skip_source_trivia(content, suffix, list_end);
+    if suffix < list_end {
+        if matches!(
+            bytes[suffix],
+            b'&' | b'|' | b'=' | b'!' | b'<' | b'>' | b'?' | b'+' | b'-' | b'*' | b'/' | b':'
+        ) {
+            return false;
+        }
+        let mut token_end = suffix;
+        while token_end < list_end {
+            let ch = content[token_end..].chars().next().unwrap();
+            if !is_nix_attribute_char(ch) {
+                break;
+            }
+            token_end += ch.len_utf8();
+        }
+        if matches!(&content[suffix..token_end], "then" | "else" | "in" | "or") {
+            return false;
+        }
+    }
+
+    true
 }
 
 fn next_char_boundary(content: &str, cursor: usize) -> usize {
@@ -1639,6 +1750,37 @@ mod tests {
             find_importing_file(&directory, &config, &module_path).unwrap(),
             Some(config_path.clone())
         );
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn recognizes_parenthesized_static_import_path_but_ignores_conditional_branch() {
+        let directory = test_directory("nxc-import-parenthesized-path");
+        fs::create_dir_all(directory.join("nxc")).unwrap();
+        let config_path = directory.join("configuration.nix");
+        let module_path = dedicated_package_path(&directory);
+        fs::write(&module_path, "{ ... }: { }\n").unwrap();
+
+        fs::write(&config_path, "{ imports = [ (./nxc/packages.nix) ]; }\n").unwrap();
+        let config = ConfigState {
+            files: vec![config_file(config_path.to_str().unwrap(), &[])],
+        };
+        assert_eq!(
+            find_importing_file(&directory, &config, &module_path).unwrap(),
+            Some(config_path.clone())
+        );
+
+        // Do not treat a path in a conditional expression as an unconditional import.
+        fs::write(
+            &config_path,
+            "{ imports = [ (if condition then (./nxc/packages.nix) else ./other.nix) ]; }\n",
+        )
+        .unwrap();
+        assert_eq!(
+            find_importing_file(&directory, &config, &module_path).unwrap(),
+            None
+        );
+
         let _ = fs::remove_dir_all(directory);
     }
 

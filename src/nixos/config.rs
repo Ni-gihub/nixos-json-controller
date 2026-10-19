@@ -794,7 +794,7 @@ environment.systemPackages = lib.mkAfter [
         fs::create_dir_all(&external).unwrap();
         fs::write(
             external.join("module.nix"),
-            "{ environment.systemPackages = [ pkgs.git ]; }\\n",
+            "{ environment.systemPackages = [ pkgs.git ]; }\n",
         )
         .unwrap();
         symlink(&external, root.join("result")).unwrap();

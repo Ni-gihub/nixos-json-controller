@@ -1452,6 +1452,7 @@ mod tests {
 
         let paths = vec![first.clone(), second.clone()];
         let result = apply_file_changes(
+            &directory,
             &paths,
             |path| {
                 if path == second.as_path() {

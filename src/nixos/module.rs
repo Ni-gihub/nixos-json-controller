@@ -679,6 +679,7 @@ fn find_boolean_assignment(
     let code = nix_code_mask(content);
     let (body_start, body_end) = returned_module_attrset(content, &code)?;
     let mut assignments = Vec::new();
+    let mut nested_assignment_found = false;
     let mut search_from = body_start;
 
     while search_from < body_end {
@@ -691,13 +692,22 @@ fn find_boolean_assignment(
 
         // Match the complete attribute path, not a prefix such as
         // services.openssh.enableExtra, and ignore comments/strings.
-        if !active_token_at(content, &code, start, attribute)
-            || !is_direct_module_attribute(content, &code, body_start, start)
-        {
+        if !active_token_at(content, &code, start, attribute) {
             continue;
         }
 
         let equals = skip_nix_trivia(content, end, body_end);
+        if !is_direct_module_attribute(content, &code, body_start, start) {
+            if equals < body_end
+                && content.as_bytes()[equals] == b'='
+                && code[equals]
+                && content.as_bytes().get(equals + 1) != Some(&b'=')
+                && content.as_bytes().get(equals + 1) != Some(&b'>')
+            {
+                nested_assignment_found = true;
+            }
+            continue;
+        }
         if equals >= content.len() || content.as_bytes()[equals] != b'=' || !code[equals] {
             continue;
         }
@@ -711,7 +721,13 @@ fn find_boolean_assignment(
     }
 
     match assignments.as_slice() {
-        [] => return Ok(None),
+        [] if nested_assignment_found => {
+            Err(format!(
+                "found '{}' only in a nested attribute set; refusing to add a conflicting top-level declaration",
+                attribute
+            ))
+        }
+        [] => Ok(None),
         [equals] => {
             let value_start = skip_nix_trivia(content, equals + 1, body_end);
 

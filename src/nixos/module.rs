@@ -250,7 +250,7 @@ fn parse_simple_package_list(
             && code_range_is_active(code, cursor, cursor + "pkgs.".len())
         {
             cursor += "pkgs.".len();
-            let name_end = read_nix_identifier_end(content, cursor, end);
+            let name_end = read_nix_attrpath_end(content, cursor, end);
             if name_end == cursor {
                 return Err(
                     "package list contains an incomplete pkgs attribute; refusing to edit"
@@ -259,17 +259,18 @@ fn parse_simple_package_list(
             }
             cursor = name_end;
         } else {
-            cursor = read_nix_identifier_end(content, cursor, end);
+            cursor = read_nix_attrpath_end(content, cursor, end);
             if cursor == item_start {
                 return Err(
-                    "package list contains a non-package expression; refusing to edit".to_string(),
+                    "package list contains a non-package expression; refusing to edit"
+                        .to_string(),
                 );
             }
         }
 
         let token = &content[item_start..cursor];
         let name = token.strip_prefix("pkgs.").unwrap_or(token);
-        if !is_valid_package_identifier(name) || is_nix_keyword(name) {
+        if !is_valid_package_identifier(name) || name.split('.').any(is_nix_keyword) {
             return Err(
                 "package list contains a non-package expression; refusing to edit".to_string(),
             );
@@ -306,13 +307,16 @@ fn normalize_package_name(package: &str) -> Option<&str> {
 }
 
 fn is_valid_package_identifier(name: &str) -> bool {
-    let mut chars = name.chars();
-    let Some(first) = chars.next() else {
-        return false;
-    };
+    !name.is_empty()
+        && name.split('.').all(|segment| {
+            let mut chars = segment.chars();
+            let Some(first) = chars.next() else {
+                return false;
+            };
 
-    (first.is_ascii_alphabetic() || first == '_')
-        && chars.all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '\''))
+            (first.is_ascii_alphabetic() || first == '_')
+                && chars.all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '\''))
+        })
 }
 
 fn read_nix_identifier_end(content: &str, start: usize, limit: usize) -> usize {
@@ -327,10 +331,28 @@ fn read_nix_identifier_end(content: &str, start: usize, limit: usize) -> usize {
 
     let mut end = start + 1;
     while end < limit
-        && (bytes[end].is_ascii_alphanumeric() || matches!(bytes[end], b'_' | b'-' | '\''))
-    {
+        && (bytes[end].is_ascii_alphanumeric() || matches!(bytes[end], b'_' | b'-' | b'\'')) {
         end += 1;
     }
+    end
+}
+
+fn read_nix_attrpath_end(content: &str, start: usize, limit: usize) -> usize {
+    let mut end = read_nix_identifier_end(content, start, limit);
+    if end == start {
+        return start;
+    }
+
+    let bytes = content.as_bytes();
+    while end < limit && bytes[end] == b'.' {
+        let next_start = end + 1;
+        let next_end = read_nix_identifier_end(content, next_start, limit);
+        if next_end == next_start {
+            break;
+        }
+        end = next_end;
+    }
+
     end
 }
 
@@ -474,7 +496,8 @@ fn nix_code_mask(content: &str) -> Vec<bool> {
                 }
             }
             INDENTED_STRING => {
-                if cursor + 1 < bytes.len() && bytes[cursor] == b'\'' && bytes[cursor + 1] == b'\'' {
+                if cursor + 1 < bytes.len() && bytes[cursor] == b'\'' && bytes[cursor + 1] == b'\''
+                {
                     let third = bytes.get(cursor + 2).copied();
                     if third == Some(b'$') && bytes.get(cursor + 3) == Some(&b'{') {
                         cursor += 4;
@@ -651,6 +674,17 @@ mod tests {
             result,
             "{ environment.systemPackages = [ pkgs.git firefox ]; }"
         );
+    }
+
+    #[test]
+    fn supports_nested_package_attribute_paths() {
+        let content = "{ environment.systemPackages = with pkgs; [ firefox ]; }";
+        let result = add_package_to_content(content, "kdePackages.okular").unwrap();
+
+        assert!(result.contains("[ firefox kdePackages.okular ]"));
+        let removed = remove_package_from_content(&result, "kdePackages.okular").unwrap();
+        assert!(removed.contains("[ firefox  ]"));
+        assert!(!removed.contains("kdePackages.okular"));
     }
 
     #[test]

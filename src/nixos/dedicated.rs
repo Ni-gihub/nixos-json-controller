@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use super::config::ConfigState;
-use super::module::find_matching_delimiter;
+use super::module::{find_matching_delimiter, nix_code_mask};
 use super::writer;
 
 pub const DEDICATED_PACKAGE_MODULE: &str = "nxc/packages.nix";
@@ -546,37 +546,241 @@ fn find_importing_file(
     for file in &config.files {
         let content = fs::read_to_string(&file.path)
             .map_err(|e| format!("failed to read {}: {}", file.path.display(), e))?;
-
         let Some(parent) = file.path.parent() else {
             continue;
         };
 
-        for import in &file.imports {
-            if fs::canonicalize(import).ok().as_ref() == Some(&module_path) {
-                return Ok(Some(file.path.clone()));
-            }
-
-            let candidate = parent.join(import);
-            if fs::canonicalize(candidate).ok().as_ref() == Some(&module_path) {
-                return Ok(Some(file.path.clone()));
-            }
-        }
-
-        if content.contains(&relative_import_path(&file.path, &module_path)?) {
+        // Only paths inside an active NixOS imports list establish an import.
+        // Do not trust a raw path occurrence or a path inferred from comments
+        // and strings by the lightweight discovery parser.
+        if attribute_list_references_module(&content, "imports", parent, &module_path) {
             return Ok(Some(file.path.clone()));
         }
     }
 
+    // Flakes may attach NixOS modules directly through nixosSystem's modules
+    // list rather than through a module-level imports list.
     let flake_file = flake_root.join("flake.nix");
     if flake_file.is_file() {
         let content = fs::read_to_string(&flake_file)
             .map_err(|e| format!("failed to read {}: {}", flake_file.display(), e))?;
-        if content.contains(&relative_import_path(&flake_file, &module_path)?) {
+        let parent = flake_file.parent().unwrap_or(flake_root);
+        if attribute_list_references_module(&content, "modules", parent, &module_path) {
             return Ok(Some(flake_file));
         }
     }
 
     Ok(None)
+}
+
+/// Find literal path entries inside active `attribute = [ ... ]` lists and
+/// resolve them using the same extensionless-file and directory conventions as
+/// the configuration discovery code.
+fn attribute_list_references_module(
+    content: &str,
+    attribute: &str,
+    base: &Path,
+    target: &Path,
+) -> bool {
+    let code = nix_code_mask(content);
+    let target = match fs::canonicalize(target) {
+        Ok(target) => target,
+        Err(_) => return false,
+    };
+
+    for (list_start, list_end) in find_attribute_list_ranges(content, attribute) {
+        let mut cursor = list_start + 1;
+        while cursor < list_end {
+            if !code[cursor] {
+                cursor = next_char_boundary(content, cursor);
+                continue;
+            }
+
+            let bytes = content.as_bytes();
+            let is_relative_path = bytes[cursor] == b'.'
+                && (bytes.get(cursor + 1) == Some(&b'/')
+                    || (bytes.get(cursor + 1) == Some(&b'.')
+                        && bytes.get(cursor + 2) == Some(&b'/')));
+
+            if !is_relative_path || !is_path_token_boundary_before(content, cursor) {
+                cursor = next_char_boundary(content, cursor);
+                continue;
+            }
+
+            let path_end = read_relative_path_token(content, &code, cursor, list_end);
+            if path_end <= cursor {
+                cursor = next_char_boundary(content, cursor);
+                continue;
+            }
+
+            if let Some(candidate) = resolve_static_import_path(base, &content[cursor..path_end]) {
+                if candidate == target {
+                    return true;
+                }
+            }
+
+            cursor = path_end;
+        }
+    }
+
+    false
+}
+
+/// Return all direct list literals assigned to the requested Nix attribute.
+/// Comments and strings are excluded by the shared Nix lexer mask.
+fn find_attribute_list_ranges(content: &str, attribute: &str) -> Vec<(usize, usize)> {
+    let code = nix_code_mask(content);
+    let bytes = content.as_bytes();
+    let mut ranges = Vec::new();
+    let mut search_from = 0usize;
+
+    while search_from < content.len() {
+        let Some(relative) = content[search_from..].find(attribute) else {
+            break;
+        };
+        let start = search_from + relative;
+        let end = start + attribute.len();
+        search_from = end;
+
+        if !code[start..end].iter().all(|active| *active) {
+            continue;
+        }
+
+        let before = content[..start].chars().next_back();
+        if before.is_some_and(is_nix_attribute_char) || before == Some('.') {
+            continue;
+        }
+        let after = content[end..].chars().next();
+        if after.is_some_and(is_nix_attribute_char) || after == Some('.') {
+            continue;
+        }
+
+        let equals = skip_source_trivia(content, end, content.len());
+        if equals >= bytes.len()
+            || bytes[equals] != b'='
+            || !code[equals]
+            || matches!(bytes.get(equals + 1), Some(b'=' | b'>'))
+        {
+            continue;
+        }
+
+        let list_start = skip_source_trivia(content, equals + 1, content.len());
+        if list_start >= bytes.len() || bytes[list_start] != b'[' || !code[list_start] {
+            continue;
+        }
+
+        if let Some(list_end) = find_matching_delimiter(content, list_start, '[', ']') {
+            ranges.push((list_start, list_end));
+        }
+    }
+
+    ranges
+}
+
+fn skip_source_trivia(content: &str, mut cursor: usize, limit: usize) -> usize {
+    let bytes = content.as_bytes();
+
+    loop {
+        while cursor < limit && bytes[cursor].is_ascii_whitespace() {
+            cursor += 1;
+        }
+
+        if cursor >= limit {
+            return cursor;
+        }
+
+        if bytes[cursor] == b'#' {
+            while cursor < limit && bytes[cursor] != b'\n' {
+                cursor += 1;
+            }
+            continue;
+        }
+
+        if cursor + 1 < limit && bytes[cursor] == b'/' && bytes[cursor + 1] == b'*' {
+            cursor += 2;
+            let mut depth = 1usize;
+            while cursor < limit && depth > 0 {
+                if cursor + 1 < limit && bytes[cursor] == b'/' && bytes[cursor + 1] == b'*' {
+                    depth += 1;
+                    cursor += 2;
+                } else if cursor + 1 < limit && bytes[cursor] == b'*' && bytes[cursor + 1] == b'/' {
+                    depth -= 1;
+                    cursor += 2;
+                } else {
+                    cursor += 1;
+                }
+            }
+            continue;
+        }
+
+        return cursor;
+    }
+}
+
+fn is_nix_attribute_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '\'')
+}
+
+fn is_path_token_boundary_before(content: &str, start: usize) -> bool {
+    !content[..start].chars().next_back().is_some_and(|ch| {
+        is_nix_attribute_char(ch) || matches!(ch, '.' | '/')
+    })
+}
+
+fn read_relative_path_token(
+    content: &str,
+    code: &[bool],
+    start: usize,
+    limit: usize,
+) -> usize {
+    let mut cursor = start;
+
+    while cursor < limit && code[cursor] {
+        let Some(ch) = content[cursor..].chars().next() else {
+            break;
+        };
+        if ch.is_whitespace()
+            || matches!(ch, '[' | ']' | '(' | ')' | '{' | '}' | ';' | ',' | '#' | '+')
+        {
+            break;
+        }
+        cursor += ch.len_utf8();
+    }
+
+    cursor
+}
+
+fn next_char_boundary(content: &str, cursor: usize) -> usize {
+    cursor
+        + content[cursor..]
+            .chars()
+            .next()
+            .map(char::len_utf8)
+            .unwrap_or(1)
+}
+
+fn resolve_static_import_path(base: &Path, literal: &str) -> Option<PathBuf> {
+    let path = base.join(literal);
+
+    if path.is_file() {
+        return fs::canonicalize(path).ok();
+    }
+
+    if path.extension().is_none() {
+        let nix_path = path.with_extension("nix");
+        if nix_path.is_file() {
+            return fs::canonicalize(nix_path).ok();
+        }
+    }
+
+    if path.is_dir() {
+        let default_path = path.join("default.nix");
+        if default_path.is_file() {
+            return fs::canonicalize(default_path).ok();
+        }
+    }
+
+    fs::canonicalize(path).ok()
 }
 
 /// Select the NixOS module that should connect a newly-created NXC module.
@@ -1209,6 +1413,127 @@ mod tests {
 "#;
 
         assert!(find_import_list(content).is_none());
+    }
+
+
+    #[test]
+    fn ensure_import_does_not_duplicate_an_active_import_path() {
+        let directory = test_directory("nxc-import-existing-path");
+        fs::create_dir_all(directory.join("nxc")).unwrap();
+        let config_path = directory.join("configuration.nix");
+        let module_path = dedicated_package_path(&directory);
+        fs::write(&module_path, "{ ... }: { }\\n").unwrap();
+        let original = "{ imports = [ ./nxc/packages.nix ]; }\\n";
+        fs::write(&config_path, original).unwrap();
+
+        let config = ConfigState {
+            files: vec![config_file(config_path.to_str().unwrap(), &[])],
+        };
+        let mut backups = Vec::new();
+        ensure_import(&directory, &config, &module_path, &mut backups).unwrap();
+
+        assert_eq!(fs::read_to_string(&config_path).unwrap(), original);
+        assert!(backups.is_empty());
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn ensure_import_adds_path_when_it_appears_only_in_comment_or_string() {
+        let directory = test_directory("nxc-import-comment-string");
+        fs::create_dir_all(directory.join("nxc")).unwrap();
+        let config_path = directory.join("configuration.nix");
+        let module_path = dedicated_package_path(&directory);
+        fs::write(&module_path, "{ ... }: { }\\n").unwrap();
+        let original = r#"{ 
+  imports = [ ];
+  # old import: ./nxc/packages.nix
+  description = "old path ./nxc/packages.nix";
+}
+"#;
+        fs::write(&config_path, original).unwrap();
+
+        let config = ConfigState {
+            files: vec![config_file(config_path.to_str().unwrap(), &[])],
+        };
+        let mut backups = Vec::new();
+        ensure_import(&directory, &config, &module_path, &mut backups).unwrap();
+
+        let updated = fs::read_to_string(&config_path).unwrap();
+        assert_ne!(updated, original);
+        assert!(updated.contains("description = \"old path ./nxc/packages.nix\";"));
+        assert!(updated.contains("# old import: ./nxc/packages.nix"));
+        assert!(attribute_list_references_module(
+            &updated,
+            "imports",
+            &directory,
+            &module_path
+        ));
+        assert_eq!(backups.len(), 1);
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn recognizes_extensionless_import_paths() {
+        let directory = test_directory("nxc-import-extensionless");
+        fs::create_dir_all(directory.join("nxc")).unwrap();
+        let config_path = directory.join("configuration.nix");
+        let module_path = dedicated_package_path(&directory);
+        fs::write(&module_path, "{ ... }: { }\\n").unwrap();
+        fs::write(&config_path, "{ imports = [ ./nxc/packages ]; }\\n").unwrap();
+
+        let config = ConfigState {
+            files: vec![config_file(config_path.to_str().unwrap(), &[])],
+        };
+
+        assert_eq!(
+            find_importing_file(&directory, &config, &module_path).unwrap(),
+            Some(config_path.clone())
+        );
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn recognizes_flake_modules_lists_but_ignores_comment_and_string_mentions() {
+        let directory = test_directory("nxc-flake-modules-list");
+        fs::create_dir_all(directory.join("nxc")).unwrap();
+        let config_path = directory.join("configuration.nix");
+        let flake_path = directory.join("flake.nix");
+        let module_path = dedicated_package_path(&directory);
+        fs::write(&module_path, "{ ... }: { }\\n").unwrap();
+        fs::write(&config_path, "{ imports = [ ]; }\\n").unwrap();
+        fs::write(
+            &flake_path,
+            r#"{ 
+  # modules = [ ./nxc/packages.nix ];
+  description = "modules = [ ./nxc/packages.nix ]";
+}
+"#,
+        )
+        .unwrap();
+
+        let config = ConfigState {
+            files: vec![config_file(config_path.to_str().unwrap(), &[])],
+        };
+        assert_eq!(
+            find_importing_file(&directory, &config, &module_path).unwrap(),
+            None
+        );
+
+        fs::write(
+            &flake_path,
+            r#"{ outputs = { self, nixpkgs, ... }: {
+  nixosConfigurations.laptop = nixpkgs.lib.nixosSystem {
+    modules = [ ./nxc/packages.nix ];
+  };
+}; }
+"#,
+        )
+        .unwrap();
+        assert_eq!(
+            find_importing_file(&directory, &config, &module_path).unwrap(),
+            Some(flake_path.clone())
+        );
+        let _ = fs::remove_dir_all(directory);
     }
 
     fn config_file(path: &str, imports: &[&str]) -> ConfigFile {

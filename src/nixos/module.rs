@@ -434,7 +434,7 @@ fn code_range_is_active(code: &[bool], start: usize, end: usize) -> bool {
     start < end && end <= code.len() && code[start..end].iter().all(|active| *active)
 }
 
-fn nix_code_mask(content: &str) -> Vec<bool> {
+pub(crate) fn nix_code_mask(content: &str) -> Vec<bool> {
     // The mask keeps byte offsets aligned with the source, which lets the
     // editor replace ranges without changing comments or string contents.
     const CODE: u8 = 0;

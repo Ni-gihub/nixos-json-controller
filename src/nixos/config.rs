@@ -773,7 +773,6 @@ environment.systemPackages = lib.mkAfter [
         let _ = fs::remove_dir_all(parent);
     }
 
-
     #[cfg(unix)]
     #[test]
     fn skips_directory_symlink_targets_outside_flake_root() {

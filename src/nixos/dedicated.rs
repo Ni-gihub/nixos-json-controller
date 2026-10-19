@@ -722,17 +722,13 @@ fn is_nix_attribute_char(ch: char) -> bool {
 }
 
 fn is_path_token_boundary_before(content: &str, start: usize) -> bool {
-    !content[..start].chars().next_back().is_some_and(|ch| {
-        is_nix_attribute_char(ch) || matches!(ch, '.' | '/')
-    })
+    !content[..start]
+        .chars()
+        .next_back()
+        .is_some_and(|ch| is_nix_attribute_char(ch) || matches!(ch, '.' | '/'))
 }
 
-fn read_relative_path_token(
-    content: &str,
-    code: &[bool],
-    start: usize,
-    limit: usize,
-) -> usize {
+fn read_relative_path_token(content: &str, code: &[bool], start: usize, limit: usize) -> usize {
     let mut cursor = start;
 
     while cursor < limit && code[cursor] {
@@ -740,7 +736,10 @@ fn read_relative_path_token(
             break;
         };
         if ch.is_whitespace()
-            || matches!(ch, '[' | ']' | '(' | ')' | '{' | '}' | ';' | ',' | '#' | '+')
+            || matches!(
+                ch,
+                '[' | ']' | '(' | ')' | '{' | '}' | ';' | ',' | '#' | '+'
+            )
         {
             break;
         }
@@ -1414,7 +1413,6 @@ mod tests {
 
         assert!(find_import_list(content).is_none());
     }
-
 
     #[test]
     fn ensure_import_does_not_duplicate_an_active_import_path() {

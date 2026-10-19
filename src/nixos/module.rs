@@ -1263,8 +1263,8 @@ mod tests {
         for content in cases {
             let error = add_service_to_content(content, "openssh", false).unwrap_err();
             assert!(
-                error.contains("conflicting declaration"),
-                "unexpected error for {content:?}: {error}"
+                error.contains("refusing"),
+                "unsafe parent declaration was not rejected for {content:?}: {error}"
             );
         }
     }

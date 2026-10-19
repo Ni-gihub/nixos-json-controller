@@ -101,7 +101,11 @@ pub fn rollback_changes(
             Ok(metadata) => metadata,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
             Err(error) => {
-                errors.push(format!("failed to inspect created file {}: {}", path.display(), error));
+                errors.push(format!(
+                    "failed to inspect created file {}: {}",
+                    path.display(),
+                    error
+                ));
                 continue;
             }
         };
@@ -534,7 +538,13 @@ pub fn stage_new_file(flake_root: &Path, path: &Path) -> Result<Option<StagedFil
     }
     let relative = canonical_path
         .strip_prefix(&canonical_root)
-        .map_err(|e| format!("failed to determine Git path for {}: {}", canonical_path.display(), e))?;
+        .map_err(|error| {
+            format!(
+                "failed to determine Git path for {}: {}",
+                canonical_path.display(),
+                error
+            )
+        })?;
 
     let index_state = Command::new("git")
         .args([
@@ -1624,6 +1634,7 @@ mod tests {
     fn rollback_continues_after_git_index_restore_fails() {
         let directory = test_directory("nxc-rollback-continue");
         fs::create_dir_all(&directory).unwrap();
+        let directory = fs::canonicalize(directory).unwrap();
         let original = directory.join("existing.nix");
         let created = directory.join("created.nix");
         fs::write(&original, "original\n").unwrap();
@@ -1771,7 +1782,6 @@ mod tests {
         let _ = fs::remove_dir_all(directory);
     }
 
-
     #[cfg(unix)]
     #[test]
     fn refuses_to_create_dedicated_modules_under_external_directory_symlinks() {
@@ -1793,11 +1803,17 @@ mod tests {
             let config = ConfigState::default();
 
             let package_error = install_package(&root, &config, "firefox").unwrap_err();
-            assert!(package_error.contains("outside flake root") || package_error.contains("cannot be resolved"));
+            assert!(
+                package_error.contains("outside flake root")
+                    || package_error.contains("cannot be resolved")
+            );
             assert!(!target.join("packages.nix").exists());
 
             let service_error = enable_service(&root, &config, "openssh").unwrap_err();
-            assert!(service_error.contains("outside flake root") || service_error.contains("cannot be resolved"));
+            assert!(
+                service_error.contains("outside flake root")
+                    || service_error.contains("cannot be resolved")
+            );
             assert!(!target.join("services.nix").exists());
             assert!(
                 fs::symlink_metadata(root.join("nxc"))
@@ -1852,7 +1868,6 @@ mod tests {
         assert_eq!(fs::read_to_string(&config_path).unwrap(), original_config);
         let _ = fs::remove_dir_all(directory);
     }
-
 
     #[cfg(unix)]
     #[test]

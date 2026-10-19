@@ -254,7 +254,7 @@ fn write_service(
     let mut change = DedicatedServiceChange::default();
 
     if module_path.is_file() {
-        change.backups.push(FileBackup::capture(&module_path)?);
+        change.backups.push(FileBackup::capture(flake_root, &module_path)?);
         validate_dedicated_service_module(&module_path)?;
     } else {
         let parent = module_path

@@ -924,8 +924,23 @@ fn has_standalone_path_prefix(
         if ch.is_whitespace()
             || matches!(
                 ch,
-                '[' | ']' | '(' | ')' | '{' | '}' | ';' | ',' | '#' | '+' | '=' | '?' | '!'
-                    | '<' | '>' | '&' | '|'
+                '['
+                    | ']'
+                    | '('
+                    | ')'
+                    | '{'
+                    | '}'
+                    | ';'
+                    | ','
+                    | '#'
+                    | '+'
+                    | '='
+                    | '?'
+                    | '!'
+                    | '<'
+                    | '>'
+                    | '&'
+                    | '|'
             )
         {
             break;
@@ -933,9 +948,7 @@ fn has_standalone_path_prefix(
         token_start -= ch.len_utf8();
     }
     let previous_token = &content[token_start..cursor];
-    previous_token == "in"
-        || previous_token.starts_with("./")
-        || previous_token.starts_with("../")
+    previous_token == "in" || previous_token.starts_with("./") || previous_token.starts_with("../")
 }
 
 fn active_keyword_at(content: &str, code: &[bool], start: usize, keyword: &str) -> bool {

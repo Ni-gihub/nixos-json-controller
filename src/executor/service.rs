@@ -35,6 +35,7 @@ impl From<nixos::dedicated::DedicatedServiceChange> for ServiceChange {
     }
 }
 
+/// Apply a planned service enable/disable change and capture rollback data.
 pub fn execute(plan: ExecutionPlan) -> Result<ServiceChange, ExecutorError> {
     let context = nixos::flake::discovery_context().map_err(ExecutorError::NixosError)?;
     let config = nixos::config::ConfigState::discover(context.flake_root())
@@ -178,6 +179,7 @@ pub fn execute(plan: ExecutionPlan) -> Result<ServiceChange, ExecutorError> {
     }
 }
 
+/// Safely update one service declaration and retain its original file contents.
 fn write_service_file(
     path: &std::path::Path,
     service: &str,
@@ -202,6 +204,7 @@ fn write_service_file(
     })
 }
 
+/// Add a service declaration to NXC's dedicated module when no safe existing target exists.
 fn install_service_in_dedicated_module(
     flake_root: &std::path::Path,
     config: &nixos::config::ConfigState,

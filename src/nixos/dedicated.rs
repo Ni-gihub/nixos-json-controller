@@ -909,6 +909,15 @@ fn next_char_boundary(content: &str, cursor: usize) -> usize {
 fn resolve_static_import_path(base: &Path, literal: &str) -> Option<PathBuf> {
     let path = base.join(literal);
 
+    // Nix resolves a directory import to its default.nix even when a sibling
+    // file with the same stem (for example, packages.nix) also exists.
+    if path.is_dir() {
+        let default_path = path.join("default.nix");
+        if default_path.is_file() {
+            return fs::canonicalize(default_path).ok();
+        }
+    }
+
     if path.is_file() {
         return fs::canonicalize(path).ok();
     }
@@ -917,13 +926,6 @@ fn resolve_static_import_path(base: &Path, literal: &str) -> Option<PathBuf> {
         let nix_path = path.with_extension("nix");
         if nix_path.is_file() {
             return fs::canonicalize(nix_path).ok();
-        }
-    }
-
-    if path.is_dir() {
-        let default_path = path.join("default.nix");
-        if default_path.is_file() {
-            return fs::canonicalize(default_path).ok();
         }
     }
 
@@ -1626,6 +1628,37 @@ mod tests {
         let module_path = dedicated_package_path(&directory);
         fs::write(&module_path, "{ ... }: { }\n").unwrap();
         fs::write(&config_path, "{ imports = [ ./nxc/packages ]; }\n").unwrap();
+
+        let config = ConfigState {
+            files: vec![config_file(config_path.to_str().unwrap(), &[])],
+        };
+
+        assert_eq!(
+            find_importing_file(&directory, &config, &module_path).unwrap(),
+            Some(config_path.clone())
+        );
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn prefers_directory_default_nix_over_same_stem_nix_file() {
+        let directory = test_directory("nxc-import-directory-priority");
+        fs::create_dir_all(directory.join("nxc/packages")).unwrap();
+        let config_path = directory.join("configuration.nix");
+        let module_path = directory.join("nxc/packages/default.nix");
+
+        // Both paths can exist, but ./nxc/packages denotes the directory import.
+        fs::write(&module_path, "{ ... }: { }\\n").unwrap();
+        fs::write(
+            directory.join("nxc/packages.nix"),
+            "{ ... }: { description = \\"sibling file\\"; }\\n",
+        )
+        .unwrap();
+        fs::write(
+            &config_path,
+            "{ imports = [ ./nxc/packages ]; }\\n",
+        )
+        .unwrap();
 
         let config = ConfigState {
             files: vec![config_file(config_path.to_str().unwrap(), &[])],

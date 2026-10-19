@@ -1650,6 +1650,29 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    fn restoring_a_backup_through_symlink_preserves_link_and_target() {
+        use std::os::unix::fs::{symlink, symlink_metadata};
+
+        let directory = test_directory("nxc-rollback-symlink");
+        fs::create_dir_all(directory.join("real")).unwrap();
+        let target = directory.join("real/config.nix");
+        let link = directory.join("config.nix");
+        fs::write(&target, "original\\n").unwrap();
+        symlink(&target, &link).unwrap();
+
+        let backup = FileBackup::capture(&link).unwrap();
+        fs::write(&target, "modified\\n").unwrap();
+        backup.restore().unwrap();
+
+        assert_eq!(fs::read_to_string(&target).unwrap(), "original\\n");
+        assert!(symlink_metadata(&link).unwrap().file_type().is_symlink());
+        assert_eq!(fs::read_link(&link).unwrap(), target);
+
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[cfg(unix)]
+    #[test]
     fn restoring_a_backup_preserves_file_permissions() {
         use std::os::unix::fs::PermissionsExt;
 

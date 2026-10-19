@@ -64,15 +64,22 @@ impl Executor {
                 );
             }
 
-            if let Action::InstallPackage | Action::RemovePackage = plan.action {
-                if let Err(error) = verify_package_state(&plan.action, &plan.target.name) {
-                    return rollback_after_verification_failure(
-                        error,
-                        package_change.as_ref(),
-                        service_change.as_ref(),
-                        password,
-                    );
+            let verification_result = match plan.action {
+                Action::InstallPackage | Action::RemovePackage => {
+                    verify_package_state(&plan.action, &plan.target.name)
                 }
+                Action::EnableService | Action::DisableService => {
+                    verify_service_state(&plan.action, &plan.target.name)
+                }
+            };
+
+            if let Err(error) = verification_result {
+                return rollback_after_verification_failure(
+                    error,
+                    package_change.as_ref(),
+                    service_change.as_ref(),
+                    password,
+                );
             }
         }
 
@@ -158,6 +165,51 @@ fn verify_package_presence(action: &Action, package: &str, present: bool) -> Res
     }
 }
 
+fn verify_service_state(action: &Action, service: &str) -> Result<(), String> {
+    let context = nixos::flake::discovery_context()?;
+    let provenance = nixos::provenance::evaluate_service_provenance(
+        context.flake_root(),
+        context.configuration_name(),
+        service,
+    )?;
+
+    if provenance.option.is_empty() {
+        return Err(format!(
+            "could not determine the effective NixOS enable option for service '{}'",
+            service
+        ));
+    }
+
+    let enabled = nixos::provenance::evaluate_boolean_option(
+        context.flake_root(),
+        context.configuration_name(),
+        &provenance.option,
+    )?;
+
+    verify_service_option_value(action, service, &provenance.option, enabled)
+}
+
+fn verify_service_option_value(
+    action: &Action,
+    service: &str,
+    option: &str,
+    enabled: bool,
+) -> Result<(), String> {
+    match action {
+        Action::EnableService if enabled => Ok(()),
+        Action::DisableService if !enabled => Ok(()),
+        Action::EnableService => Err(format!(
+            "nixos-rebuild completed but effective NixOS option '{}' for service '{}' is false; expected true",
+            option, service
+        )),
+        Action::DisableService => Err(format!(
+            "nixos-rebuild completed but effective NixOS option '{}' for service '{}' is true; expected false",
+            option, service
+        )),
+        _ => Ok(()),
+    }
+}
+
 fn should_rebuild(plan: &ExecutionPlan, changed: bool, rebuild: bool) -> bool {
     if !rebuild {
         return false;
@@ -237,4 +289,54 @@ mod tests {
 
         assert!(error.contains("package 'firefox' is still present in the active system"));
     }
+    #[test]
+    fn accepts_service_enable_when_effective_option_is_true() {
+        assert!(verify_service_option_value(
+            &Action::EnableService,
+            "openssh",
+            "services.openssh.enable",
+            true
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn accepts_service_disable_when_effective_option_is_false() {
+        assert!(verify_service_option_value(
+            &Action::DisableService,
+            "openssh",
+            "services.openssh.enable",
+            false
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn rejects_service_enable_when_effective_option_remains_false() {
+        let error = verify_service_option_value(
+            &Action::EnableService,
+            "openssh",
+            "services.openssh.enable",
+            false,
+        )
+        .unwrap_err();
+
+        assert!(error.contains("effective NixOS option 'services.openssh.enable'"));
+        assert!(error.contains("expected true"));
+    }
+
+    #[test]
+    fn rejects_service_disable_when_effective_option_remains_true() {
+        let error = verify_service_option_value(
+            &Action::DisableService,
+            "openssh",
+            "services.openssh.enable",
+            true,
+        )
+        .unwrap_err();
+
+        assert!(error.contains("effective NixOS option 'services.openssh.enable'"));
+        assert!(error.contains("expected false"));
+    }
+
 }

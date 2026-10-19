@@ -1875,24 +1875,34 @@ mod tests {
         use std::os::unix::fs::symlink;
 
         let directory = test_directory("nxc-rollback-created-symlink-retarget");
+        fs::create_dir_all(&directory).unwrap();
+        let directory = fs::canonicalize(directory).unwrap();
         let original_directory = directory.join("original-nxc");
         let replacement_directory = directory.join("replacement-nxc");
         let parent_link = directory.join("nxc");
         fs::create_dir_all(&original_directory).unwrap();
         fs::create_dir_all(&replacement_directory).unwrap();
 
+        let config_path = directory.join("configuration.nix");
+        fs::write(&config_path, "{ imports = [ ]; }\n").unwrap();
+        symlink(&original_directory, &parent_link).unwrap();
+        let config = ConfigState {
+            files: vec![config_file(config_path.to_str().unwrap(), &[])],
+        };
+
+        let change = install_package(&directory, &config, "firefox").unwrap();
         let original_module = original_directory.join("packages.nix");
         let replacement_module = replacement_directory.join("packages.nix");
-        fs::write(&original_module, "created by NXC\n").unwrap();
+        assert_eq!(
+            change.created_files,
+            vec![fs::canonicalize(&original_module).unwrap()]
+        );
         fs::write(&replacement_module, "unrelated file\n").unwrap();
-        symlink(&original_directory, &parent_link).unwrap();
 
-        // Store the canonical target, as the creation path does.
-        let created_target = fs::canonicalize(&original_module).unwrap();
+        // Retarget the lexical nxc path after creation, before rollback cleanup.
         fs::remove_file(&parent_link).unwrap();
         symlink(&replacement_directory, &parent_link).unwrap();
-
-        rollback_changes(&[], &[], &[created_target]).unwrap();
+        change.rollback().unwrap();
 
         assert!(!original_module.exists());
         assert_eq!(
@@ -1900,6 +1910,10 @@ mod tests {
             "unrelated file\n"
         );
         assert_eq!(fs::read_link(&parent_link).unwrap(), replacement_directory);
+        assert_eq!(
+            fs::read_to_string(&config_path).unwrap(),
+            "{ imports = [ ]; }\n"
+        );
 
         let _ = fs::remove_dir_all(directory);
     }

@@ -604,46 +604,48 @@ pub fn add_service_to_content(
 
 /// Locate the attribute set returned by a NixOS module function.
 ///
-/// Supports the common `{ ... }: { ... }` form and `let ... in { ... }`.
-/// If the module body cannot be identified unambiguously, editing is refused.
+/// Supports plain attribute sets, `{ ... }: { ... }`, and `let ... in { ... }`.
+/// Attribute sets used by let bindings are skipped rather than mistaken for the
+/// module's returned value.
 fn returned_module_attrset(content: &str, code: &[bool]) -> Result<(usize, usize), String> {
     let bytes = content.as_bytes();
+    let first_token = skip_nix_trivia(content, 0, content.len());
 
-    // For the standard module-function form, skip the argument attribute set.
-    let first_open = (0..bytes.len())
-        .find(|&i| bytes[i] == b'{' && code[i])
-        .ok_or("Nix module attribute set not found")?;
-    let first_close = find_matching_delimiter(content, first_open, '{', '}')
-        .ok_or("Nix module attribute set is not balanced")?;
-    let after_first = skip_nix_trivia(content, first_close + 1, content.len());
-
-    let body_open = if bytes.get(after_first) == Some(&b':') && code[after_first] {
-        (after_first + 1..bytes.len())
-            .find(|&i| bytes[i] == b'{' && code[i])
-            .ok_or("returned Nix module attribute set not found")?
-    } else {
-        // A let expression may define values before returning its attribute set.
-        // Prefer the first active `in` token followed by an attribute set.
-        let mut in_positions = Vec::new();
-        let mut cursor = 0usize;
-        while cursor < first_open {
-            if active_token_at(content, code, cursor, "in") {
-                in_positions.push(cursor);
-                cursor += 2;
-            } else {
-                cursor += content[cursor..]
-                    .chars()
-                    .next()
-                    .map(char::len_utf8)
-                    .unwrap_or(1);
-            }
+    let body_open = if active_token_at(content, code, first_token, "let") {
+        let in_pos = find_top_level_keyword(content, code, first_token + "let".len(), "in")
+            .ok_or("Nix let expression has no top-level 'in'")?;
+        let body = skip_nix_trivia(content, in_pos + "in".len(), content.len());
+        if bytes.get(body) != Some(&b'{') || !code[body] {
+            return Err("Nix let expression does not return an attribute set".to_string());
         }
-        if let Some(in_pos) = in_positions.last() {
-            let after_in = skip_nix_trivia(content, in_pos + 2, content.len());
-            if bytes.get(after_in) == Some(&b'{') && code[after_in] {
-                after_in
+        body
+    } else {
+        let first_open = (0..bytes.len())
+            .find(|&i| bytes[i] == b'{' && code[i])
+            .ok_or("Nix module attribute set not found")?;
+        let first_close = find_matching_delimiter(content, first_open, '{', '}')
+            .ok_or("Nix module attribute set is not balanced")?;
+        let after_first = skip_nix_trivia(content, first_close + 1, content.len());
+
+        if bytes.get(after_first) == Some(&b':') && code[after_first] {
+            let expression_start = skip_nix_trivia(content, after_first + 1, content.len());
+            if active_token_at(content, code, expression_start, "let") {
+                let in_pos = find_top_level_keyword(
+                    content,
+                    code,
+                    expression_start + "let".len(),
+                    "in",
+                )
+                .ok_or("Nix let expression has no top-level 'in'")?;
+                let body = skip_nix_trivia(content, in_pos + "in".len(), content.len());
+                if bytes.get(body) != Some(&b'{') || !code[body] {
+                    return Err("Nix let expression does not return an attribute set".to_string());
+                }
+                body
             } else {
-                first_open
+                (expression_start..bytes.len())
+                    .find(|&i| bytes[i] == b'{' && code[i])
+                    .ok_or("returned Nix module attribute set not found")?
             }
         } else {
             first_open
@@ -653,6 +655,45 @@ fn returned_module_attrset(content: &str, code: &[bool]) -> Result<(usize, usize
     let body_close = find_matching_delimiter(content, body_open, '{', '}')
         .ok_or("returned Nix module attribute set is not balanced")?;
     Ok((body_open, body_close))
+}
+
+/// Find a Nix keyword outside nested delimiters, comments, and strings.
+fn find_top_level_keyword(
+    content: &str,
+    code: &[bool],
+    start: usize,
+    keyword: &str,
+) -> Option<usize> {
+    let bytes = content.as_bytes();
+    let mut braces = 0usize;
+    let mut brackets = 0usize;
+    let mut parentheses = 0usize;
+    let mut cursor = start;
+
+    while cursor < bytes.len() {
+        if braces == 0
+            && brackets == 0
+            && parentheses == 0
+            && active_token_at(content, code, cursor, keyword)
+        {
+            return Some(cursor);
+        }
+
+        if code[cursor] {
+            match bytes[cursor] {
+                b'{' => braces += 1,
+                b'}' => braces = braces.saturating_sub(1),
+                b'[' => brackets += 1,
+                b']' => brackets = brackets.saturating_sub(1),
+                b'(' => parentheses += 1,
+                b')' => parentheses = parentheses.saturating_sub(1),
+                _ => {}
+            }
+        }
+        cursor += content[cursor..].chars().next().map(char::len_utf8).unwrap_or(1);
+    }
+
+    None
 }
 
 /// Return whether a token occurs at the direct attribute-set level of the module body.

@@ -1648,15 +1648,15 @@ mod tests {
         let module_path = directory.join("nxc/packages/default.nix");
 
         // Both paths can exist, but ./nxc/packages denotes the directory import.
-        fs::write(&module_path, "{ ... }: { }\\n").unwrap();
+        fs::write(&module_path, "{ ... }: { }\n").unwrap();
         fs::write(
             directory.join("nxc/packages.nix"),
-            "{ ... }: { description = \\"sibling file\\"; }\\n",
+            "{ ... }: { description = \"sibling file\"; }\n",
         )
         .unwrap();
         fs::write(
             &config_path,
-            "{ imports = [ ./nxc/packages ]; }\\n",
+            "{ imports = [ ./nxc/packages ]; }\n",
         )
         .unwrap();
 

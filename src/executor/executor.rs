@@ -103,6 +103,7 @@ fn rollback_after_rebuild_failure(
     Err(ExecutorError::NixosError(error))
 }
 
+/// Roll back a change and restore the previous system after verification fails.
 fn rollback_after_verification_failure(
     error: String,
     package_change: Option<&super::package::PackageChange>,
@@ -148,6 +149,7 @@ where
     Err(ExecutorError::NixosError(error))
 }
 
+/// Restore the files changed by a package or service operation.
 fn rollback_change(
     package_change: Option<&super::package::PackageChange>,
     service_change: Option<&super::service::ServiceChange>,
@@ -161,6 +163,7 @@ fn rollback_change(
     }
 }
 
+/// Check whether the active system reflects the requested package action.
 fn verify_package_state(action: &Action, package: &str) -> Result<(), String> {
     let system = nixos::system::SystemState::discover()?;
     let present = system.has_package(package) || system.has_command(package);
@@ -168,6 +171,7 @@ fn verify_package_state(action: &Action, package: &str) -> Result<(), String> {
     verify_package_presence(action, package, present)
 }
 
+/// Validate active package presence against an install/remove action.
 fn verify_package_presence(action: &Action, package: &str, present: bool) -> Result<(), String> {
     match action {
         Action::InstallPackage if present => Ok(()),
@@ -184,6 +188,7 @@ fn verify_package_presence(action: &Action, package: &str, present: bool) -> Res
     }
 }
 
+/// Verify the effective NixOS enable option for the requested service action.
 fn verify_service_state(action: &Action, service: &str) -> Result<(), String> {
     let context = nixos::flake::discovery_context()?;
     let provenance = nixos::provenance::evaluate_service_provenance(
@@ -223,6 +228,7 @@ fn verify_service_state(action: &Action, service: &str) -> Result<(), String> {
     ))
 }
 
+/// Compare an evaluated service option with the requested enable/disable state.
 fn verify_service_option_value(
     action: &Action,
     service: &str,
@@ -244,6 +250,7 @@ fn verify_service_option_value(
     }
 }
 
+/// Decide whether an operation requires switching the NixOS system.
 fn should_rebuild(plan: &ExecutionPlan, changed: bool, rebuild: bool) -> bool {
     if !rebuild {
         return false;

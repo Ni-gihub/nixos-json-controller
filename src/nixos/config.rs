@@ -169,6 +169,11 @@ fn collect_nix_files(
                 )
             })?;
             if !target.starts_with(flake_root) {
+                if !is_nix_file {
+                    // External directory symlinks such as result/ or .direnv/
+                    // are unrelated to the flake's Nix module graph.
+                    continue;
+                }
                 return Err(format!(
                     "refusing to follow symbolic link {}: target {} is outside flake root {}",
                     path.display(),
@@ -703,6 +708,7 @@ environment.systemPackages = lib.mkAfter [
             unique
         ));
         fs::create_dir_all(root.join("modules")).unwrap();
+        let root = fs::canonicalize(root).unwrap();
         let target = root.join("modules/packages.nix");
         let link = root.join("linked-packages.nix");
         let configuration = root.join("configuration.nix");
@@ -767,6 +773,38 @@ environment.systemPackages = lib.mkAfter [
         let _ = fs::remove_dir_all(parent);
     }
 
+
+    #[cfg(unix)]
+    #[test]
+    fn skips_directory_symlink_targets_outside_flake_root() {
+        use std::os::unix::fs::symlink;
+
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let parent = std::env::temp_dir().join(format!(
+            "nxc-external-directory-symlink-{}-{}",
+            std::process::id(),
+            unique
+        ));
+        let root = parent.join("flake");
+        let external = parent.join("result");
+        fs::create_dir_all(&root).unwrap();
+        fs::create_dir_all(&external).unwrap();
+        fs::write(
+            external.join("module.nix"),
+            "{ environment.systemPackages = [ pkgs.git ]; }\\n",
+        )
+        .unwrap();
+        symlink(&external, root.join("result")).unwrap();
+
+        let state = ConfigState::discover(&root).unwrap();
+
+        assert!(state.files.is_empty());
+        let _ = fs::remove_dir_all(parent);
+    }
+
     #[cfg(unix)]
     #[test]
     fn rejects_cyclic_nix_symlink_with_explicit_error() {
@@ -807,6 +845,7 @@ environment.systemPackages = lib.mkAfter [
             unique
         ));
         fs::create_dir_all(root.join("real")).unwrap();
+        let root = fs::canonicalize(root).unwrap();
         fs::write(
             root.join("real/module.nix"),
             "{ environment.systemPackages = [ pkgs.git ]; }\n",

@@ -53,7 +53,14 @@ pub fn execute(plan: ExecutionPlan) -> Result<ServiceChange, ExecutorError> {
     match plan.action {
         Action::EnableService => {
             if !provenance_paths.is_empty() {
-                if provenance.contains_local_boolean(context.flake_root(), true) {
+                let effective_enabled = nixos::provenance::evaluate_boolean_option(
+                    context.flake_root(),
+                    context.configuration_name(),
+                    &provenance.option,
+                )
+                .map_err(ExecutorError::NixosError)?;
+
+                if effective_enabled {
                     return Ok(ServiceChange::default());
                 }
 
@@ -99,7 +106,14 @@ pub fn execute(plan: ExecutionPlan) -> Result<ServiceChange, ExecutorError> {
 
         Action::DisableService => {
             if !provenance_paths.is_empty() {
-                if provenance.contains_local_boolean(context.flake_root(), false) {
+                let effective_enabled = nixos::provenance::evaluate_boolean_option(
+                    context.flake_root(),
+                    context.configuration_name(),
+                    &provenance.option,
+                )
+                .map_err(ExecutorError::NixosError)?;
+
+                if !effective_enabled {
                     return Ok(ServiceChange::default());
                 }
 

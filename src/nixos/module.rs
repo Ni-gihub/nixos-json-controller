@@ -262,8 +262,7 @@ fn parse_simple_package_list(
             cursor = read_nix_attrpath_end(content, cursor, end);
             if cursor == item_start {
                 return Err(
-                    "package list contains a non-package expression; refusing to edit"
-                        .to_string(),
+                    "package list contains a non-package expression; refusing to edit".to_string(),
                 );
             }
         }

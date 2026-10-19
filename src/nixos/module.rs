@@ -52,7 +52,14 @@ pub fn add_package_to_content(content: &str, package: &str) -> Result<String, St
     let (insert_at, insertion) = if closing_prefix.trim().is_empty() {
         (line_start, format!("{}{}\n", indentation, package))
     } else {
-        (list_end, format!(" {}", package))
+        let separator = content[..list_end]
+            .chars()
+            .next_back()
+            .map_or(true, |ch| !ch.is_whitespace());
+        (
+            list_end,
+            format!("{}{} ", if separator { " " } else { "" }, package),
+        )
     };
 
     let mut result = content.to_string();
@@ -127,10 +134,7 @@ fn find_editable_system_packages_list(content: &str) -> Result<(usize, usize), S
         }
 
         let equals = skip_nix_trivia(content, end, content.len());
-        if equals >= content.len()
-            || content.as_bytes()[equals] != b'='
-            || !code[equals]
-        {
+        if equals >= content.len() || content.as_bytes()[equals] != b'=' || !code[equals] {
             continue;
         }
 
@@ -187,11 +191,7 @@ fn find_editable_system_packages_list(content: &str) -> Result<(usize, usize), S
         // the exact list being edited. Conditional and combining functions are
         // deliberately not accepted here.
         if !consumed_wrapper && active_token_at(content, &code, cursor, "lib.mkAfter") {
-            cursor = skip_nix_trivia(
-                content,
-                cursor + "lib.mkAfter".len(),
-                content.len(),
-            );
+            cursor = skip_nix_trivia(content, cursor + "lib.mkAfter".len(), content.len());
             consumed_wrapper = true;
             continue;
         }
@@ -199,26 +199,19 @@ fn find_editable_system_packages_list(content: &str) -> Result<(usize, usize), S
         break;
     }
 
-    if cursor >= content.len()
-        || content.as_bytes()[cursor] != b'['
-        || !code[cursor]
-    {
+    if cursor >= content.len() || content.as_bytes()[cursor] != b'[' || !code[cursor] {
         return Err(
             "environment.systemPackages is not a directly editable list (for example, it may use a conditional or combined expression); no changes were made"
                 .to_string(),
         );
     }
 
-    let list_end = find_matching_delimiter(content, cursor, '[', ']')
-        .ok_or_else(|| {
-            "environment.systemPackages list is not balanced; no changes were made".to_string()
-        })?;
+    let list_end = find_matching_delimiter(content, cursor, '[', ']').ok_or_else(|| {
+        "environment.systemPackages list is not balanced; no changes were made".to_string()
+    })?;
 
     let semicolon = skip_nix_trivia(content, list_end + 1, content.len());
-    if semicolon >= content.len()
-        || content.as_bytes()[semicolon] != b';'
-        || !code[semicolon]
-    {
+    if semicolon >= content.len() || content.as_bytes()[semicolon] != b';' || !code[semicolon] {
         return Err(
             "environment.systemPackages list is part of a larger expression; refusing to edit it"
                 .to_string(),
@@ -269,8 +262,7 @@ fn parse_simple_package_list(
             cursor = read_nix_identifier_end(content, cursor, end);
             if cursor == item_start {
                 return Err(
-                    "package list contains a non-package expression; refusing to edit"
-                        .to_string(),
+                    "package list contains a non-package expression; refusing to edit".to_string(),
                 );
             }
         }
@@ -320,9 +312,7 @@ fn is_valid_package_identifier(name: &str) -> bool {
     };
 
     (first.is_ascii_alphabetic() || first == '_')
-        && chars.all(|ch| {
-            ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '\'')
-        })
+        && chars.all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '\''))
 }
 
 fn read_nix_identifier_end(content: &str, start: usize, limit: usize) -> usize {
@@ -337,8 +327,7 @@ fn read_nix_identifier_end(content: &str, start: usize, limit: usize) -> usize {
 
     let mut end = start + 1;
     while end < limit
-        && (bytes[end].is_ascii_alphanumeric()
-            || matches!(bytes[end], b'_' | b'-' | b'\''))
+        && (bytes[end].is_ascii_alphanumeric() || matches!(bytes[end], b'_' | b'-' | '\''))
     {
         end += 1;
     }
@@ -398,16 +387,10 @@ fn skip_nix_trivia(content: &str, mut cursor: usize, limit: usize) -> usize {
             cursor += 2;
             let mut depth = 1usize;
             while cursor < limit && depth > 0 {
-                if cursor + 1 < limit
-                    && bytes[cursor] == b'/'
-                    && bytes[cursor + 1] == b'*'
-                {
+                if cursor + 1 < limit && bytes[cursor] == b'/' && bytes[cursor + 1] == b'*' {
                     depth += 1;
                     cursor += 2;
-                } else if cursor + 1 < limit
-                    && bytes[cursor] == b'*'
-                    && bytes[cursor + 1] == b'/'
-                {
+                } else if cursor + 1 < limit && bytes[cursor] == b'*' && bytes[cursor + 1] == b'/' {
                     depth -= 1;
                     cursor += 2;
                 } else {
@@ -491,10 +474,7 @@ fn nix_code_mask(content: &str) -> Vec<bool> {
                 }
             }
             INDENTED_STRING => {
-                if cursor + 1 < bytes.len()
-                    && bytes[cursor] == b'\''
-                    && bytes[cursor + 1] == b'\''
-                {
+                if cursor + 1 < bytes.len() && bytes[cursor] == b'\'' && bytes[cursor + 1] == b'\'' {
                     let third = bytes.get(cursor + 2).copied();
                     if third == Some(b'$') && bytes.get(cursor + 3) == Some(&b'{') {
                         cursor += 4;
@@ -509,10 +489,7 @@ fn nix_code_mask(content: &str) -> Vec<bool> {
                 }
             }
             BLOCK_COMMENT => {
-                if cursor + 1 < bytes.len()
-                    && bytes[cursor] == b'/'
-                    && bytes[cursor + 1] == b'*'
-                {
+                if cursor + 1 < bytes.len() && bytes[cursor] == b'/' && bytes[cursor + 1] == b'*' {
                     block_depth += 1;
                     cursor += 2;
                 } else if cursor + 1 < bytes.len()
@@ -740,7 +717,8 @@ mod tests {
 
     #[test]
     fn refuses_to_treat_a_merge_expression_list_as_the_option_list() {
-        let content = "{\n  environment.systemPackages = lib.mkMerge [ [ pkgs.git ] [ pkgs.curl ] ];\n}\n";
+        let content =
+            "{\n  environment.systemPackages = lib.mkMerge [ [ pkgs.git ] [ pkgs.curl ] ];\n}\n";
         let result = remove_package_from_content(content, "git");
 
         assert!(result.is_err());

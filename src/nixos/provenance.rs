@@ -90,6 +90,49 @@ pub fn evaluate_option(
     })
 }
 
+/// Evaluate the merged, effective boolean value of a NixOS option.
+///
+/// Unlike definitionsWithLocations, this reads config.<option> after NixOS
+/// module priorities (including lib.mkForce) have been applied.
+pub fn evaluate_boolean_option(
+    flake_root: &Path,
+    configuration_name: &str,
+    option: &str,
+) -> Result<bool, String> {
+    let expression = format!(
+        ".#nixosConfigurations.{configuration_name}.config.{option}"
+    );
+
+    let output = Command::new("nix")
+        .args(["eval", "--json", &expression])
+        .current_dir(flake_root)
+        .output()
+        .map_err(|error| format!("failed to execute nix: {error}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!(
+            "nix eval failed for effective option '{}': {}",
+            option,
+            stderr.trim()
+        ));
+    }
+
+    parse_boolean_option_value(option, &output.stdout)
+}
+
+fn parse_boolean_option_value(option: &str, output: &[u8]) -> Result<bool, String> {
+    let value: Value = serde_json::from_slice(output)
+        .map_err(|error| format!("failed to parse effective option '{}': {}", option, error))?;
+
+    value.as_bool().ok_or_else(|| {
+        format!(
+            "effective option '{}' did not evaluate to a boolean",
+            option
+        )
+    })
+}
+
 pub fn evaluate_package_provenance(
     flake_root: &Path,
     configuration_name: &str,
@@ -230,6 +273,15 @@ fn string_matches_package(value: &str, package: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_effective_boolean_option_values() {
+        assert!(parse_boolean_option_value("services.openssh.enable", b"true").unwrap());
+        assert!(!parse_boolean_option_value("services.openssh.enable", b"false").unwrap());
+        assert!(parse_boolean_option_value("services.openssh.enable", b"null")
+            .unwrap_err()
+            .contains("did not evaluate to a boolean"));
+    }
 
     #[test]
     fn finds_package_in_nested_values() {

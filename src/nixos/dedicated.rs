@@ -1815,7 +1815,7 @@ mod tests {
         // A later independent list entry must still be detected after an if expression.
         fs::write(
             &config_path,
-            "{ imports = [ if builtins.pathExists ./condition.nix then ./other.nix else ./alternate.nix ./nxc/packages.nix ]; }\\n",
+            "{ imports = [ if builtins.pathExists ./condition.nix then ./other.nix else ./alternate.nix ./nxc/packages.nix ]; }\n",
         )
         .unwrap();
         assert_eq!(
@@ -1826,7 +1826,7 @@ mod tests {
         // A path used only in a let binding is not the evaluated import expression.
         fs::write(
             &config_path,
-            "{ imports = [ let unused = ./nxc/packages.nix; in ./other.nix ]; }\\n",
+            "{ imports = [ let unused = ./nxc/packages.nix; in ./other.nix ]; }\n",
         )
         .unwrap();
         assert_eq!(
@@ -1837,7 +1837,7 @@ mod tests {
         // The literal after `in` is the value of the let expression and is an import.
         fs::write(
             &config_path,
-            "{ imports = [ let unused = ./condition.nix; in ./nxc/packages.nix ]; }\\n",
+            "{ imports = [ let unused = ./condition.nix; in ./nxc/packages.nix ]; }\n",
         )
         .unwrap();
         assert_eq!(

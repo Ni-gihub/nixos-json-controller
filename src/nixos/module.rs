@@ -610,7 +610,8 @@ fn returned_module_attrset(content: &str, code: &[bool]) -> Result<(usize, usize
     let bytes = content.as_bytes();
 
     // For the standard module-function form, skip the argument attribute set.
-    let first_open = (0..bytes.len()).find(|&i| bytes[i] == b'{' && code[i])
+    let first_open = (0..bytes.len())
+        .find(|&i| bytes[i] == b'{' && code[i])
         .ok_or("Nix module attribute set not found")?;
     let first_close = find_matching_delimiter(content, first_open, '{', '}')
         .ok_or("Nix module attribute set is not balanced")?;
@@ -630,7 +631,11 @@ fn returned_module_attrset(content: &str, code: &[bool]) -> Result<(usize, usize
                 in_positions.push(cursor);
                 cursor += 2;
             } else {
-                cursor += content[cursor..].chars().next().map(char::len_utf8).unwrap_or(1);
+                cursor += content[cursor..]
+                    .chars()
+                    .next()
+                    .map(char::len_utf8)
+                    .unwrap_or(1);
             }
         }
         if let Some(in_pos) = in_positions.last() {
@@ -1011,7 +1016,8 @@ mod tests {
 
     #[test]
     fn refuses_to_add_a_top_level_option_when_only_nested_option_exists() {
-        let content = "{\n  home-manager.users.bob = {\n    services.foo.enable = false;\n  };\n}\n";
+        let content =
+            "{\n  home-manager.users.bob = {\n    services.foo.enable = false;\n  };\n}\n";
         let error = add_service_to_content(content, "foo", true).unwrap_err();
 
         assert!(error.contains("only in a nested attribute set"));

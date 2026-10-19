@@ -754,11 +754,7 @@ fn find_attribute_list_ranges(
             b']' => list_depth = list_depth.saturating_sub(1),
             b'(' => paren_depth += 1,
             b')' => paren_depth = paren_depth.saturating_sub(1),
-            b';' if curly_depth == 0
-                && list_depth == 0
-                && paren_depth == 0
-                && let_depth == 0 =>
-            {
+            b';' if curly_depth == 0 && list_depth == 0 && paren_depth == 0 && let_depth == 0 => {
                 statement_start = cursor + 1;
             }
             _ => {}
@@ -804,10 +800,7 @@ fn find_nixos_system_modules_list_ranges(content: &str) -> Vec<(usize, usize)> {
         };
 
         ranges.extend(find_attribute_list_ranges(
-            content,
-            "modules",
-            args_start,
-            args_end,
+            content, "modules", args_start, args_end,
         ));
         search_from = args_end + 1;
     }

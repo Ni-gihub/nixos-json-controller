@@ -173,20 +173,35 @@ fn verify_service_state(action: &Action, service: &str) -> Result<(), String> {
         service,
     )?;
 
-    if provenance.option.is_empty() {
-        return Err(format!(
-            "could not determine the effective NixOS enable option for service '{}'",
-            service
-        ));
+    let local_files = provenance.local_files(context.flake_root());
+    let candidates = if local_files.is_empty() {
+        // When there is no local definition, prefer the service-level option,
+        // then fall back to a raw systemd unit option for custom services.
+        vec![
+            format!("services.{service}.enable"),
+            format!("systemd.services.{service}.enable"),
+        ]
+    } else {
+        vec![provenance.option]
+    };
+
+    let mut evaluation_errors = Vec::new();
+    for option in candidates {
+        match nixos::provenance::evaluate_boolean_option(
+            context.flake_root(),
+            context.configuration_name(),
+            &option,
+        ) {
+            Ok(enabled) => return verify_service_option_value(action, service, &option, enabled),
+            Err(error) => evaluation_errors.push(format!("{}: {}", option, error)),
+        }
     }
 
-    let enabled = nixos::provenance::evaluate_boolean_option(
-        context.flake_root(),
-        context.configuration_name(),
-        &provenance.option,
-    )?;
-
-    verify_service_option_value(action, service, &provenance.option, enabled)
+    Err(format!(
+        "could not evaluate the effective NixOS enable option for service '{}': {}",
+        service,
+        evaluation_errors.join("; ")
+    ))
 }
 
 fn verify_service_option_value(

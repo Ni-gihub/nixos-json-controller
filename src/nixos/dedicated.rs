@@ -180,9 +180,12 @@ fn prepare_dedicated_module_creation(
         match fs::symlink_metadata(&existing_ancestor) {
             Ok(_) => break,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                existing_ancestor = existing_ancestor.parent().map(Path::to_path_buf).ok_or_else(
-                    || format!("failed to find an existing parent for {}", parent.display()),
-                )?;
+                existing_ancestor = existing_ancestor
+                    .parent()
+                    .map(Path::to_path_buf)
+                    .ok_or_else(|| {
+                        format!("failed to find an existing parent for {}", parent.display())
+                    })?;
             }
             Err(error) => {
                 return Err(format!(
@@ -544,7 +547,8 @@ pub fn stage_new_file(flake_root: &Path, path: &Path) -> Result<Option<StagedFil
                 canonical_path.display(),
                 error
             )
-        })?;
+        })?
+        .to_path_buf();
 
     let index_state = Command::new("git")
         .args([
@@ -554,7 +558,7 @@ pub fn stage_new_file(flake_root: &Path, path: &Path) -> Result<Option<StagedFil
             "--stage",
             "--",
         ])
-        .arg(relative)
+        .arg(&relative)
         .output()
         .map_err(|e| format!("failed to inspect Git index for {}: {}", path.display(), e))?;
 
@@ -577,7 +581,7 @@ pub fn stage_new_file(flake_root: &Path, path: &Path) -> Result<Option<StagedFil
 
     match Command::new("git")
         .args(["-C", flake_root.to_string_lossy().as_ref(), "add", "--"])
-        .arg(relative)
+        .arg(&relative)
         .status()
     {
         Ok(status) if status.success() => Ok(Some(staged)),

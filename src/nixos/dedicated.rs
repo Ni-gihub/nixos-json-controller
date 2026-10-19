@@ -1656,11 +1656,7 @@ mod tests {
             "{ ... }: { description = \"sibling file\"; }\n",
         )
         .unwrap();
-        fs::write(
-            &config_path,
-            "{ imports = [ ./nxc/packages ]; }\n",
-        )
-        .unwrap();
+        fs::write(&config_path, "{ imports = [ ./nxc/packages ]; }\n").unwrap();
 
         let config = ConfigState {
             files: vec![config_file(config_path.to_str().unwrap(), &[])],
@@ -1685,11 +1681,7 @@ mod tests {
             "{ ... }: { description = \"sibling file\"; }\n",
         )
         .unwrap();
-        fs::write(
-            &config_path,
-            "{ imports = [ ./nxc/packages ]; }\n",
-        )
-        .unwrap();
+        fs::write(&config_path, "{ imports = [ ./nxc/packages ]; }\n").unwrap();
 
         let config = ConfigState {
             files: vec![config_file(config_path.to_str().unwrap(), &[])],

@@ -639,20 +639,9 @@ fn attribute_list_references_module(
                     };
                     if curly_depth == 0
                         && list_depth == 0
-                        && !path_is_in_let_binding(
-                            content,
-                            &code,
-                            list_start,
-                            cursor,
-                            list_end,
-                        )
+                        && !path_is_in_let_binding(content, &code, list_start, cursor, list_end)
                         && (paren_depth == 0 || is_plain_parenthesized_path)
-                        && has_standalone_path_prefix(
-                            content,
-                            &code,
-                            list_start,
-                            expression_start,
-                        )
+                        && has_standalone_path_prefix(content, &code, list_start, expression_start)
                     {
                         if let Some(candidate) =
                             resolve_static_import_path(base, &content[cursor..path_end])

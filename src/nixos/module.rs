@@ -1021,7 +1021,7 @@ mod tests {
 
     #[test]
     fn finds_the_returned_attribute_set_after_a_let_expression() {
-        let content = "let helper = 1; in {\\n  services.foo.enable = false;\\n}\\n";
+        let content = "let helper = 1; in {\n  services.foo.enable = false;\n}\n";
         let result = add_service_to_content(content, "foo", true).unwrap();
 
         assert!(result.contains("services.foo.enable = true;"));

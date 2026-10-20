@@ -28,7 +28,10 @@ export default function VirtualizedAppList({
   const containerRef = useRef<HTMLDivElement>(null);
   const measuredHeightsRef = useRef(new Map<string, number>());
   const [measurementVersion, setMeasurementVersion] = useState(0);
-  const [viewport, setViewport] = useState({ scrollY: 0, height: 0 });
+  const [viewport, setViewport] = useState(() => ({
+    scrollY: typeof window === "undefined" ? 0 : window.scrollY,
+    height: typeof window === "undefined" ? 0 : window.innerHeight,
+  }));
 
   useEffect(() => {
     const updateViewport = () => {
@@ -40,7 +43,6 @@ export default function VirtualizedAppList({
       });
     };
 
-    updateViewport();
     window.addEventListener("scroll", updateViewport, { passive: true });
     window.addEventListener("resize", updateViewport);
     return () => {

@@ -79,8 +79,7 @@ impl SystemState {
             return true;
         }
 
-        let (Some(pname), Some(version)) =
-            (identity.pname.as_deref(), identity.version.as_deref())
+        let (Some(pname), Some(version)) = (identity.pname.as_deref(), identity.version.as_deref())
         else {
             return false;
         };

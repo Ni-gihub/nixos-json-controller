@@ -64,48 +64,6 @@ impl SystemState {
         self.packages.iter().any(|name| name == output_name)
     }
 
-    /// Check package presence using its resolved Nix output name and identity.
-    ///
-    /// Exact output names are preferred. When the active generation contains
-    /// another version of the same pname from the same package set, allow that
-    /// version only if the remaining suffix starts with a numeric version.
-    /// This intentionally does not treat a different pname such as ripgrep-all
-    /// as ripgrep.
-    pub fn has_package_identity(
-        &self,
-        identity: &crate::nixos::provenance::PackageOutputIdentity,
-    ) -> bool {
-        if self.has_package_output(&identity.output_name) {
-            return true;
-        }
-
-        let (Some(pname), Some(version)) = (identity.pname.as_deref(), identity.version.as_deref())
-        else {
-            return false;
-        };
-
-        if !version
-            .chars()
-            .next()
-            .is_some_and(|character| character.is_ascii_digit())
-        {
-            return false;
-        }
-
-        let suffix = format!("{pname}-{version}");
-        let Some(package_set_prefix) = identity.output_name.strip_suffix(&suffix) else {
-            return false;
-        };
-        let package_prefix = format!("{package_set_prefix}{pname}-");
-
-        self.packages.iter().any(|name| {
-            name.strip_prefix(&package_prefix)
-                .and_then(|version_and_output| version_and_output.split('-').next())
-                .and_then(|version| version.chars().next())
-                .is_some_and(|character| character.is_ascii_digit())
-        })
-    }
-
     /// Check a Nixpkgs package reference against active store outputs.
     ///
     /// Package attributes do not necessarily match store output names; always
@@ -117,12 +75,12 @@ impl SystemState {
         configuration_name: &str,
         package: &str,
     ) -> Result<bool, String> {
-        let identity = super::provenance::evaluate_package_output_identity(
+        let output_name = super::provenance::evaluate_package_output_name(
             flake_root,
             configuration_name,
             package,
         )?;
-        Ok(self.has_package_identity(&identity))
+        Ok(self.has_package_output(&output_name))
     }
 
     /// systemd上で指定したsystem serviceが有効になっているか確認する。
@@ -338,60 +296,16 @@ sshd.service enabled enabled
     }
 
     #[test]
-    fn package_identity_matches_another_version_of_the_same_package() {
+    fn different_versions_are_not_exact_package_output_matches() {
         let state = SystemState {
             current_generation: PathBuf::from("/nix/store/example-nixos-system"),
             binaries: BTreeMap::new(),
             packages: BTreeSet::from(["firefox-123.0".to_string()]),
             enabled_services: BTreeSet::new(),
         };
-        let identity = crate::nixos::provenance::PackageOutputIdentity {
-            output_name: "firefox-124.0".to_string(),
-            pname: Some("firefox".to_string()),
-            version: Some("124.0".to_string()),
-        };
 
-        assert!(state.has_package_identity(&identity));
-    }
-
-    #[test]
-    fn package_identity_does_not_match_a_different_pname_prefix() {
-        let state = SystemState {
-            current_generation: PathBuf::from("/nix/store/example-nixos-system"),
-            binaries: BTreeMap::new(),
-            packages: BTreeSet::from(["ripgrep-all-1.0".to_string()]),
-            enabled_services: BTreeSet::new(),
-        };
-        let identity = crate::nixos::provenance::PackageOutputIdentity {
-            output_name: "ripgrep-14.1.1".to_string(),
-            pname: Some("ripgrep".to_string()),
-            version: Some("14.1.1".to_string()),
-        };
-
-        assert!(!state.has_package_identity(&identity));
-    }
-
-    #[test]
-    fn package_identity_keeps_the_package_set_prefix() {
-        let state = SystemState {
-            current_generation: PathBuf::from("/nix/store/example-nixos-system"),
-            binaries: BTreeMap::new(),
-            packages: BTreeSet::from(["python3.13-requests-2.31.0".to_string()]),
-            enabled_services: BTreeSet::new(),
-        };
-        let matching = crate::nixos::provenance::PackageOutputIdentity {
-            output_name: "python3.13-requests-2.32.4".to_string(),
-            pname: Some("requests".to_string()),
-            version: Some("2.32.4".to_string()),
-        };
-        let other_package_set = crate::nixos::provenance::PackageOutputIdentity {
-            output_name: "python3.12-requests-2.32.4".to_string(),
-            pname: Some("requests".to_string()),
-            version: Some("2.32.4".to_string()),
-        };
-
-        assert!(state.has_package_identity(&matching));
-        assert!(!state.has_package_identity(&other_package_set));
+        assert!(state.has_package_output("firefox-123.0"));
+        assert!(!state.has_package_output("firefox-124.0"));
     }
 
     #[test]

@@ -78,7 +78,7 @@ impl NxcCore {
             .iter()
             .map(|(name, _)| name.clone())
             .collect();
-        let output_identities = crate::nixos::provenance::evaluate_package_output_identities(
+        let output_names = crate::nixos::provenance::evaluate_package_output_names(
             context.flake_root(),
             context.configuration_name(),
             &package_names,
@@ -86,13 +86,13 @@ impl NxcCore {
 
         let mut packages = package_entries
             .into_iter()
-            .zip(output_identities)
-            .map(|((name, aliases), identity)| CatalogEntry {
+            .zip(output_names)
+            .map(|((name, aliases), output_name)| CatalogEntry {
                 name,
                 aliases,
-                system_present: identity
-                    .as_ref()
-                    .is_some_and(|identity| system.has_package_identity(identity)),
+                system_present: output_name
+                    .as_deref()
+                    .is_some_and(|output_name| system.has_package_output(output_name)),
             })
             .collect::<Vec<_>>();
 

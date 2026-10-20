@@ -96,8 +96,9 @@ pub fn execute_with_change(plan: ExecutionPlan) -> Result<PackageChange, Executo
                     // pre-rebuild installation check.
                     Ok(change)
                 }
-                PackageInstallStrategy::AlreadyDeclared { .. }
-                | PackageInstallStrategy::AlreadyPresentInSystem => Ok(PackageChange::default()),
+                PackageInstallStrategy::AlreadyDeclared { .. } => {
+                    Ok(PackageChange::default())
+                },
                 PackageInstallStrategy::Ambiguous { .. } | PackageInstallStrategy::Unsupported => {
                     install_package_in_dedicated_module(
                         context.flake_root(),

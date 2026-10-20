@@ -73,23 +73,18 @@ pub fn explain_package(
     system: &SystemState,
     package: &str,
 ) -> Result<PackageExplanation, String> {
-    // Unlike the normal executor fast path, explain intentionally performs
-    // provenance evaluation even when the package is already installed.
-    // Resolve a dotted path only once and reuse the output name for both checks.
-    let output_name = if package.contains('.') {
-        Some(super::provenance::evaluate_package_output_name(
-            context.flake_root(),
-            context.configuration_name(),
-            package,
-        )?)
-    } else {
-        None
-    };
+    // Resolve the package exactly once and use its full derivation name for
+    // both active-system and provenance checks.
+    let output_name = super::provenance::evaluate_package_output_name(
+        context.flake_root(),
+        context.configuration_name(),
+        package,
+    )?;
     let provenance = super::provenance::evaluate_package_provenance_with_output_name(
         context.flake_root(),
         context.configuration_name(),
         package,
-        output_name.as_deref(),
+        Some(&output_name),
     )?;
 
     let declaration_locations = provenance.local_files(context.flake_root());
@@ -109,14 +104,7 @@ pub fn explain_package(
 
     Ok(PackageExplanation {
         name: package.to_string(),
-        system_present: match output_name.as_deref() {
-            Some(output_name) => system.has_package_output(output_name),
-            None => system.has_package_reference(
-                context.flake_root(),
-                context.configuration_name(),
-                package,
-            )?,
-        },
+        system_present: system.has_package_output(&output_name),
         declared_in_config: !declaration_locations.is_empty(),
         declaration_locations,
         safe_declaration_locations,

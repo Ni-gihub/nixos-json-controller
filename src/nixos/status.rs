@@ -44,14 +44,22 @@ pub fn package_states(packages: &[String]) -> Result<Vec<PackageState>, String> 
     )?;
     let system = SystemState::discover()?;
 
+    let output_names = super::provenance::evaluate_package_output_names(
+        context.flake_root(),
+        context.configuration_name(),
+        packages,
+    )?;
+
     packages
         .iter()
-        .map(|package| {
-            let output_name = super::provenance::evaluate_package_output_name(
-                context.flake_root(),
-                context.configuration_name(),
-                package,
-            )?;
+        .zip(output_names)
+        .map(|(package, output_name)| {
+            let output_name = output_name.ok_or_else(|| {
+                format!(
+                    "could not determine the installed state of package '{}': its Nixpkgs output name could not be resolved",
+                    package
+                )
+            })?;
             Ok(PackageState {
                 name: package.clone(),
                 configured: provenance.contains_output_name(&output_name),

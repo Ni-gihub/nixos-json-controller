@@ -44,7 +44,7 @@ pub fn package_states(packages: &[String]) -> Result<Vec<PackageState>, String> 
     )?;
     let system = SystemState::discover()?;
 
-    let identities = super::provenance::evaluate_package_output_identities(
+    let output_names = super::provenance::evaluate_package_output_names(
         context.flake_root(),
         context.configuration_name(),
         packages,
@@ -52,18 +52,18 @@ pub fn package_states(packages: &[String]) -> Result<Vec<PackageState>, String> 
 
     packages
         .iter()
-        .zip(identities)
-        .map(|(package, identity)| {
-            let identity = identity.ok_or_else(|| {
+        .zip(output_names)
+        .map(|(package, output_name)| {
+            let output_name = output_name.ok_or_else(|| {
                 format!(
-                    "could not determine the installed state of package '{}': its Nixpkgs output identity could not be resolved",
+                    "could not determine the installed state of package '{}': its Nixpkgs output name could not be resolved",
                     package
                 )
             })?;
             Ok(PackageState {
                 name: package.clone(),
-                configured: provenance.contains_output_name(&identity.output_name),
-                active: system.has_package_identity(&identity),
+                configured: provenance.contains_output_name(&output_name),
+                active: system.has_package_output(&output_name),
             })
         })
         .collect()
@@ -83,7 +83,7 @@ pub fn explain_package(
 ) -> Result<PackageExplanation, String> {
     // Resolve the package exactly once and use its full derivation name for
     // both active-system and provenance checks.
-    let identity = super::provenance::evaluate_package_output_identity(
+    let output_name = super::provenance::evaluate_package_output_name(
         context.flake_root(),
         context.configuration_name(),
         package,
@@ -92,7 +92,7 @@ pub fn explain_package(
         context.flake_root(),
         context.configuration_name(),
         package,
-        Some(&identity.output_name),
+        Some(&output_name),
     )?;
 
     let declaration_locations = provenance.local_files(context.flake_root());
@@ -112,7 +112,7 @@ pub fn explain_package(
 
     Ok(PackageExplanation {
         name: package.to_string(),
-        system_present: system.has_package_identity(&identity),
+        system_present: system.has_package_output(&output_name),
         declared_in_config: !declaration_locations.is_empty(),
         declaration_locations,
         safe_declaration_locations,

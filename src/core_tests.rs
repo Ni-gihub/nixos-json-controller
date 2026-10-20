@@ -36,6 +36,18 @@ fn catalog_search_matches_canonical_names() {
     assert!(catalog.packages.iter().any(|entry| entry.name == "firefox"));
 }
 
+#[test]
+fn catalog_does_not_mark_prefix_similar_package_as_installed() {
+    let mut system = test_system_state();
+    system.packages.insert("ripgrep-all-1.0".to_string());
+    system.packages.insert("foo-bar-2.0".to_string());
+
+    let catalog = NxcCore::catalog_with_system(&system).unwrap();
+    let ripgrep = catalog.packages.iter().find(|entry| entry.name == "ripgrep").unwrap();
+
+    assert!(!ripgrep.system_present);
+}
+
 fn test_system_state() -> SystemState {
     SystemState {
         current_generation: PathBuf::from("/nix/store/test-system"),

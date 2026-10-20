@@ -61,9 +61,59 @@ impl NxcCore {
 
     pub fn catalog() -> Result<AppStoreCatalog, String> {
         let system = SystemState::discover()?;
-        Self::catalog_with_system(&system)
+        let context = DiscoveryContext::load()?;
+        Self::catalog_with_system_and_context(&system, &context)
     }
 
+    fn catalog_with_system_and_context(
+        system: &SystemState,
+        context: &DiscoveryContext,
+    ) -> Result<AppStoreCatalog, String> {
+        let dictionary = crate::dictionary::Dictionary::load()?;
+        let package_entries: Vec<(String, Vec<String>)> = dictionary
+            .packages()
+            .map(|(name, aliases)| (name.to_string(), aliases.to_vec()))
+            .collect();
+        let package_names: Vec<String> = package_entries
+            .iter()
+            .map(|(name, _)| name.clone())
+            .collect();
+        let output_names = crate::nixos::provenance::evaluate_package_output_names(
+            context.flake_root(),
+            context.configuration_name(),
+            &package_names,
+        )?;
+
+        let mut packages = package_entries
+            .into_iter()
+            .zip(output_names)
+            .map(|((name, aliases), output_name)| CatalogEntry {
+                name,
+                aliases,
+                system_present: output_name
+                    .as_deref()
+                    .is_some_and(|output_name| system.has_package_output(output_name)),
+            })
+            .collect::<Vec<_>>();
+
+        let mut services = dictionary
+            .services()
+            .map(|(name, aliases)| CatalogEntry {
+                name: name.to_string(),
+                aliases: aliases.to_vec(),
+                system_present: system.is_service_enabled(name),
+            })
+            .collect::<Vec<_>>();
+
+        packages.sort_by(|a, b| a.name.cmp(&b.name));
+        services.sort_by(|a, b| a.name.cmp(&b.name));
+
+        Ok(AppStoreCatalog { packages, services })
+    }
+
+    // This helper deliberately performs no fuzzy package lookup. Production
+    // catalog state uses the selected flake's resolved output names above.
+    #[cfg(test)]
     pub(crate) fn catalog_with_system(system: &SystemState) -> Result<AppStoreCatalog, String> {
         let dictionary = crate::dictionary::Dictionary::load()?;
 
@@ -72,7 +122,7 @@ impl NxcCore {
             .map(|(name, aliases)| CatalogEntry {
                 name: name.to_string(),
                 aliases: aliases.to_vec(),
-                system_present: system.has_command(name) || system.has_package(name),
+                system_present: system.has_package_output(name),
             })
             .collect::<Vec<_>>();
 
@@ -92,33 +142,16 @@ impl NxcCore {
     }
 
     pub fn search_catalog(query: &str) -> Result<AppStoreCatalog, String> {
-        let system = SystemState::discover()?;
-        Self::search_catalog_with_system(query, &system)
+        let catalog = Self::catalog()?;
+        Ok(filter_catalog(catalog, query))
     }
 
+    #[cfg(test)]
     pub(crate) fn search_catalog_with_system(
         query: &str,
         system: &SystemState,
     ) -> Result<AppStoreCatalog, String> {
-        let query = query.trim();
-        let catalog = Self::catalog_with_system(system)?;
-        if query.is_empty() {
-            return Ok(catalog);
-        }
-
-        let matches = |entry: &CatalogEntry| {
-            entry.name == query
-                || entry.name.contains(query)
-                || entry
-                    .aliases
-                    .iter()
-                    .any(|alias| alias == query || alias.contains(query))
-        };
-
-        Ok(AppStoreCatalog {
-            packages: catalog.packages.into_iter().filter(&matches).collect(),
-            services: catalog.services.into_iter().filter(matches).collect(),
-        })
+        Ok(filter_catalog(Self::catalog_with_system(system)?, query))
     }
 
     pub fn explain_package(target: impl Into<String>) -> Result<PackageExplanation, String> {
@@ -157,5 +190,27 @@ impl NxcCore {
         }
 
         Ok(report)
+    }
+}
+
+
+fn filter_catalog(catalog: AppStoreCatalog, query: &str) -> AppStoreCatalog {
+    let query = query.trim();
+    if query.is_empty() {
+        return catalog;
+    }
+
+    let matches = |entry: &CatalogEntry| {
+        entry.name == query
+            || entry.name.contains(query)
+            || entry
+                .aliases
+                .iter()
+                .any(|alias| alias == query || alias.contains(query))
+    };
+
+    AppStoreCatalog {
+        packages: catalog.packages.into_iter().filter(&matches).collect(),
+        services: catalog.services.into_iter().filter(matches).collect(),
     }
 }

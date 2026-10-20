@@ -90,11 +90,6 @@ impl Planner {
                 paths,
                 "package is already declared in the configuration",
             )),
-            PackageInstallStrategy::AlreadyPresentInSystem => Ok(Self::no_change(
-                "already-present",
-                Vec::new(),
-                "package is already present in the active system",
-            )),
             PackageInstallStrategy::Ambiguous { candidates } => Err(format!(
                 "multiple package write targets found: {}",
                 format_paths(&candidates)

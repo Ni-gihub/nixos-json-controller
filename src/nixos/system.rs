@@ -65,6 +65,29 @@ impl SystemState {
             .any(|name| name == package || name.starts_with(&format!("{package}-")))
     }
 
+    /// Check a package reference against active store outputs.
+    ///
+    /// Dotted Nixpkgs attribute paths are not necessarily reflected in store
+    /// output names, so resolve those references through the selected flake
+    /// before comparing them with the active generation.
+    pub fn has_package_reference(
+        &self,
+        flake_root: &Path,
+        configuration_name: &str,
+        package: &str,
+    ) -> Result<bool, String> {
+        if package.contains('.') {
+            let output_name = super::provenance::evaluate_package_output_name(
+                flake_root,
+                configuration_name,
+                package,
+            )?;
+            Ok(self.has_package(&output_name))
+        } else {
+            Ok(self.has_command(package) || self.has_package(package))
+        }
+    }
+
     /// systemd上で指定したsystem serviceが有効になっているか確認する。
     pub fn is_service_enabled(&self, service: &str) -> bool {
         if self.enabled_services.contains(service) {

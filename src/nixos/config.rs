@@ -381,8 +381,7 @@ fn service_enable_option_at(content: &str, code: &[bool], start: usize) -> Optio
 
     let option_start = service_end + 1;
     let option_end = option_start.checked_add("enable".len())?;
-    if option_end > content.len()
-        || &content[option_start..option_end] != "enable"
+    if !bytes[option_start..].starts_with(b"enable")
         || !code[option_start..option_end].iter().all(|active| *active)
     {
         return None;
@@ -1142,6 +1141,16 @@ home.packages = [ pkgs.firefox ];
   description = "services.nginx.enable = true;";
 }
 "#,
+        );
+
+        assert_eq!(file.write_safety, WriteSafety::Safe);
+    }
+
+    #[test]
+    fn ignores_malformed_non_ascii_service_enable_suffix_without_panicking() {
+        let file = inspect_file(
+            PathBuf::from("services.nix"),
+            "{ services.foo.enab日 = true; }",
         );
 
         assert_eq!(file.write_safety, WriteSafety::Safe);

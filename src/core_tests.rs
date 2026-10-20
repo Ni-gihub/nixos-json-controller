@@ -37,19 +37,21 @@ fn catalog_search_matches_canonical_names() {
 }
 
 #[test]
-fn catalog_does_not_mark_prefix_similar_package_as_installed() {
+fn exact_output_presence_check_rejects_prefix_similar_packages() {
     let mut system = test_system_state();
     system.packages.insert("ripgrep-all-1.0".to_string());
-    system.packages.insert("foo-bar-2.0".to_string());
 
-    let catalog = NxcCore::catalog_with_system(&system).unwrap();
-    let ripgrep = catalog
-        .packages
-        .iter()
-        .find(|entry| entry.name == "ripgrep")
-        .unwrap();
+    assert!(!crate::core::package_output_present(
+        Some("ripgrep-14.1.0"),
+        &system
+    ));
 
-    assert!(!ripgrep.system_present);
+    system.packages.insert("ripgrep-14.1.0".to_string());
+    assert!(crate::core::package_output_present(
+        Some("ripgrep-14.1.0"),
+        &system
+    ));
+    assert!(!crate::core::package_output_present(None, &system));
 }
 
 fn test_system_state() -> SystemState {

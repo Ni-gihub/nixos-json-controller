@@ -6,8 +6,8 @@ export type CatalogSearchPage<T> = {
 
 type SearchCacheEntry<T> = {
   results: T[];
-  pages: Map<number, CatalogSearchPage<T>>;
-  pending: Map<number, Promise<CatalogSearchPage<T>>>;
+  pages: Map<string, CatalogSearchPage<T>>;
+  pending: Map<string, Promise<CatalogSearchPage<T>>>;
 };
 
 /** Small LRU cache that also deduplicates in-flight page requests per query. */
@@ -26,10 +26,11 @@ export class SearchPageCache<T extends { id: string }> {
     if (!key) return { results: [], nextOffset: 0, hasMore: false };
 
     const entry = this.getOrCreateEntry(key);
-    const cachedPage = entry.pages.get(offset);
+    const pageKey = `${offset}:${limit}`;
+    const cachedPage = entry.pages.get(pageKey);
     if (cachedPage) return cachedPage;
 
-    const pendingPage = entry.pending.get(offset);
+    const pendingPage = entry.pending.get(pageKey);
     if (pendingPage) return pendingPage;
 
     const request = Promise.resolve()
@@ -52,14 +53,14 @@ export class SearchPageCache<T extends { id: string }> {
         } else {
           entry.results = [...entry.results, ...uniqueResults];
         }
-        entry.pages.set(offset, normalizedPage);
+        entry.pages.set(pageKey, normalizedPage);
         return normalizedPage;
       })
       .finally(() => {
-        entry.pending.delete(offset);
+        entry.pending.delete(pageKey);
       });
 
-    entry.pending.set(offset, request);
+    entry.pending.set(pageKey, request);
     return request;
   }
 

@@ -53,7 +53,6 @@ export default function VirtualizedAppList({
     };
 
     updateViewport();
-    updateViewport();
     window.addEventListener("scroll", updateViewport, { passive: true });
     window.addEventListener("resize", updateViewport);
     return () => {

@@ -1293,4 +1293,15 @@ mod tests {
             "systemd.services.custom.enable"
         );
     }
+    #[test]
+    fn adds_and_removes_dotted_package_attribute_paths() {
+        let original = "environment.systemPackages = with pkgs; [\n  firefox\n];\n";
+        let updated = add_package_to_content(original, "python3Packages.requests").unwrap();
+        assert!(updated.contains("python3Packages.requests"));
+
+        let removed = remove_package_from_content(&updated, "python3Packages.requests").unwrap();
+        assert!(!removed.contains("python3Packages.requests"));
+        assert!(removed.contains("firefox"));
+    }
+
 }

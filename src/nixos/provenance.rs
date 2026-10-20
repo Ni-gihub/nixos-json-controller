@@ -189,6 +189,82 @@ pub fn evaluate_package_output_name(
     Ok(name)
 }
 
+/// Resolve multiple Nixpkgs attribute paths in one evaluation.
+///
+/// Missing or non-package attributes return `None` rather than making the
+/// entire catalog query fail. An actual Nix evaluation failure is returned.
+pub fn evaluate_package_output_names(
+    flake_root: &Path,
+    configuration_name: &str,
+    packages: &[String],
+) -> Result<Vec<Option<String>>, String> {
+    if packages.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let package_paths: Vec<Vec<String>> = packages
+        .iter()
+        .map(|package| {
+            normalize_package_attribute_path(package)
+                .map(|path| path.split('.').map(str::to_string).collect())
+        })
+        .collect::<Result<_, _>>()?;
+
+    let paths_expression = package_paths
+        .iter()
+        .map(|path| {
+            format!(
+                "[{}]",
+                path.iter()
+                    .map(|segment| format!("\\\"{}\\\"", segment))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    let apply_expression = format!(
+        "pkgs: builtins.map (path: let result = builtins.tryEval ((builtins.foldl' (set: attribute: builtins.getAttr attribute set) pkgs path).name); in if result.success && builtins.isString result.value then result.value else null) [{}]",
+        paths_expression
+    );
+    let expression = format!(
+        ".#nixosConfigurations.{}.pkgs",
+        configuration_name
+    );
+
+    let output = Command::new("nix")
+        .args(["eval", "--json", "--apply", &apply_expression, &expression])
+        .current_dir(flake_root)
+        .output()
+        .map_err(|error| format!("failed to execute nix while resolving package output names: {error}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!(
+            "could not resolve package output names for NixOS configuration '{}': {}",
+            configuration_name,
+            stderr.trim()
+        ));
+    }
+
+    let names: Vec<Option<String>> = serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("failed to parse package output names returned by nix: {error}"))?;
+
+    if names.len() != packages.len() {
+        return Err(format!(
+            "Nix returned {} package output names for {} requested packages",
+            names.len(),
+            packages.len()
+        ));
+    }
+
+    Ok(names
+        .into_iter()
+        .map(|name| name.filter(|name| !name.is_empty() && !name.contains('/')))
+        .collect())
+}
+
 /// Remove one optional `pkgs.` prefix and validate the canonical Nixpkgs path.
 fn normalize_package_attribute_path(package: &str) -> Result<&str, String> {
     let normalized = package.strip_prefix("pkgs.").unwrap_or(package);

@@ -155,8 +155,7 @@ pub fn evaluate_package_output_name(
     configuration_name: &str,
     package: &str,
 ) -> Result<String, String> {
-    if package.is_empty() || !package.split('.').all(is_package_attribute_segment)
-    {
+    if package.is_empty() || !package.split('.').all(is_package_attribute_segment) {
         return Err(format!("unsafe package attribute path: '{}'", package));
     }
 
@@ -441,7 +440,9 @@ mod tests {
         assert!(value_contains_output_name(&store_path, output_name));
         assert!(!value_contains_output_name(&store_path, "requests"));
         assert!(!value_contains_output_name(
-            &serde_json::json!("/nix/store/0123456789abcdef0123456789abcdef-python3.13-urllib3-2.2.0"),
+            &serde_json::json!(
+                "/nix/store/0123456789abcdef0123456789abcdef-python3.13-urllib3-2.2.0"
+            ),
             output_name
         ));
     }

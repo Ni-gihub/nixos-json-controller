@@ -67,7 +67,12 @@ function AppDetail() {
 
     void refreshPackage(id)
       .then(() => {
-        if (!cancelled) setStatusLookup({ packageId: id, status: "ready" });
+        if (!cancelled) {
+          setStatusLookup({
+            packageId: id,
+            status: "ready",
+          });
+        }
       })
       .catch((err) => {
         if (!cancelled) {

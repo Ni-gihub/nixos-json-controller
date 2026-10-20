@@ -121,10 +121,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       // installed while this request is pending advances its revision and makes
       // that part of the older response stale.
       const requestRevisions = new Map(
-        packageNames.map((name) => [
-          name,
-          packageStateRevision.current(name),
-        ]),
+        packageNames.map((name) => [name, packageStateRevision.current(name)]),
       );
 
       setLoading(true);

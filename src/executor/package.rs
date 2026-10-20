@@ -166,9 +166,7 @@ pub fn execute_with_change(plan: ExecutionPlan) -> Result<PackageChange, Executo
                             ..PackageChange::default()
                         })
                     }
-                    PackageRemoveStrategy::NotDeclared | PackageRemoveStrategy::SystemOnly => {
-                        Ok(PackageChange::default())
-                    }
+                    PackageRemoveStrategy::NotDeclared => Ok(PackageChange::default())
                     PackageRemoveStrategy::Ambiguous { candidates } => {
                         Err(ExecutorError::NixosError(format!(
                             "multiple package configuration files found: {}",

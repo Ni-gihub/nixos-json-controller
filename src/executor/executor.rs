@@ -170,18 +170,12 @@ fn rollback_change(
 /// Check whether the active system reflects the requested package action.
 fn verify_package_state(action: &Action, package: &str) -> Result<(), String> {
     let system = nixos::system::SystemState::discover()?;
-    let package_output_name = if package.contains('.') {
-        let context = nixos::flake::discovery_context()?;
-        nixos::provenance::evaluate_package_output_name(
-            context.flake_root(),
-            context.configuration_name(),
-            package,
-        )?
-    } else {
-        package.to_string()
-    };
-    let present = system.has_package(&package_output_name)
-        || (!package.contains('.') && system.has_command(package));
+    let context = nixos::flake::discovery_context()?;
+    let present = system.has_package_reference(
+        context.flake_root(),
+        context.configuration_name(),
+        package,
+    )?;
 
     verify_package_presence(action, package, present)
 }

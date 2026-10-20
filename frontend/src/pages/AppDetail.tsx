@@ -33,10 +33,7 @@ function AppDetail() {
   const statusLoading =
     appState === undefined &&
     (currentStatusLookup === null || currentStatusLookup.status === "loading");
-  const statusError =
-    currentStatusLookup?.status === "error"
-      ? currentStatusLookup.error
-      : null;
+  const statusError = currentStatusLookup?.status === "error" ? currentStatusLookup.error : null;
 
   useEffect(() => {
     if (!id) return;

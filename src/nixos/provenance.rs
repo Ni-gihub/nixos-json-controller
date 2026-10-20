@@ -173,16 +173,12 @@ pub fn evaluate_package_output_names_for_package(
     let names =
         evaluate_package_output_names(flake_root, configuration_name, &[package.to_string()])?;
 
-    names
-        .into_iter()
-        .next()
-        .flatten()
-        .ok_or_else(|| {
-            format!(
-                "could not resolve package attribute path '{}' to its selected Nix store outputs",
-                package
-            )
-        })
+    names.into_iter().next().flatten().ok_or_else(|| {
+        format!(
+            "could not resolve package attribute path '{}' to its selected Nix store outputs",
+            package
+        )
+    })
 }
 
 /// Resolve selected store output names for many package attributes in one Nix evaluation.

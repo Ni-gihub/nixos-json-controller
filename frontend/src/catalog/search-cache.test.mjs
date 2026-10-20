@@ -6,6 +6,7 @@ const page = (results, nextOffset, hasMore) => ({
   results: results.map((id) => ({ id })),
   nextOffset,
   hasMore,
+  resultsLimited: false,
 });
 
 test("loads pages on demand and reuses pages already fetched for a query", async () => {

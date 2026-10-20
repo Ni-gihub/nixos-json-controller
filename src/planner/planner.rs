@@ -107,7 +107,7 @@ impl Planner {
         system: &SystemState,
         package: &str,
     ) -> Result<PlanDetails, String> {
-        let identity = crate::nixos::provenance::evaluate_package_output_identity(
+        let output_name = crate::nixos::provenance::evaluate_package_output_name(
             context.flake_root(),
             context.configuration_name(),
             package,
@@ -116,7 +116,7 @@ impl Planner {
             context.flake_root(),
             context.configuration_name(),
             package,
-            Some(&identity.output_name),
+            Some(&output_name),
         )?;
         let provenance_paths = provenance.local_files(context.flake_root());
         let config = ConfigState::discover(context.flake_root())?;
@@ -151,7 +151,7 @@ impl Planner {
             ));
         }
 
-        let package_is_active = system.has_package_identity(&identity);
+        let package_is_active = system.has_package_output(&output_name);
 
         if package_is_active {
             return Ok(PlanDetails {

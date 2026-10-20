@@ -47,31 +47,15 @@ pub fn package_states(packages: &[String]) -> Result<Vec<PackageState>, String> 
     packages
         .iter()
         .map(|package| {
-            let (active, configured) = if package.contains('.') {
-                let output_name = super::provenance::evaluate_package_output_name(
-                    context.flake_root(),
-                    context.configuration_name(),
-                    package,
-                )?;
-                (
-                    system.has_package_output(&output_name),
-                    provenance.contains_output_name(&output_name),
-                )
-            } else {
-                (
-                    system.has_package_reference(
-                        context.flake_root(),
-                        context.configuration_name(),
-                        package,
-                    )?,
-                    provenance.contains_package(package),
-                )
-            };
-
+            let output_name = super::provenance::evaluate_package_output_name(
+                context.flake_root(),
+                context.configuration_name(),
+                package,
+            )?;
             Ok(PackageState {
                 name: package.clone(),
-                configured,
-                active,
+                configured: provenance.contains_output_name(&output_name),
+                active: system.has_package_output(&output_name),
             })
         })
         .collect()

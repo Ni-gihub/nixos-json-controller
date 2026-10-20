@@ -306,6 +306,7 @@ sshd.service enabled enabled
         assert!(state.is_service_enabled("sshd"));
         assert!(!state.is_service_enabled("nginx"));
     }
+
     #[test]
     fn resolved_package_output_requires_exact_match() {
         let state = SystemState {
@@ -324,15 +325,11 @@ sshd.service enabled enabled
         let state = SystemState {
             current_generation: PathBuf::from("/nix/store/example-nixos-system"),
             binaries: BTreeMap::new(),
-            packages: BTreeSet::from([
-                "foo-1.2".to_string(),
-                "foo-1.2-tools".to_string(),
-            ]),
+            packages: BTreeSet::from(["foo-1.2".to_string(), "foo-1.2-tools".to_string()]),
             enabled_services: BTreeSet::new(),
         };
 
         assert!(state.has_package_output("foo-1.2"));
         assert!(state.has_package_output("foo-1.2-tools"));
     }
-
 }

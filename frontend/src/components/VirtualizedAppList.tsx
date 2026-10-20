@@ -34,6 +34,13 @@ export default function VirtualizedAppList({
     height: typeof window === "undefined" ? 0 : window.innerHeight,
   }));
   const [listTop, setListTop] = useState(0);
+  const setContainerRef = useCallback((container: HTMLDivElement | null) => {
+    containerRef.current = container;
+    if (!container) return;
+
+    const nextTop = container.getBoundingClientRect().top + window.scrollY;
+    setListTop((current) => (current === nextTop ? current : nextTop));
+  }, []);
 
   useEffect(() => {
     const updateViewport = () => {
@@ -52,14 +59,13 @@ export default function VirtualizedAppList({
       setListTop((current) => (current === nextTop ? current : nextTop));
     };
 
-    updateViewport();
     window.addEventListener("scroll", updateViewport, { passive: true });
     window.addEventListener("resize", updateViewport);
     return () => {
       window.removeEventListener("scroll", updateViewport);
       window.removeEventListener("resize", updateViewport);
     };
-  }, [apps.length]);
+  }, []);
 
   const offsets = useMemo(
     () =>
@@ -147,7 +153,7 @@ export default function VirtualizedAppList({
   );
 
   return (
-    <div ref={containerRef} className="w-full">
+    <div ref={setContainerRef} className="w-full">
       <div aria-hidden="true" style={{ height: range.topOffset }} />
       {apps.slice(range.startIndex, range.endIndex).map(renderRow)}
       <div aria-hidden="true" style={{ height: range.bottomOffset }} />

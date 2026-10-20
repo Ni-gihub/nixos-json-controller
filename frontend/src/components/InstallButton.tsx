@@ -131,6 +131,21 @@ function InstallButton({
     finishInstallRequest(packageId);
   };
 
+  const renderInstallButtonContent = () => {
+    if (effectiveInstalled) return "インストール済み";
+
+    switch (installPhase) {
+      case "installing":
+        return <InstallProgressIndicator label="インストール中..." />;
+      case "checking":
+        return <InstallProgressIndicator label="確認中..." />;
+      case "password":
+        return "認証待ち...";
+      default:
+        return "インストール";
+    }
+  };
+
   return (
     <div className="w-full">
       {error && <p className="mb-3 text-sm text-destructive">{error}</p>}
@@ -145,15 +160,7 @@ function InstallButton({
           void handleInstall();
         }}
       >
-        {effectiveInstalled
-          ? "インストール済み"
-          : installPhase === "installing"
-            ? <InstallProgressIndicator label="インストール中..." />
-            : installPhase === "checking"
-              ? <InstallProgressIndicator label="確認中..." />
-              : installPhase === "password"
-                ? "認証待ち..."
-                : "インストール"}
+        {renderInstallButtonContent()}
       </Button>
 
       {!statusKnown && !effectiveInstalled && (
@@ -217,7 +224,7 @@ function InstallButton({
               <Button
                 type="submit"
                 className="bg-primary text-primary-foreground hover:bg-primary/90"
-                disabled={!password || busy && installPhase !== "password"}
+                disabled={!password || installPhase !== "password"}
               >
                 続行
               </Button>

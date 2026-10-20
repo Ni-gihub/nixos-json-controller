@@ -8,7 +8,10 @@ import {
   type ReactNode,
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { InstallRequestLock, type InstallRequestPhase } from "./install-request-lock";
+import {
+  InstallRequestLock,
+  type InstallRequestPhase,
+} from "./install-request-lock";
 
 export type AppState = {
   name: string;
@@ -21,8 +24,14 @@ type AppStateContextValue = {
   loading: boolean;
   error: string | null;
   installPhases: Record<string, InstallRequestPhase>;
-  beginInstallRequest: (packageName: string, phase: InstallRequestPhase) => boolean;
-  setInstallRequestPhase: (packageName: string, phase: InstallRequestPhase) => void;
+  beginInstallRequest: (
+    packageName: string,
+    phase: InstallRequestPhase,
+  ) => boolean;
+  setInstallRequestPhase: (
+    packageName: string,
+    phase: InstallRequestPhase,
+  ) => void;
   finishInstallRequest: (packageName: string) => void;
   refreshPackages: (packageNames: string[]) => Promise<void>;
   refreshPackage: (packageName: string) => Promise<void>;
@@ -34,7 +43,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [states, setStates] = useState<Record<string, AppState>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [installPhases, setInstallPhases] = useState<Record<string, InstallRequestPhase>>({});
+  const [installPhases, setInstallPhases] = useState<
+    Record<string, InstallRequestPhase>
+  >({});
   const installLockRef = useRef<InstallRequestLock | null>(null);
   if (installLockRef.current === null) {
     installLockRef.current = new InstallRequestLock();

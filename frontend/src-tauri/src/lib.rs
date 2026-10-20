@@ -23,10 +23,7 @@ fn sudo_available() -> bool {
 }
 
 #[tauri::command]
-async fn install_app(
-    package: String,
-    password: Option<String>,
-) -> Result<InstallResult, String> {
+async fn install_app(package: String, password: Option<String>) -> Result<InstallResult, String> {
     tauri::async_runtime::spawn_blocking(move || {
         nixos_json_controller::install_package_with_password(&package, password.as_deref())?;
 

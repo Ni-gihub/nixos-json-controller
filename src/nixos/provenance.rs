@@ -153,14 +153,17 @@ pub fn evaluate_package_output_name(
         return Err(format!("unsafe package attribute path: '{}'", package));
     }
 
-    let expression = format!(
-        ".#nixosConfigurations.{configuration_name}.pkgs.{package}.name"
-    );
+    let expression = format!(".#nixosConfigurations.{configuration_name}.pkgs.{package}.name");
     let output = Command::new("nix")
         .args(["eval", "--raw", &expression])
         .current_dir(flake_root)
         .output()
-        .map_err(|error| format!("failed to execute nix while resolving package '{}': {}", package, error))?;
+        .map_err(|error| {
+            format!(
+                "failed to execute nix while resolving package '{}': {}",
+                package, error
+            )
+        })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

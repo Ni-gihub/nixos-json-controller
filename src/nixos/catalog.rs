@@ -87,11 +87,7 @@ pub fn search(query: &str) -> Result<Vec<CatalogPackage>, String> {
 ///
 /// Nix search and ranking happen only on a cache miss. Icon candidates are resolved
 /// only for the selected page to keep each scroll-triggered request lightweight.
-pub fn search_page(
-    query: &str,
-    offset: usize,
-    limit: usize,
-) -> Result<CatalogSearchPage, String> {
+pub fn search_page(query: &str, offset: usize, limit: usize) -> Result<CatalogSearchPage, String> {
     let query = query.trim();
     if query.is_empty() {
         return Ok(CatalogSearchPage {
@@ -558,7 +554,13 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(ids.len(), 90);
         assert_eq!(ids.iter().collect::<HashSet<_>>().len(), 90);
-        assert_eq!(ids, ranked.iter().map(|(_, package)| package.id.as_str()).collect::<Vec<_>>());
+        assert_eq!(
+            ids,
+            ranked
+                .iter()
+                .map(|(_, package)| package.id.as_str())
+                .collect::<Vec<_>>()
+        );
     }
 
     #[test]
@@ -583,7 +585,10 @@ mod tests {
     fn search_cache_is_bounded_and_evicts_the_least_recently_used_query() {
         let mut cache = SearchCache::default();
         for index in 0..MAX_CACHED_QUERIES {
-            cache.insert(format!("query-{index}"), Arc::new(CachedSearchResults::default()));
+            cache.insert(
+                format!("query-{index}"),
+                Arc::new(CachedSearchResults::default()),
+            );
         }
         assert!(cache.get("query-0").is_some());
 

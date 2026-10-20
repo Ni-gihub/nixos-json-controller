@@ -313,10 +313,7 @@ sshd.service enabled enabled
         let state = SystemState {
             current_generation: PathBuf::from("/nix/store/example-nixos-system"),
             binaries: BTreeMap::new(),
-            packages: BTreeSet::from([
-                "ripgrep-all-1.0".to_string(),
-                "foo-bar-2.0".to_string(),
-            ]),
+            packages: BTreeSet::from(["ripgrep-all-1.0".to_string(), "foo-bar-2.0".to_string()]),
             enabled_services: BTreeSet::new(),
         };
 

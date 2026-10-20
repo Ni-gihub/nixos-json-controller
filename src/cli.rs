@@ -169,10 +169,17 @@ fn run_search(query: &str) -> Result<(), String> {
     for package in &matches {
         println!("Package: {}", package);
         println!("  Configured: yes");
-        println!(
-            "  Active in system: {}",
-            yes_no(system.has_command(package) || system.has_package(package))
-        );
+        match system.has_package_reference(
+            context.flake_root(),
+            context.configuration_name(),
+            package,
+        ) {
+            Ok(active) => println!("  Active in system: {}", yes_no(active)),
+            Err(error) => println!(
+                "  Active in system: unknown ({})",
+                error.replace('\n', " ").replace('\r', " ")
+            ),
+        }
 
         let declarations = config.package_declarations(package);
         print_locations(
@@ -234,9 +241,20 @@ fn run_explain(kind: &str, target: &str) -> Result<(), String> {
             let dictionary = nixos_json_controller::dictionary::Dictionary::load()?;
             let package = dictionary
                 .resolve_package(target)
+                .map(str::to_string)
+                .or_else(|| {
+                    Resolver::resolve(
+                        Action::InstallPackage,
+                        Target {
+                            raw: target.to_string(),
+                        },
+                    )
+                    .ok()
+                    .map(|resolved| resolved.name)
+                })
                 .ok_or_else(|| format!("unknown package target: {}", target))?;
 
-            let explanation = explain_package(&context, &system, package)?;
+            let explanation = explain_package(&context, &system, &package)?;
 
             println!("Package: {}", explanation.name);
             println!("System present: {}", yes_no(explanation.system_present));

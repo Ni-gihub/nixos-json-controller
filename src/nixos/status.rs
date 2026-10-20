@@ -3,9 +3,7 @@ use std::path::PathBuf;
 use serde::Serialize;
 
 use super::{
-    config::ConfigState,
-    discovery::DiscoveryContext,
-    provenance::{evaluate_package_provenance, evaluate_service_provenance},
+    config::ConfigState, discovery::DiscoveryContext, provenance::evaluate_service_provenance,
     system::SystemState,
 };
 
@@ -46,14 +44,37 @@ pub fn package_states(packages: &[String]) -> Result<Vec<PackageState>, String> 
     )?;
     let system = SystemState::discover()?;
 
-    Ok(packages
+    packages
         .iter()
-        .map(|package| PackageState {
-            name: package.clone(),
-            configured: provenance.contains_package(package),
-            active: system.has_command(package) || system.has_package(package),
+        .map(|package| {
+            let (active, configured) = if package.contains('.') {
+                let output_name = super::provenance::evaluate_package_output_name(
+                    context.flake_root(),
+                    context.configuration_name(),
+                    package,
+                )?;
+                (
+                    system.has_package_output(&output_name),
+                    provenance.contains_output_name(&output_name),
+                )
+            } else {
+                (
+                    system.has_package_reference(
+                        context.flake_root(),
+                        context.configuration_name(),
+                        package,
+                    )?,
+                    provenance.contains_package(package),
+                )
+            };
+
+            Ok(PackageState {
+                name: package.clone(),
+                configured,
+                active,
+            })
         })
-        .collect())
+        .collect()
 }
 
 pub fn package_state(package: &str) -> Result<PackageState, String> {
@@ -70,10 +91,22 @@ pub fn explain_package(
 ) -> Result<PackageExplanation, String> {
     // Unlike the normal executor fast path, explain intentionally performs
     // provenance evaluation even when the package is already installed.
-    // explain is a diagnostic command, so source provenance is part of the
-    // requested answer rather than an optional optimization.
-    let provenance =
-        evaluate_package_provenance(context.flake_root(), context.configuration_name(), package)?;
+    // Resolve a dotted path only once and reuse the output name for both checks.
+    let output_name = if package.contains('.') {
+        Some(super::provenance::evaluate_package_output_name(
+            context.flake_root(),
+            context.configuration_name(),
+            package,
+        )?)
+    } else {
+        None
+    };
+    let provenance = super::provenance::evaluate_package_provenance_with_output_name(
+        context.flake_root(),
+        context.configuration_name(),
+        package,
+        output_name.as_deref(),
+    )?;
 
     let declaration_locations = provenance.local_files(context.flake_root());
     let config = ConfigState::discover(context.flake_root())?;
@@ -92,7 +125,14 @@ pub fn explain_package(
 
     Ok(PackageExplanation {
         name: package.to_string(),
-        system_present: system.has_command(package) || system.has_package(package),
+        system_present: match output_name.as_deref() {
+            Some(output_name) => system.has_package_output(output_name),
+            None => system.has_package_reference(
+                context.flake_root(),
+                context.configuration_name(),
+                package,
+            )?,
+        },
         declared_in_config: !declaration_locations.is_empty(),
         declaration_locations,
         safe_declaration_locations,

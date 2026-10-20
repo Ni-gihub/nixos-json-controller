@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 
 use super::discovery::DiscoveryContext;
-use super::provenance::evaluate_package_provenance;
+use super::provenance::{
+    evaluate_package_output_name, evaluate_package_provenance_with_output_name,
+};
 use super::system::SystemState;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -17,7 +19,23 @@ impl ApplicationState {
         package: &str,
         system: &SystemState,
     ) -> Result<Self, String> {
-        let system_present = system.has_command(package) || system.has_package(package);
+        let output_name = if package.contains('.') {
+            Some(evaluate_package_output_name(
+                context.flake_root(),
+                context.configuration_name(),
+                package,
+            )?)
+        } else {
+            None
+        };
+        let system_present = match output_name.as_deref() {
+            Some(output_name) => system.has_package_output(output_name),
+            None => system.has_package_reference(
+                context.flake_root(),
+                context.configuration_name(),
+                package,
+            )?,
+        };
 
         // The active system is authoritative for the "already installed"
         // fast path. Do not make an otherwise successful no-op depend on
@@ -30,10 +48,11 @@ impl ApplicationState {
             });
         }
 
-        let provenance = evaluate_package_provenance(
+        let provenance = evaluate_package_provenance_with_output_name(
             context.flake_root(),
             context.configuration_name(),
             package,
+            output_name.as_deref(),
         )?;
 
         let declaration_locations = provenance.local_files(context.flake_root());

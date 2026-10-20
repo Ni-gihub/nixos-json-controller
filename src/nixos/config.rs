@@ -61,6 +61,8 @@ impl ConfigState {
     }
 
     pub fn package_declarations(&self, package: &str) -> Vec<&Path> {
+        let package = package.strip_prefix("pkgs.").unwrap_or(package);
+
         self.files
             .iter()
             .filter(|file| file.declared_packages.contains(package))
@@ -383,14 +385,21 @@ fn parse_package_line(line: &str) -> Option<String> {
         .trim_matches(|c: char| matches!(c, '[' | ']' | '(' | ')' | ','));
     let token = token.strip_prefix("pkgs.").unwrap_or(token);
 
-    if token.is_empty() || token.contains('.') {
+    if token.is_empty() || !token.split('.').all(is_package_attribute_segment) {
         return None;
     }
 
-    token
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
-        .then(|| token.to_string())
+    Some(token.to_string())
+}
+
+pub(crate) fn is_package_attribute_segment(segment: &str) -> bool {
+    let mut chars = segment.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+
+    (first.is_ascii_alphabetic() || first == '_')
+        && chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '\''))
 }
 
 fn parse_service_names(content: &str) -> Vec<String> {
@@ -960,5 +969,34 @@ home.packages = [ pkgs.firefox ];
         let end = find_matching_delimiter(content, start, '[', ']').unwrap();
 
         assert_eq!(&content[start..=end], r#"[ pkgs.git (foo "[]") ]"#);
+    }
+
+    #[test]
+    fn parses_dotted_package_attribute_paths() {
+        let file = inspect_file(
+            PathBuf::from("packages.nix"),
+            r#"
+environment.systemPackages = with pkgs; [
+  pkgs.python3Packages.requests
+  python3Packages.urllib3
+  pkgs.foo..bar
+];
+"#,
+        );
+
+        assert!(file.declared_packages.contains("python3Packages.requests"));
+        assert!(file.declared_packages.contains("python3Packages.urllib3"));
+        assert!(!file.declared_packages.contains("foo..bar"));
+
+        let path = file.path.clone();
+        let config = ConfigState { files: vec![file] };
+        assert_eq!(
+            config.package_declarations("python3Packages.requests"),
+            vec![path.as_path()]
+        );
+        assert_eq!(
+            config.package_declarations("pkgs.python3Packages.requests"),
+            vec![path.as_path()]
+        );
     }
 }

@@ -65,6 +65,37 @@ impl SystemState {
             .any(|name| name == package || name.starts_with(&format!("{package}-")))
     }
 
+    /// Check an already-resolved derivation output name against active store outputs.
+    ///
+    /// Unlike unresolved package names, derivation output names already contain
+    /// the full name (usually including the version), so they must match exactly.
+    pub fn has_package_output(&self, output_name: &str) -> bool {
+        self.packages.iter().any(|name| name == output_name)
+    }
+
+    /// Check a package reference against active store outputs.
+    ///
+    /// Dotted Nixpkgs attribute paths are not necessarily reflected in store
+    /// output names, so resolve those references through the selected flake
+    /// before comparing them with the active generation.
+    pub fn has_package_reference(
+        &self,
+        flake_root: &Path,
+        configuration_name: &str,
+        package: &str,
+    ) -> Result<bool, String> {
+        if package.contains('.') {
+            let output_name = super::provenance::evaluate_package_output_name(
+                flake_root,
+                configuration_name,
+                package,
+            )?;
+            Ok(self.has_package_output(&output_name))
+        } else {
+            Ok(self.has_command(package) || self.has_package(package))
+        }
+    }
+
     /// systemd上で指定したsystem serviceが有効になっているか確認する。
     pub fn is_service_enabled(&self, service: &str) -> bool {
         if self.enabled_services.contains(service) {
@@ -274,5 +305,31 @@ sshd.service enabled enabled
 
         assert!(state.is_service_enabled("sshd"));
         assert!(!state.is_service_enabled("nginx"));
+    }
+
+    #[test]
+    fn resolved_package_output_requires_exact_match() {
+        let state = SystemState {
+            current_generation: PathBuf::from("/nix/store/example-nixos-system"),
+            binaries: BTreeMap::new(),
+            packages: BTreeSet::from(["foo-1.2-tools".to_string()]),
+            enabled_services: BTreeSet::new(),
+        };
+
+        assert!(!state.has_package_output("foo-1.2"));
+        assert!(state.has_package_output("foo-1.2-tools"));
+    }
+
+    #[test]
+    fn resolved_package_output_matches_exact_entry_when_similar_names_exist() {
+        let state = SystemState {
+            current_generation: PathBuf::from("/nix/store/example-nixos-system"),
+            binaries: BTreeMap::new(),
+            packages: BTreeSet::from(["foo-1.2".to_string(), "foo-1.2-tools".to_string()]),
+            enabled_services: BTreeSet::new(),
+        };
+
+        assert!(state.has_package_output("foo-1.2"));
+        assert!(state.has_package_output("foo-1.2-tools"));
     }
 }

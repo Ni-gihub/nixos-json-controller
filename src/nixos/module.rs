@@ -1,4 +1,4 @@
-use super::flake;
+use super::{config::is_package_attribute_segment, flake};
 
 // ============================================================
 // Compatibility helpers
@@ -310,16 +310,7 @@ fn normalize_package_name(package: &str) -> Option<&str> {
 }
 
 fn is_valid_package_identifier(name: &str) -> bool {
-    !name.is_empty()
-        && name.split('.').all(|segment| {
-            let mut chars = segment.chars();
-            let Some(first) = chars.next() else {
-                return false;
-            };
-
-            (first.is_ascii_alphabetic() || first == '_')
-                && chars.all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '\''))
-        })
+    !name.is_empty() && name.split('.').all(is_package_attribute_segment)
 }
 
 fn read_nix_identifier_end(content: &str, start: usize, limit: usize) -> usize {
@@ -1292,5 +1283,16 @@ mod tests {
             service_option_for_content(raw_systemd, "custom").unwrap(),
             "systemd.services.custom.enable"
         );
+    }
+
+    #[test]
+    fn adds_and_removes_dotted_package_attribute_paths() {
+        let original = "environment.systemPackages = with pkgs; [\n  firefox\n];\n";
+        let updated = add_package_to_content(original, "python3Packages.requests").unwrap();
+        assert!(updated.contains("python3Packages.requests"));
+
+        let removed = remove_package_from_content(&updated, "python3Packages.requests").unwrap();
+        assert!(!removed.contains("python3Packages.requests"));
+        assert!(removed.contains("firefox"));
     }
 }

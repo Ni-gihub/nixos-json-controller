@@ -968,6 +968,7 @@ home.packages = [ pkgs.firefox ];
 
         assert_eq!(&content[start..=end], r#"[ pkgs.git (foo "[]") ]"#);
     }
+
     #[test]
     fn parses_dotted_package_attribute_paths() {
         let file = inspect_file(
@@ -985,5 +986,4 @@ environment.systemPackages = with pkgs; [
         assert!(file.declared_packages.contains("python3Packages.urllib3"));
         assert!(!file.declared_packages.contains("foo..bar"));
     }
-
 }

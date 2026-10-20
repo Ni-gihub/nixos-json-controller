@@ -138,6 +138,7 @@ function Discover() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [nextOffset, setNextOffset] = useState(0);
   const [hasMoreResults, setHasMoreResults] = useState(false);
+  const [resultsLimited, setResultsLimited] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const { states, loading, error, refreshPackages } = useAppState();
@@ -156,6 +157,7 @@ function Discover() {
       setResults([]);
       setNextOffset(0);
       setHasMoreResults(false);
+      setResultsLimited(false);
       setLoadingMore(false);
       setLoadMoreError(null);
       loadingMoreRef.current = false;
@@ -170,6 +172,7 @@ function Discover() {
           setResults(page.results);
           setNextOffset(page.nextOffset);
           setHasMoreResults(page.hasMore);
+          setResultsLimited(page.resultsLimited);
           void refreshPackages(page.results.map((app) => app.id));
         })
         .catch((err: unknown) => {
@@ -228,6 +231,7 @@ function Discover() {
           });
           setNextOffset(page.nextOffset);
           setHasMoreResults(page.hasMore);
+          setResultsLimited(page.resultsLimited);
           if (page.results.length > 0) {
             void refreshPackages(page.results.map((app) => app.id));
           }
@@ -356,6 +360,7 @@ function Discover() {
       setResults([]);
       setNextOffset(0);
       setHasMoreResults(false);
+      setResultsLimited(false);
       setLoadingMore(false);
       setLoadMoreError(null);
       loadingMoreRef.current = false;
@@ -599,6 +604,7 @@ function Discover() {
                             setResults([]);
                             setNextOffset(0);
                             setHasMoreResults(false);
+                            setResultsLimited(false);
                             setLoadingMore(false);
                             setLoadMoreError(null);
                             loadingMoreRef.current = false;
@@ -843,7 +849,9 @@ function Discover() {
                           className="py-4 text-center text-sm text-muted-foreground"
                           role="status"
                         >
-                          すべての検索結果を表示しました。
+                          {resultsLimited
+                            ? "検索結果が多いため、先頭5,000件まで表示しました。"
+                            : "すべての検索結果を表示しました。"}
                         </p>
                       )}
                     </div>

@@ -81,7 +81,6 @@ fn catalog_entries_use_resolved_output_names_for_presence() {
     assert!(installed_output[0].system_present);
 }
 
-
 fn test_system_state() -> SystemState {
     SystemState {
         current_generation: PathBuf::from("/nix/store/test-system"),

@@ -155,9 +155,7 @@ pub fn evaluate_package_output_name(
     configuration_name: &str,
     package: &str,
 ) -> Result<String, String> {
-    if package.is_empty() || !package.split('.').all(is_package_attribute_segment) {
-        return Err(format!("unsafe package attribute path: '{}'", package));
-    }
+    let package = normalize_package_attribute_path(package)?;
 
     let expression = format!(".#nixosConfigurations.{configuration_name}.pkgs.{package}.name");
     let output = Command::new("nix")
@@ -189,6 +187,20 @@ pub fn evaluate_package_output_name(
     }
 
     Ok(name)
+}
+
+/// Remove one optional `pkgs.` prefix and validate the canonical Nixpkgs path.
+fn normalize_package_attribute_path(package: &str) -> Result<&str, String> {
+    let normalized = package.strip_prefix("pkgs.").unwrap_or(package);
+
+    if normalized.is_empty()
+        || normalized.starts_with("pkgs.")
+        || !normalized.split('.').all(is_package_attribute_segment)
+    {
+        return Err(format!("unsafe package attribute path: '{}'", package));
+    }
+
+    Ok(normalized)
 }
 
 pub fn evaluate_package_provenance(
@@ -355,13 +367,20 @@ fn value_contains_output_name(value: &Value, output_name: &str) -> bool {
 
 fn string_matches_output_name(value: &str, output_name: &str) -> bool {
     let basename = value.rsplit('/').next().unwrap_or(value);
-    if basename == output_name {
-        return true;
-    }
+    let Some((hash, name)) = basename.split_once('-') else {
+        return false;
+    };
 
-    basename
-        .strip_suffix(output_name)
-        .is_some_and(|prefix| prefix.len() > 1 && prefix.ends_with('-'))
+    is_valid_store_path_hash(hash) && name == output_name
+}
+
+/// Nix store path hashes use 32 characters from the Nix base32 alphabet.
+fn is_valid_store_path_hash(hash: &str) -> bool {
+    hash.len() == 32
+        && hash.bytes().all(|byte| {
+            byte.is_ascii_digit()
+                || matches!(byte, b'a'..=b'd' | b'f'..=b'n' | b'p'..=b's' | b'v'..=b'z')
+        })
 }
 
 fn string_matches_package(value: &str, package: &str) -> bool {
@@ -433,18 +452,44 @@ mod tests {
     #[test]
     fn matches_versioned_derivation_names_in_store_paths() {
         let output_name = "python3.13-requests-2.32.4";
-        let store_path = serde_json::json!(
-            "/nix/store/0123456789abcdef0123456789abcdef-python3.13-requests-2.32.4"
-        );
+        let hash = "0123456789abcdfghijklmnpqrsvwxyz";
+        let store_path = serde_json::json!(format!("/nix/store/{hash}-{output_name}"));
 
+        assert_eq!(hash.len(), 32);
+        assert!(is_valid_store_path_hash(hash));
         assert!(value_contains_output_name(&store_path, output_name));
         assert!(!value_contains_output_name(&store_path, "requests"));
-        assert!(!value_contains_output_name(
-            &serde_json::json!(
-                "/nix/store/0123456789abcdef0123456789abcdef-python3.13-urllib3-2.2.0"
-            ),
-            output_name
+
+        let other_package = serde_json::json!(format!(
+            "/nix/store/{hash}-custom-{output_name}"
         ));
+        assert!(!value_contains_output_name(&other_package, output_name));
+
+        let malformed_hash = serde_json::json!(format!("/nix/store/short-{output_name}"));
+        assert!(!value_contains_output_name(&malformed_hash, output_name));
+
+        let invalid_alphabet = serde_json::json!(format!(
+            "/nix/store/0123456789abcde0123456789abcde0-{output_name}"
+        ));
+        assert!(!value_contains_output_name(&invalid_alphabet, output_name));
+
+        let different_name = serde_json::json!(format!(
+            "/nix/store/{hash}-python3.13-urllib3-2.2.0"
+        ));
+        assert!(!value_contains_output_name(&different_name, output_name));
+    }
+
+    #[test]
+    fn normalizes_optional_pkgs_prefix_for_attribute_paths() {
+        assert_eq!(
+            normalize_package_attribute_path("python3Packages.requests").unwrap(),
+            "python3Packages.requests"
+        );
+        assert_eq!(
+            normalize_package_attribute_path("pkgs.python3Packages.requests").unwrap(),
+            "python3Packages.requests"
+        );
+        assert!(normalize_package_attribute_path("pkgs.pkgs.python3Packages.requests").is_err());
     }
 
     #[test]

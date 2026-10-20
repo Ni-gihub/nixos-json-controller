@@ -524,6 +524,7 @@ function Discover() {
                           states[featuredRecommendation.id]?.active === false
                         }
                         statusLoading={
+                          loading &&
                           states[featuredRecommendation.id] === undefined
                         }
                       />
@@ -601,7 +602,7 @@ function Discover() {
                                         states[app.id]?.active === false
                                       }
                                       statusLoading={
-                                        states[app.id] === undefined
+                                        loading && states[app.id] === undefined
                                       }
                                     />
                                   </div>
@@ -668,7 +669,9 @@ function Discover() {
                             states[app.id]?.active === true ||
                             states[app.id]?.active === false
                           }
-                          statusLoading={states[app.id] === undefined}
+                          statusLoading={
+                            loading && states[app.id] === undefined
+                          }
                           icon={app.icon}
                           iconCandidates={app.iconCandidates}
                           searchQuery={submittedQuery}

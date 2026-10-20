@@ -265,7 +265,7 @@ pub fn evaluate_package_output_names(
 /// Build the Nix expression shared by single and batch package output resolution.
 fn package_output_names_apply_expression(paths_expression: &str) -> String {
     format!(
-        "nixos: let lookup = set: path: if path == [] then set else let head = builtins.head path; in if builtins.isAttrs set && builtins.hasAttr head set then lookup (builtins.getAttr head set) (builtins.tail path) else null; resolve = path: let packageResult = builtins.tryEval (lookup nixos.pkgs path); in if !packageResult.success then null else if !(builtins.isAttrs packageResult.value) then null else if !(builtins.hasAttr \"name\" packageResult.value) then null else let package = packageResult.value; name = builtins.tryEval package.name; outputs = builtins.tryEval (package.outputs or [ \"out\" ]); metaResult = builtins.tryEval (package.meta or {{}}); meta = if metaResult.success && builtins.isAttrs metaResult.value then metaResult.value else {{}}; metaOutputs = if builtins.isList (meta.outputsToInstall or null) then meta.outputsToInstall else [ \"out\" ]; extraResult = builtins.tryEval (nixos.config.environment.extraOutputsToInstall or []); extraOutputs = if extraResult.success && builtins.isList extraResult.value then extraResult.value else []; selectedOutputs = metaOutputs ++ extraOutputs; in if !name.success || !builtins.isString name.value || name.value == \"\" || !outputs.success || !builtins.isList outputs.value then null else [ name.value ] ++ builtins.map (output: if output == \"out\" then name.value else name.value + \"-\" + output) (builtins.filter (output: builtins.isString output && builtins.elem output outputs.value) selectedOutputs); in builtins.map resolve [{}]",
+        "nixos: let lookup = set: path: if path == [] then set else let head = builtins.head path; in if builtins.isAttrs set && builtins.hasAttr head set then lookup (builtins.getAttr head set) (builtins.tail path) else null; resolve = path: let packageResult = builtins.tryEval (lookup nixos.pkgs path); in if !packageResult.success then null else if !(builtins.isAttrs packageResult.value) then null else if !(builtins.hasAttr \"name\" packageResult.value) then null else let package = packageResult.value; name = builtins.tryEval package.name; outputs = builtins.tryEval (package.outputs or [ \"out\" ]); metaResult = builtins.tryEval (package.meta or {{}}); meta = if metaResult.success && builtins.isAttrs metaResult.value then metaResult.value else {{}}; metaOutputs = if builtins.isList (meta.outputsToInstall or null) then meta.outputsToInstall else if outputs.success && builtins.isList outputs.value && outputs.value != [] then [ builtins.head outputs.value ] else [ \"out\" ]; extraResult = builtins.tryEval (nixos.config.environment.extraOutputsToInstall or []); extraOutputs = if extraResult.success && builtins.isList extraResult.value then extraResult.value else []; selectedOutputs = metaOutputs ++ extraOutputs; in if !name.success || !builtins.isString name.value || name.value == \"\" || !outputs.success || !builtins.isList outputs.value then null else [ name.value ] ++ builtins.map (output: if output == \"out\" then name.value else name.value + \"-\" + output) (builtins.filter (output: builtins.isString output && builtins.elem output outputs.value) selectedOutputs); in builtins.map resolve [{}]",
         paths_expression
     )
 }
@@ -482,7 +482,7 @@ mod tests {
         }
 
         let apply_expression = package_output_names_apply_expression(
-            "[\"missing\"] [\"multiOutput\"] [\"multiOutput\" \"missing\"]",
+            "[\"missing\"] [\"multiOutput\"] [\"multiOutput\" \"missing\"] [\"defaultOutput\"]",
         );
         let mock_nixos = r#"{
             pkgs = {
@@ -490,6 +490,10 @@ mod tests {
                     name = "multi-1.0";
                     outputs = [ "out" "bin" "man" "dev" ];
                     meta.outputsToInstall = [ "bin" "man" ];
+                };
+                defaultOutput = {
+                    name = "default-1.0";
+                    outputs = [ "lib" "doc" ];
                 };
             };
             config.environment.extraOutputsToInstall = [ "dev" ];
@@ -523,6 +527,10 @@ mod tests {
                     "multi-1.0-dev".to_string(),
                 ]),
                 None,
+                Some(vec![
+                    "default-1.0".to_string(),
+                    "default-1.0-lib".to_string(),
+                ]),
             ]
         );
     }

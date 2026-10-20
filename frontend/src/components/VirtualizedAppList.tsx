@@ -15,7 +15,9 @@ type VirtualizedAppListProps = {
   onVisiblePackages: (packageNames: string[]) => void;
 };
 
-/** Render only rows near the window viewport while preserving the full list height. */
+/**
+ * Render only rows near the window viewport while preserving the full list height.
+ */
 export default function VirtualizedAppList({
   apps,
   states,
@@ -114,11 +116,7 @@ export default function VirtualizedAppList({
       const active = state?.active === true;
       const statusKnown = active || state?.active === false;
       return (
-        <div
-          key={app.id}
-          data-virtual-app-id={app.id}
-          className="pb-2"
-        >
+        <div key={app.id} data-virtual-app-id={app.id} className="pb-2">
           <AppCard
             id={app.id}
             name={app.name}
@@ -142,10 +140,7 @@ export default function VirtualizedAppList({
     <div ref={containerRef} className="w-full">
       <div aria-hidden="true" style={{ height: range.topOffset }} />
       {apps.slice(range.startIndex, range.endIndex).map(renderRow)}
-      <div
-        aria-hidden="true"
-        style={{ height: range.bottomOffset }}
-      />
+      <div aria-hidden="true" style={{ height: range.bottomOffset }} />
     </div>
   );
 }

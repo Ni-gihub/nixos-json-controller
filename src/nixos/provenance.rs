@@ -482,7 +482,7 @@ mod tests {
         }
 
         let apply_expression = package_output_names_apply_expression(
-            "[[\"missing\"] [\"multiOutput\"] [\"multiOutput\" \"missing\"]]",
+            "[\"missing\"] [\"multiOutput\"] [\"multiOutput\" \"missing\"]",
         );
         let mock_nixos = r#"{
             pkgs = {

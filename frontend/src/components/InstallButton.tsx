@@ -49,6 +49,8 @@ function InstallButtonInstance({
   const installPhase = installPhases[packageId] ?? null;
   const busy = installPhase !== null;
   const effectiveInstalled = installed || installSucceeded;
+  const installDisabled =
+    busy || verificationPending || effectiveInstalled || !statusKnown;
 
   useLayoutEffect(() => {
     unmountedRef.current = false;
@@ -120,7 +122,7 @@ function InstallButtonInstance({
   };
 
   const handleInstall = async () => {
-    if (busy || verificationPending || effectiveInstalled || !statusKnown) return;
+    if (installDisabled) return;
     if (!beginInstallRequest(packageId, "checking")) return;
 
     let keepReservation = false;
@@ -196,7 +198,7 @@ function InstallButtonInstance({
         type="button"
         size={size}
         className={className}
-        disabled={busy || verificationPending || effectiveInstalled || !statusKnown}
+        disabled={installDisabled}
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();

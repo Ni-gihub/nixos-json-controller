@@ -19,23 +19,12 @@ impl ApplicationState {
         package: &str,
         system: &SystemState,
     ) -> Result<Self, String> {
-        let output_name = if package.contains('.') {
-            Some(evaluate_package_output_name(
-                context.flake_root(),
-                context.configuration_name(),
-                package,
-            )?)
-        } else {
-            None
-        };
-        let system_present = match output_name.as_deref() {
-            Some(output_name) => system.has_package_output(output_name),
-            None => system.has_package_reference(
-                context.flake_root(),
-                context.configuration_name(),
-                package,
-            )?,
-        };
+        let output_name = evaluate_package_output_name(
+            context.flake_root(),
+            context.configuration_name(),
+            package,
+        )?;
+        let system_present = system.has_package_output(&output_name);
 
         // The active system is authoritative for the "already installed"
         // fast path. Do not make an otherwise successful no-op depend on
@@ -52,7 +41,7 @@ impl ApplicationState {
             context.flake_root(),
             context.configuration_name(),
             package,
-            output_name.as_deref(),
+            Some(&output_name),
         )?;
 
         let declaration_locations = provenance.local_files(context.flake_root());

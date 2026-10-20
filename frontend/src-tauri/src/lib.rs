@@ -44,9 +44,15 @@ async fn install_app(package: String, password: Option<String>) -> Result<Instal
 #[tauri::command]
 async fn search_catalog(
     query: String,
-) -> Result<Vec<nixos_json_controller::nixos::catalog::CatalogPackage>, String> {
+    offset: Option<usize>,
+    limit: Option<usize>,
+) -> Result<nixos_json_controller::nixos::catalog::CatalogSearchPage, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        nixos_json_controller::nixos::catalog::search(&query)
+        nixos_json_controller::nixos::catalog::search_page(
+            &query,
+            offset.unwrap_or(0),
+            limit.unwrap_or(40),
+        )
     })
     .await
     .map_err(|error| format!("catalog search task failed: {error}"))?

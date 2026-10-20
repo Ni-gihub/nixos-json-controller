@@ -136,8 +136,15 @@ function Discover() {
   const [results, setResults] = useState<App[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [nextOffset, setNextOffset] = useState(0);
+  const [hasMoreResults, setHasMoreResults] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const { states, loading, error, refreshPackages } = useAppState();
   const searchRequestIdRef = useRef(0);
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+  const loadingMoreRef = useRef(false);
+  const loadingMoreRequestIdRef = useRef<number | null>(null);
   const pendingUrlQueryRef = useRef<string | null>(null);
   const lastHandledLocationKeyRef = useRef<string | null>(null);
 
@@ -146,15 +153,24 @@ function Discover() {
       const requestId = ++searchRequestIdRef.current;
       setSearching(true);
       setSearchError(null);
+      setResults([]);
+      setNextOffset(0);
+      setHasMoreResults(false);
+      setLoadingMore(false);
+      setLoadMoreError(null);
+      loadingMoreRef.current = false;
+      loadingMoreRequestIdRef.current = null;
 
-      void searchApps(searchQuery)
-        .then((nextResults) => {
+      void searchApps(searchQuery, 0, 40)
+        .then((page) => {
           if (!isCurrentSearchRequest(requestId, searchRequestIdRef.current)) {
             return;
           }
 
-          setResults(nextResults);
-          void refreshPackages(nextResults.map((app) => app.id));
+          setResults(page.results);
+          setNextOffset(page.nextOffset);
+          setHasMoreResults(page.hasMore);
+          void refreshPackages(page.results.map((app) => app.id));
         })
         .catch((err: unknown) => {
           if (!isCurrentSearchRequest(requestId, searchRequestIdRef.current)) {
@@ -172,6 +188,103 @@ function Discover() {
     },
     [refreshPackages],
   );
+
+  const loadMoreResults = useCallback(
+    (retry = false) => {
+      const searchQuery = submittedQuery.trim();
+      if (
+        !searchQuery ||
+        searching ||
+        !hasMoreResults ||
+        loadingMoreRef.current ||
+        (loadMoreError !== null && !retry)
+      ) {
+        return;
+      }
+
+      const requestId = searchRequestIdRef.current;
+      const offset = nextOffset;
+      loadingMoreRef.current = true;
+      loadingMoreRequestIdRef.current = requestId;
+      setLoadingMore(true);
+      setLoadMoreError(null);
+
+      void searchApps(searchQuery, offset, 40)
+        .then((page) => {
+          if (!isCurrentSearchRequest(requestId, searchRequestIdRef.current)) {
+            return;
+          }
+
+          setResults((current) => {
+            const knownIds = new Set(current.map((app) => app.id));
+            return [
+              ...current,
+              ...page.results.filter((app) => !knownIds.has(app.id)),
+            ];
+          });
+          setNextOffset(page.nextOffset);
+          setHasMoreResults(page.hasMore);
+          if (page.results.length > 0) {
+            void refreshPackages(page.results.map((app) => app.id));
+          }
+        })
+        .catch((err: unknown) => {
+          if (isCurrentSearchRequest(requestId, searchRequestIdRef.current)) {
+            setLoadMoreError(String(err));
+          }
+        })
+        .finally(() => {
+          if (loadingMoreRequestIdRef.current !== requestId) return;
+          loadingMoreRequestIdRef.current = null;
+          loadingMoreRef.current = false;
+          if (isCurrentSearchRequest(requestId, searchRequestIdRef.current)) {
+            setLoadingMore(false);
+          }
+        });
+    },
+    [
+      hasMoreResults,
+      loadMoreError,
+      nextOffset,
+      refreshPackages,
+      searching,
+      submittedQuery,
+    ],
+  );
+
+  useEffect(() => {
+    const sentinel = loadMoreSentinelRef.current;
+    if (
+      !sentinel ||
+      typeof IntersectionObserver === "undefined" ||
+      !hasMoreResults ||
+      searching ||
+      loadingMore ||
+      loadMoreError !== null ||
+      searchError !== null
+    ) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          loadMoreResults();
+        }
+      },
+      { rootMargin: "600px 0px" },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [
+    hasMoreResults,
+    loadMoreError,
+    loadMoreResults,
+    loadingMore,
+    searchError,
+    searching,
+  ]);
+
   const [recommendationData, setRecommendationData] =
     useState<RecommendationData | null>(null);
   const recommendationDataRef = useRef<RecommendationData | null>(null);
@@ -237,6 +350,12 @@ function Discover() {
       searchRequestIdRef.current += 1;
       setSearching(false);
       setResults([]);
+      setNextOffset(0);
+      setHasMoreResults(false);
+      setLoadingMore(false);
+      setLoadMoreError(null);
+      loadingMoreRef.current = false;
+      loadingMoreRequestIdRef.current = null;
       setSearchError(null);
       setQuery(transition.query);
       setSubmittedQuery(transition.query);
@@ -474,6 +593,12 @@ function Discover() {
                             setSearching(false);
                             setSubmittedQuery("");
                             setResults([]);
+                            setNextOffset(0);
+                            setHasMoreResults(false);
+                            setLoadingMore(false);
+                            setLoadMoreError(null);
+                            loadingMoreRef.current = false;
+                            loadingMoreRequestIdRef.current = null;
                             setSearchError(null);
                             pendingUrlQueryRef.current = "";
                             setSearchParams({});
@@ -627,7 +752,7 @@ function Discover() {
                       </h2>
                       {!searching && (
                         <p className="mt-1 text-sm text-muted-foreground">
-                          {results.length}件
+                          {results.length}件表示中
                         </p>
                       )}
                     </div>
@@ -677,6 +802,40 @@ function Discover() {
                           searchQuery={submittedQuery}
                         />
                       ))}
+                      <div
+                        ref={loadMoreSentinelRef}
+                        className="h-px"
+                        aria-hidden="true"
+                      />
+                      {loadingMore && (
+                        <p className="py-4 text-center text-sm text-muted-foreground" role="status">
+                          追加の検索結果を読み込み中...
+                        </p>
+                      )}
+                      {loadMoreError && (
+                        <div
+                          className="mt-4 space-y-2 rounded-xl border border-dashed border-border p-4 text-sm"
+                          role="alert"
+                        >
+                          <p>続きの取得に失敗しました。</p>
+                          <p className="break-words text-muted-foreground">
+                            {loadMoreError}
+                          </p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => loadMoreResults(true)}
+                          >
+                            再試行
+                          </Button>
+                        </div>
+                      )}
+                      {!hasMoreResults && results.length > 0 && !searching && (
+                        <p className="py-4 text-center text-sm text-muted-foreground" role="status">
+                          すべての検索結果を表示しました。
+                        </p>
+                      )}
                     </div>
                   )}
 

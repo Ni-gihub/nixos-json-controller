@@ -447,7 +447,7 @@ mod tests {
     }
 
     #[test]
-    fn treats_missing_service_option_as_empty_provenance {
+    fn treats_missing_service_option_as_empty_provenance() {
         let error = "flake does not provide attribute 'nixosConfigurations.laptop.options.services.openssh.enable.definitionsWithLocations'";
         assert!(is_missing_option_error(error));
         assert!(!is_missing_option_error("error: evaluation failed"));

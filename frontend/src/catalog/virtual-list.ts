@@ -26,6 +26,7 @@ export function buildRowOffsets(
   return offsets;
 }
 
+/** Find the row containing a vertical offset using binary search. */
 function indexAtOffset(offsets: number[], offset: number): number {
   const itemCount = Math.max(0, offsets.length - 1);
   if (itemCount === 0) return 0;

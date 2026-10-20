@@ -107,25 +107,39 @@ impl Planner {
         system: &SystemState,
         package: &str,
     ) -> Result<PlanDetails, String> {
-        let output_name = crate::nixos::provenance::evaluate_package_output_name(
-            context.flake_root(),
-            context.configuration_name(),
-            package,
-        )?;
-        let provenance = crate::nixos::provenance::evaluate_package_provenance_with_output_name(
-            context.flake_root(),
-            context.configuration_name(),
-            package,
-            Some(&output_name),
-        )?;
-        let provenance_paths = provenance.local_files(context.flake_root());
         let config = ConfigState::discover(context.flake_root())?;
+        let direct_declarations = config.package_declarations(package);
+        let output_names = match crate::nixos::provenance::evaluate_package_output_names_for_package(
+            context.flake_root(),
+            context.configuration_name(),
+            package,
+        ) {
+            Ok(output_names) => output_names,
+            Err(_error) if !direct_declarations.is_empty() => {
+                return Ok(Self::change(
+                    "declared-source",
+                    direct_declarations
+                        .into_iter()
+                        .map(std::path::Path::to_path_buf)
+                        .collect(),
+                    "remove a stale package declaration without resolving its Nix output",
+                ));
+            }
+            Err(error) => return Err(error),
+        };
+        let provenance =
+            crate::nixos::provenance::evaluate_package_provenance_with_output_names(
+                context.flake_root(),
+                context.configuration_name(),
+                package,
+                Some(&output_names),
+            )?;
+        let provenance_paths = provenance.local_files(context.flake_root());
 
         // definitionsWithLocations can report multiple module definitions for
         // the final environment.systemPackages value. Those locations are
         // provenance, not necessarily files that directly declare this package.
         // Select actual local package declarations for editing instead.
-        let direct_declarations = config.package_declarations(package);
         let direct_paths: Vec<std::path::PathBuf> = direct_declarations
             .into_iter()
             .filter(|path| {
@@ -151,7 +165,7 @@ impl Planner {
             ));
         }
 
-        let package_is_active = system.has_package_output(&output_name);
+        let package_is_active = system.has_any_package_output(&output_names);
 
         if package_is_active {
             return Ok(PlanDetails {

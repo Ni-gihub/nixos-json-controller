@@ -308,7 +308,6 @@ sshd.service enabled enabled
         assert!(state.has_package_output("foo-1.2-tools"));
     }
 
-
     #[test]
     fn similar_package_names_do_not_match_without_the_resolved_output_name() {
         let state = SystemState {

@@ -64,11 +64,11 @@ impl SystemState {
         self.packages.iter().any(|name| name == output_name)
     }
 
-    /// Check a package reference against active store outputs.
+    /// Check a Nixpkgs package reference against active store outputs.
     ///
-    /// Dotted Nixpkgs attribute paths are not necessarily reflected in store
-    /// output names, so resolve those references through the selected flake
-    /// before comparing them with the active generation.
+    /// Package attributes do not necessarily match store output names; always
+    /// resolve the full derivation name through the selected flake and compare
+    /// it exactly. Binary names are checked separately through `has_command`.
     pub fn has_package_reference(
         &self,
         flake_root: &Path,

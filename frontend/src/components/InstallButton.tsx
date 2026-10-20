@@ -42,13 +42,16 @@ function InstallButton({
   const [error, setError] = useState<string | null>(null);
   const [installSucceeded, setInstallSucceeded] = useState(false);
   const passwordPromptOpenRef = useRef(false);
+  const unmountedRef = useRef(false);
 
   const installPhase = installPhases[packageId] ?? null;
   const busy = installPhase !== null;
   const effectiveInstalled = installed || installSucceeded;
 
   useEffect(() => {
+    unmountedRef.current = false;
     return () => {
+      unmountedRef.current = true;
       // A password prompt may be abandoned by navigating to another page.
       // Release only that prompt's reservation; an active install owns its lock
       // until its command settles.
@@ -90,7 +93,7 @@ function InstallButton({
       if (available) {
         setInstallRequestPhase(packageId, "installing");
         await install(null);
-      } else {
+      } else if (!unmountedRef.current) {
         setInstallRequestPhase(packageId, "password");
         passwordPromptOpenRef.current = true;
         setPasswordRequired(true);

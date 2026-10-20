@@ -399,7 +399,6 @@ fn is_package_attribute_segment(segment: &str) -> bool {
     (first.is_ascii_alphabetic() || first == '_')
         && chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '\''))
 }
-}
 
 fn parse_service_names(content: &str) -> Vec<String> {
     let mut services = BTreeSet::new();
@@ -969,4 +968,22 @@ home.packages = [ pkgs.firefox ];
 
         assert_eq!(&content[start..=end], r#"[ pkgs.git (foo "[]") ]"#);
     }
+    #[test]
+    fn parses_dotted_package_attribute_paths() {
+        let file = inspect_file(
+            PathBuf::from("packages.nix"),
+            r#"
+environment.systemPackages = with pkgs; [
+  pkgs.python3Packages.requests
+  python3Packages.urllib3
+  pkgs.foo..bar
+];
+"#,
+        );
+
+        assert!(file.declared_packages.contains("python3Packages.requests"));
+        assert!(file.declared_packages.contains("python3Packages.urllib3"));
+        assert!(!file.declared_packages.contains("foo..bar"));
+    }
+
 }

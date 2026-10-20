@@ -19,6 +19,136 @@ pub struct EvaluatedProvenance {
     pub definitions: Vec<OptionDefinition>,
 }
 
+impl EvaluatedProvenance {
+    pub fn local_files(&self, flake_root: &Path) -> Vec<PathBuf> {
+        self.definitions
+            .iter()
+            .filter_map(|definition| resolve_definition_file(flake_root, &definition.file))
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    }
+
+    pub fn contains_local_package(&self, flake_root: &Path, package: &str) -> bool {
+        self.definitions.iter().any(|definition| {
+            resolve_definition_file(flake_root, &definition.file)
+                .is_some_and(|_| value_contains_package(&definition.value, package))
+        })
+    }
+
+    pub fn contains_package(&self, package: &str) -> bool {
+        self.definitions
+            .iter()
+            .any(|definition| value_contains_package(&definition.value, package))
+    }
+
+    /// Match an evaluated derivation name (including its version) against store paths.
+    pub fn contains_local_output_name(&self, flake_root: &Path, output_name: &str) -> bool {
+        self.definitions.iter().any(|definition| {
+            resolve_definition_file(flake_root, &definition.file)
+                .is_some_and(|_| value_contains_output_name(&definition.value, output_name))
+        })
+    }
+
+    /// Match an evaluated derivation name against all evaluated option definitions.
+    pub fn contains_output_name(&self, output_name: &str) -> bool {
+        self.definitions
+            .iter()
+            .any(|definition| value_contains_output_name(&definition.value, output_name))
+    }
+
+    pub fn contains_local_boolean(&self, flake_root: &Path, expected: bool) -> bool {
+        self.definitions.iter().any(|definition| {
+            resolve_definition_file(flake_root, &definition.file).is_some_and(|_| {
+                definition
+                    .value
+                    .as_bool()
+                    .is_some_and(|value| value == expected)
+            })
+        })
+    }
+}
+
+pub fn evaluate_option(
+    flake_root: &Path,
+    configuration_name: &str,
+    option: &str,
+) -> Result<EvaluatedProvenance, String> {
+    let expression = format!(
+        ".#nixosConfigurations.{configuration_name}.options.{option}.definitionsWithLocations"
+    );
+
+    let output = Command::new("nix")
+        .args(["eval", "--json", &expression])
+        .current_dir(flake_root)
+        .output()
+        .map_err(|error| format!("failed to execute nix: {error}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!(
+            "nix eval failed for {}: {}",
+            expression,
+            stderr.trim()
+        ));
+    }
+
+    let definitions: Vec<OptionDefinition> =
+        serde_json::from_slice(&output.stdout).map_err(|error| {
+            format!(
+                "failed to parse definitionsWithLocations for {}: {}",
+                option, error
+            )
+        })?;
+
+    Ok(EvaluatedProvenance {
+        option: option.to_string(),
+        definitions,
+    })
+}
+
+/// Evaluate the merged, effective boolean value of a NixOS option.
+///
+/// Unlike definitionsWithLocations, this reads config.<option> after NixOS
+/// module priorities (including lib.mkForce) have been applied.
+pub fn evaluate_boolean_option(
+    flake_root: &Path,
+    configuration_name: &str,
+    option: &str,
+) -> Result<bool, String> {
+    let expression = format!(".#nixosConfigurations.{configuration_name}.config.{option}");
+
+    let output = Command::new("nix")
+        .args(["eval", "--json", &expression])
+        .current_dir(flake_root)
+        .output()
+        .map_err(|error| format!("failed to execute nix: {error}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!(
+            "nix eval failed for effective option '{}': {}",
+            option,
+            stderr.trim()
+        ));
+    }
+
+    parse_boolean_option_value(option, &output.stdout)
+}
+
+/// Parse the JSON boolean returned by `nix eval`.
+fn parse_boolean_option_value(option: &str, output: &[u8]) -> Result<bool, String> {
+    let value: Value = serde_json::from_slice(output)
+        .map_err(|error| format!("failed to parse effective option '{}': {}", option, error))?;
+
+    value.as_bool().ok_or_else(|| {
+        format!(
+            "effective option '{}' did not evaluate to a boolean",
+            option
+        )
+    })
+}
+
 /// Resolve a package attribute path to the derivation name used by Nix store paths.
 pub fn evaluate_package_output_name(
     flake_root: &Path,
@@ -26,6 +156,7 @@ pub fn evaluate_package_output_name(
     package: &str,
 ) -> Result<String, String> {
     let package = normalize_package_attribute_path(package)?;
+
     let expression = format!(".#nixosConfigurations.{configuration_name}.pkgs.{package}.name");
     let output = Command::new("nix")
         .args(["eval", "--raw", &expression])
@@ -157,7 +288,7 @@ pub fn evaluate_package_provenance(
 }
 
 /// Evaluate package provenance using an already-resolved derivation name when available.
-/// This avoids evaluating the same package attribute path more than once per operation.
+/// This avoids evaluating the same dotted attribute path more than once per operation.
 pub(crate) fn evaluate_package_provenance_with_output_name(
     flake_root: &Path,
     configuration_name: &str,

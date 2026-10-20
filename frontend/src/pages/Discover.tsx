@@ -151,6 +151,7 @@ function Discover() {
   const stateRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const stateRefreshInFlightRef = useRef(false);
   const pendingUrlQueryRef = useRef<string | null>(null);
   const lastHandledLocationKeyRef = useRef<string | null>(null);
 
@@ -199,9 +200,16 @@ function Discover() {
   // Status checks run only for rendered/near-visible cards. Briefly batch rows
   // entering the virtual window so scrolling does not launch one Nix evaluation
   // per card.
+  /** Dispatch queued package status checks one batch at a time. */
   const dispatchQueuedPackageStates = useCallback(() => {
     const scheduleNextBatch = () => {
-      if (pendingStateIdsRef.current.size === 0) return;
+      if (
+        pendingStateIdsRef.current.size === 0 ||
+        stateRefreshTimerRef.current !== null ||
+        stateRefreshInFlightRef.current
+      ) {
+        return;
+      }
 
       stateRefreshTimerRef.current = setTimeout(() => {
         stateRefreshTimerRef.current = null;
@@ -209,21 +217,18 @@ function Discover() {
         for (const packageName of batch) {
           pendingStateIdsRef.current.delete(packageName);
         }
-        void refreshPackages(batch);
-        scheduleNextBatch();
+        stateRefreshInFlightRef.current = true;
+        void refreshPackages(batch).finally(() => {
+          stateRefreshInFlightRef.current = false;
+          scheduleNextBatch();
+        });
       }, 120);
     };
-
-    if (
-      pendingStateIdsRef.current.size === 0 ||
-      stateRefreshTimerRef.current !== null
-    ) {
-      return;
-    }
 
     scheduleNextBatch();
   }, [refreshPackages]);
 
+  /** Queue state checks for packages in the current virtual viewport. */
   const requestVisiblePackageStates = useCallback(
     (packageNames: string[]) => {
       for (const packageName of packageNames) {
@@ -245,7 +250,9 @@ function Discover() {
     () => () => {
       if (stateRefreshTimerRef.current !== null) {
         clearTimeout(stateRefreshTimerRef.current);
+        stateRefreshTimerRef.current = null;
       }
+      pendingStateIdsRef.current.clear();
     },
     [],
   );

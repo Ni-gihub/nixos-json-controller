@@ -3,9 +3,7 @@ use std::path::PathBuf;
 use serde::Serialize;
 
 use super::{
-    config::ConfigState,
-    discovery::DiscoveryContext,
-    provenance::evaluate_service_provenance,
+    config::ConfigState, discovery::DiscoveryContext, provenance::evaluate_service_provenance,
     system::SystemState,
 };
 

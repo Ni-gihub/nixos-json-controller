@@ -852,6 +852,7 @@ function Discover() {
                   ) : (
                     <div className="max-w-5xl space-y-2">
                       <VirtualizedAppList
+                        key={submittedQuery}
                         apps={results}
                         states={states}
                         loading={loading}

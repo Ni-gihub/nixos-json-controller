@@ -82,3 +82,35 @@ test("renders an accessible circular indicator while an install is pending", asy
     await vite.close();
   }
 });
+
+
+test("creates a fresh install-button instance when the package changes", async () => {
+  const vite = await createServer({
+    configFile: "./vite.config.ts",
+    logLevel: "silent",
+    server: { middlewareMode: true },
+    appType: "custom",
+  });
+
+  try {
+    const { default: InstallButton } = await vite.ssrLoadModule(
+      "/src/components/InstallButton.tsx",
+    );
+    const oldPackageElement = InstallButton({
+      packageId: "firefox",
+      appName: "Firefox",
+      installed: false,
+    });
+    const newPackageElement = InstallButton({
+      packageId: "chromium",
+      appName: "Chromium",
+      installed: false,
+    });
+
+    assert.equal(oldPackageElement.key, "firefox");
+    assert.equal(newPackageElement.key, "chromium");
+    assert.notEqual(oldPackageElement.key, newPackageElement.key);
+  } finally {
+    await vite.close();
+  }
+});

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +19,7 @@ type InstallButtonProps = {
   size?: "default" | "sm" | "lg";
 };
 
-function InstallButton({
+function InstallButtonInstance({
   packageId,
   appName,
   installed,
@@ -48,7 +48,7 @@ function InstallButton({
   const busy = installPhase !== null;
   const effectiveInstalled = installed || installSucceeded;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     unmountedRef.current = false;
     return () => {
       unmountedRef.current = true;
@@ -90,6 +90,8 @@ function InstallButton({
     setError(null);
     try {
       const available = await invoke<boolean>("sudo_available");
+      if (unmountedRef.current) return;
+
       if (available) {
         setInstallRequestPhase(packageId, "installing");
         await install(null);
@@ -237,6 +239,12 @@ function InstallButton({
       )}
     </div>
   );
+}
+
+function InstallButton(props: InstallButtonProps) {
+  // Package changes must create a fresh prompt/request state boundary. This also
+  // prevents an old sudo_available response from mutating a newly selected app.
+  return <InstallButtonInstance key={props.packageId} {...props} />;
 }
 
 export default InstallButton;

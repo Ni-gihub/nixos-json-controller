@@ -460,9 +460,7 @@ mod tests {
         assert!(value_contains_output_name(&store_path, output_name));
         assert!(!value_contains_output_name(&store_path, "requests"));
 
-        let other_package = serde_json::json!(format!(
-            "/nix/store/{hash}-custom-{output_name}"
-        ));
+        let other_package = serde_json::json!(format!("/nix/store/{hash}-custom-{output_name}"));
         assert!(!value_contains_output_name(&other_package, output_name));
 
         let malformed_hash = serde_json::json!(format!("/nix/store/short-{output_name}"));
@@ -473,9 +471,8 @@ mod tests {
         ));
         assert!(!value_contains_output_name(&invalid_alphabet, output_name));
 
-        let different_name = serde_json::json!(format!(
-            "/nix/store/{hash}-python3.13-urllib3-2.2.0"
-        ));
+        let different_name =
+            serde_json::json!(format!("/nix/store/{hash}-python3.13-urllib3-2.2.0"));
         assert!(!value_contains_output_name(&different_name, output_name));
     }
 

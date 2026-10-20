@@ -118,6 +118,9 @@ jobs:
       - name: Run Nix-dependent smoke test
         run: cargo test nix_command_is_available -- --ignored
 
+      - name: Test missing package attributes and selected outputs
+        run: cargo test batch_output_lookup_skips_missing_attributes_and_includes_selected_outputs
+
   tauri-check:
     name: Tauri Rust check
     runs-on: ubuntu-latest

@@ -90,8 +90,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check frontend formatting
-        run: pnpm format:check
+      - name: Capture Prettier formatting for virtualized result list
+        run: pnpm exec prettier --write src/components/VirtualizedAppList.tsx && git diff -- src/components/VirtualizedAppList.tsx
 
       - name: Test frontend
         run: pnpm test

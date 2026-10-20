@@ -15,15 +15,26 @@ impl Executor {
         plan: ExecutionPlan,
         password: Option<&str>,
     ) -> Result<(), ExecutorError> {
+        Self::execute_with_password_outcome(plan, password).map(|_| ())
+    }
+
+    /// Execute a package or service operation and report whether its resulting
+    /// state was verified after a rebuild.
+    pub fn execute_with_password_outcome(
+        plan: ExecutionPlan,
+        password: Option<&str>,
+    ) -> Result<ExecutionOutcome, ExecutorError> {
         if plan.dry_run {
             println!("========== Dry Run ==========");
             println!("Action : {:?}", plan.action);
             println!("Target : {}", plan.target.name);
             println!("=============================");
-            return Ok(());
+            return Ok(ExecutionOutcome {
+                state_verified: false,
+            });
         }
 
-        Self::execute_with_rebuild_password(plan, true, password)
+        Self::execute_with_rebuild_password_outcome(plan, true, password)
     }
 
     pub fn execute_with_rebuild(plan: ExecutionPlan, rebuild: bool) -> Result<(), ExecutorError> {
@@ -35,6 +46,14 @@ impl Executor {
         rebuild: bool,
         password: Option<&str>,
     ) -> Result<(), ExecutorError> {
+        Self::execute_with_rebuild_password_outcome(plan, rebuild, password).map(|_| ())
+    }
+
+    pub fn execute_with_rebuild_password_outcome(
+        plan: ExecutionPlan,
+        rebuild: bool,
+        password: Option<&str>,
+    ) -> Result<ExecutionOutcome, ExecutorError> {
         let package_change = match plan.action {
             Action::InstallPackage | Action::RemovePackage => {
                 Some(super::package::execute_with_change(plan.clone())?)
@@ -55,13 +74,17 @@ impl Executor {
             .or_else(|| service_change.as_ref().map(|change| change.is_changed()))
             .unwrap_or(false);
 
-        if should_rebuild(&plan, changed, rebuild) {
+        let state_verified = should_rebuild(&plan, changed, rebuild);
+        if state_verified {
             if let Err(error) = nixos::rebuild::switch_with_password(password) {
                 return rollback_after_rebuild_failure(
                     error,
                     package_change.as_ref(),
                     service_change.as_ref(),
-                );
+                )
+                .map(|()| ExecutionOutcome {
+                    state_verified: false,
+                });
             }
 
             let verification_result = match plan.action {
@@ -83,12 +106,21 @@ impl Executor {
                     package_change.as_ref(),
                     service_change.as_ref(),
                     password,
-                );
+                )
+                .map(|()| ExecutionOutcome {
+                    state_verified: false,
+                });
             }
         }
 
-        Ok(())
+        Ok(ExecutionOutcome { state_verified })
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ExecutionOutcome {
+    /// True only when the resulting configuration was rebuilt and verified.
+    pub state_verified: bool,
 }
 
 fn rollback_after_rebuild_failure(

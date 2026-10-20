@@ -4,6 +4,7 @@ use serde::Serialize;
 struct InstallResult {
     package: String,
     installed: bool,
+    active_state_verified: bool,
 }
 
 /// Forward opt-in WebView icon diagnostics to the terminal running `tauri dev`.
@@ -25,11 +26,15 @@ fn sudo_available() -> bool {
 #[tauri::command]
 async fn install_app(package: String, password: Option<String>) -> Result<InstallResult, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        nixos_json_controller::install_package_with_password(&package, password.as_deref())?;
+        let outcome = nixos_json_controller::install_package_with_password_outcome(
+            &package,
+            password.as_deref(),
+        )?;
 
         Ok(InstallResult {
-            package,
+            package: outcome.package,
             installed: true,
+            active_state_verified: outcome.active_state_verified,
         })
     })
     .await

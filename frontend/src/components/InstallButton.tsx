@@ -14,7 +14,6 @@ type InstallButtonProps = {
   statusLoading?: boolean;
   statusError?: string | null;
   onRetryStatus?: () => void | Promise<void>;
-  onInstalled?: () => void | Promise<void>;
   className?: string;
   size?: "default" | "sm" | "lg";
 };
@@ -27,7 +26,6 @@ function InstallButtonInstance({
   statusLoading = false,
   statusError = null,
   onRetryStatus,
-  onInstalled,
   className,
   size = "default",
 }: InstallButtonProps) {
@@ -36,17 +34,23 @@ function InstallButtonInstance({
     beginInstallRequest,
     setInstallRequestPhase,
     finishInstallRequest,
+    markPackageActiveVerified,
+    markPackageNeedsVerification,
+    refreshPackage,
   } = useAppState();
   const [passwordRequired, setPasswordRequired] = useState(false);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [installSucceeded, setInstallSucceeded] = useState(false);
+  const [verificationPending, setVerificationPending] = useState(false);
   const passwordPromptOpenRef = useRef(false);
   const unmountedRef = useRef(false);
 
   const installPhase = installPhases[packageId] ?? null;
   const busy = installPhase !== null;
   const effectiveInstalled = installed || installSucceeded;
+  const installDisabled =
+    busy || verificationPending || effectiveInstalled || !statusKnown;
 
   useLayoutEffect(() => {
     unmountedRef.current = false;
@@ -64,15 +68,50 @@ function InstallButtonInstance({
   const install = async (authPassword: string | null) => {
     setError(null);
     try {
-      await invoke("install_app", {
+      const result = await invoke<{
+        package: string;
+        installed: boolean;
+        active_state_verified: boolean;
+      }>("install_app", {
         package: packageId,
         password: authPassword,
       });
-      setInstallSucceeded(true);
-      try {
-        await onInstalled?.();
-      } catch (err) {
-        setError(String(err));
+      if (!result.installed) {
+        throw new Error(
+          `インストール処理が完了しませんでした: ${result.package}`,
+        );
+      }
+
+      if (result.active_state_verified) {
+        // Reuse the backend's verification after nixos-rebuild instead of
+        // running another Nix evaluation for the same package.
+        markPackageActiveVerified(result.package);
+        setInstallSucceeded(true);
+      } else {
+        // A successful no-op path does not prove that the package is active.
+        // Invalidate older lookups and refresh the actual state in the background.
+        markPackageNeedsVerification(result.package);
+        setInstallSucceeded(false);
+        setVerificationPending(true);
+        void refreshPackage(result.package)
+          .then((state) => {
+            if (unmountedRef.current || state === null) return;
+            if (state.active === true) {
+              setInstallSucceeded(true);
+            } else {
+              setError(
+                "処理は完了しましたが、アクティブなシステムでインストール状態を確認できませんでした。",
+              );
+            }
+          })
+          .catch((err) => {
+            if (!unmountedRef.current) {
+              setError(`インストール状態の確認に失敗しました: ${String(err)}`);
+            }
+          })
+          .finally(() => {
+            if (!unmountedRef.current) setVerificationPending(false);
+          });
       }
     } catch (err) {
       setError(String(err));
@@ -83,7 +122,7 @@ function InstallButtonInstance({
   };
 
   const handleInstall = async () => {
-    if (busy || effectiveInstalled || !statusKnown) return;
+    if (installDisabled) return;
     if (!beginInstallRequest(packageId, "checking")) return;
 
     let keepReservation = false;
@@ -138,6 +177,7 @@ function InstallButtonInstance({
 
   const renderInstallButtonContent = () => {
     if (effectiveInstalled) return "インストール済み";
+    if (verificationPending) return "処理完了";
 
     switch (installPhase) {
       case "installing":
@@ -158,7 +198,7 @@ function InstallButtonInstance({
         type="button"
         size={size}
         className={className}
-        disabled={busy || effectiveInstalled || !statusKnown}
+        disabled={installDisabled}
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
@@ -168,7 +208,13 @@ function InstallButtonInstance({
         {renderInstallButtonContent()}
       </Button>
 
-      {!statusKnown && !effectiveInstalled && (
+      {verificationPending && (
+        <p className="mt-2 text-xs text-muted-foreground" role="status">
+          アクティブなシステムへの反映を確認中...
+        </p>
+      )}
+
+      {!statusKnown && !effectiveInstalled && !verificationPending && (
         <div className="mt-2 space-y-1">
           <p className="text-xs text-muted-foreground">
             {statusLoading

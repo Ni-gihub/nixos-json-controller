@@ -194,7 +194,6 @@ function AppDetail() {
                         statusLoading={statusLoading}
                         statusError={statusError}
                         onRetryStatus={retryStatusLookup}
-                        onInstalled={() => refreshPackage(id)}
                         className="h-10 shrink-0 rounded-full bg-primary px-4 text-sm text-white hover:bg-primary/90"
                         size="sm"
                       />

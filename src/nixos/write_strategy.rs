@@ -6,7 +6,6 @@ use super::system::SystemState;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageInstallStrategy {
     AlreadyDeclared { paths: Vec<PathBuf> },
-    AlreadyPresentInSystem,
     ExistingFile { path: PathBuf },
     Ambiguous { candidates: Vec<PathBuf> },
     Unsupported,
@@ -16,7 +15,6 @@ pub enum PackageInstallStrategy {
 pub enum PackageRemoveStrategy {
     Declared { paths: Vec<PathBuf> },
     NotDeclared,
-    SystemOnly,
     Ambiguous { candidates: Vec<PathBuf> },
 }
 

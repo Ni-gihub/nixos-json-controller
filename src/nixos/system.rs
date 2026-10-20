@@ -339,6 +339,63 @@ sshd.service enabled enabled
     }
 
     #[test]
+    fn package_identity_matches_another_version_of_the_same_package() {
+        let state = SystemState {
+            current_generation: PathBuf::from("/nix/store/example-nixos-system"),
+            binaries: BTreeMap::new(),
+            packages: BTreeSet::from(["firefox-123.0".to_string()]),
+            enabled_services: BTreeSet::new(),
+        };
+        let identity = super::provenance::PackageOutputIdentity {
+            output_name: "firefox-124.0".to_string(),
+            pname: Some("firefox".to_string()),
+            version: Some("124.0".to_string()),
+        };
+
+        assert!(state.has_package_identity(&identity));
+    }
+
+    #[test]
+    fn package_identity_does_not_match_a_different_pname_prefix() {
+        let state = SystemState {
+            current_generation: PathBuf::from("/nix/store/example-nixos-system"),
+            binaries: BTreeMap::new(),
+            packages: BTreeSet::from(["ripgrep-all-1.0".to_string()]),
+            enabled_services: BTreeSet::new(),
+        };
+        let identity = super::provenance::PackageOutputIdentity {
+            output_name: "ripgrep-14.1.1".to_string(),
+            pname: Some("ripgrep".to_string()),
+            version: Some("14.1.1".to_string()),
+        };
+
+        assert!(!state.has_package_identity(&identity));
+    }
+
+    #[test]
+    fn package_identity_keeps_the_package_set_prefix() {
+        let state = SystemState {
+            current_generation: PathBuf::from("/nix/store/example-nixos-system"),
+            binaries: BTreeMap::new(),
+            packages: BTreeSet::from(["python3.13-requests-2.31.0".to_string()]),
+            enabled_services: BTreeSet::new(),
+        };
+        let matching = super::provenance::PackageOutputIdentity {
+            output_name: "python3.13-requests-2.32.4".to_string(),
+            pname: Some("requests".to_string()),
+            version: Some("2.32.4".to_string()),
+        };
+        let other_package_set = super::provenance::PackageOutputIdentity {
+            output_name: "python3.12-requests-2.32.4".to_string(),
+            pname: Some("requests".to_string()),
+            version: Some("2.32.4".to_string()),
+        };
+
+        assert!(state.has_package_identity(&matching));
+        assert!(!state.has_package_identity(&other_package_set));
+    }
+
+    #[test]
     fn resolved_package_output_requires_exact_match() {
         let state = SystemState {
             current_generation: PathBuf::from("/nix/store/example-nixos-system"),

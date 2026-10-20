@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -288,9 +288,8 @@ fn classify_write_safety(_path: &Path, content: &str, _imports: &[PathBuf]) -> W
     }
 
     let package_assignments = count_assignment(content, "environment.systemPackages");
-    let service_assignments = count_service_enable_assignments(content);
 
-    if package_assignments > 1 || service_assignments > 1 {
+    if package_assignments > 1 || has_duplicate_service_enable_assignments(content) {
         return WriteSafety::Unsafe;
     }
 
@@ -307,19 +306,171 @@ fn count_assignment(content: &str, attribute: &str) -> usize {
         .count()
 }
 
-fn count_service_enable_assignments(content: &str) -> usize {
-    ["systemd.services.", "services."]
-        .iter()
-        .map(|prefix| {
-            content
-                .lines()
-                .filter(|line| {
-                    let code = strip_comment(line);
-                    code.contains(prefix) && code.contains(".enable") && code.contains('=')
-                })
-                .count()
-        })
-        .sum()
+fn has_duplicate_service_enable_assignments(content: &str) -> bool {
+    // Use the same lexical mask as the writer so comments and string literals
+    // cannot make a file appear to contain extra service declarations.
+    let code = super::module::nix_code_mask(content);
+    let mut occurrences = BTreeMap::<String, usize>::new();
+    let mut cursor = 0usize;
+
+    while cursor < content.len() {
+        if !content.is_char_boundary(cursor) || !code[cursor] {
+            cursor += 1;
+            continue;
+        }
+
+        if let Some((option, end)) = service_enable_option_at(content, &code, cursor) {
+            *occurrences.entry(option).or_default() += 1;
+            cursor = end;
+        } else {
+            cursor += 1;
+        }
+    }
+
+    occurrences.values().any(|count| *count > 1)
+}
+
+/// Recognize one exact, directly assigned service enable option.
+///
+/// The NixOS services namespace and systemd.services namespace are kept
+/// distinct. The services substring inside systemd.services is not treated
+/// as a second option.
+fn service_enable_option_at(
+    content: &str,
+    code: &[bool],
+    start: usize,
+) -> Option<(String, usize)> {
+    if start >= content.len() || !code.get(start).copied().unwrap_or(false) {
+        return None;
+    }
+
+    if content[..start]
+        .chars()
+        .next_back()
+        .is_some_and(|character| is_nix_service_identifier_char(character) || character == '.')
+    {
+        return None;
+    }
+
+    let prefix = if content[start..].starts_with("systemd.services.") {
+        "systemd.services."
+    } else if content[start..].starts_with("services.") {
+        "services."
+    } else {
+        return None;
+    };
+    let service_start = start + prefix.len();
+    let bytes = content.as_bytes();
+
+    if !code[start..service_start].iter().all(|active| *active) {
+        return None;
+    }
+
+    let first = *bytes.get(service_start)?;
+    if !(first.is_ascii_alphabetic() || first == b'_') || !code[service_start] {
+        return None;
+    }
+
+    let mut service_end = service_start + 1;
+    while service_end < bytes.len()
+        && is_nix_service_identifier_byte(bytes[service_end])
+        && code[service_end]
+    {
+        service_end += 1;
+    }
+
+    if bytes.get(service_end) != Some(&b'.') || !code[service_end] {
+        return None;
+    }
+
+    let option_start = service_end + 1;
+    let option_end = option_start.checked_add("enable".len())?;
+    if option_end > content.len()
+        || &content[option_start..option_end] != "enable"
+        || !code[option_start..option_end].iter().all(|active| *active)
+    {
+        return None;
+    }
+
+    if content[option_end..]
+        .chars()
+        .next()
+        .is_some_and(|character| is_nix_service_identifier_char(character) || character == '.')
+    {
+        return None;
+    }
+
+    let equals = skip_service_assignment_trivia(content, option_end)?;
+    if bytes.get(equals) != Some(&b'=') || !code[equals] {
+        return None;
+    }
+
+    // == and => are not attribute assignments.
+    if matches!(bytes.get(equals + 1), Some(b'=' | b'>')) {
+        return None;
+    }
+
+    Some((
+        format!("{prefix}{}.enable", &content[service_start..service_end]),
+        equals + 1,
+    ))
+}
+
+fn skip_service_assignment_trivia(content: &str, mut cursor: usize) -> Option<usize> {
+    let bytes = content.as_bytes();
+
+    loop {
+        while cursor < bytes.len() && bytes[cursor].is_ascii_whitespace() {
+            cursor += 1;
+        }
+
+        if cursor < bytes.len() && bytes[cursor] == b'#' {
+            while cursor < bytes.len() && bytes[cursor] != b'\n' {
+                cursor += 1;
+            }
+            continue;
+        }
+
+        if cursor + 1 < bytes.len() && bytes[cursor] == b'/' && bytes[cursor + 1] == b'*' {
+            cursor += 2;
+            let mut depth = 1usize;
+            while cursor < bytes.len() && depth > 0 {
+                if cursor + 1 < bytes.len()
+                    && bytes[cursor] == b'/'
+                    && bytes[cursor + 1] == b'*'
+                {
+                    depth += 1;
+                    cursor += 2;
+                } else if cursor + 1 < bytes.len()
+                    && bytes[cursor] == b'*'
+                    && bytes[cursor + 1] == b'/'
+                {
+                    depth -= 1;
+                    cursor += 2;
+                } else {
+                    cursor += 1;
+                }
+            }
+
+            if depth != 0 {
+                return None;
+            }
+            continue;
+        }
+
+        return Some(cursor);
+    }
+}
+
+fn is_nix_service_identifier_char(character: char) -> bool {
+    character.is_ascii_alphanumeric()
+        || character == '_'
+        || character == '-'
+        || character == 39 as char
+}
+
+fn is_nix_service_identifier_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-' || byte == 39
 }
 
 fn contains_assignment(content: &str, attribute: &str) -> bool {
@@ -931,6 +1082,92 @@ home.packages = [ pkgs.firefox ];
         );
 
         assert_eq!(file.write_safety, WriteSafety::Safe);
+    }
+
+    #[test]
+    fn accepts_a_single_service_enable_option() {
+        let file = inspect_file(
+            PathBuf::from("services.nix"),
+            "{ services.openssh.enable = true; }",
+        );
+
+        assert_eq!(file.write_safety, WriteSafety::Safe);
+    }
+
+    #[test]
+    fn accepts_multiple_distinct_service_enable_options() {
+        let file = inspect_file(
+            PathBuf::from("services.nix"),
+            r#"
+{
+  services.openssh.enable = true;
+  services.nginx.enable = true;
+}
+"#,
+        );
+
+        assert_eq!(file.write_safety, WriteSafety::Safe);
+    }
+
+    #[test]
+    fn does_not_double_count_systemd_service_enable_options() {
+        let file = inspect_file(
+            PathBuf::from("services.nix"),
+            "{ systemd.services.example.enable = true; }",
+        );
+
+        assert_eq!(file.write_safety, WriteSafety::Safe);
+    }
+
+    #[test]
+    fn treats_services_and_systemd_services_as_distinct_option_paths() {
+        let file = inspect_file(
+            PathBuf::from("services.nix"),
+            r#"
+{
+  services.example.enable = true;
+  systemd.services.example.enable = false;
+}
+"#,
+        );
+
+        assert_eq!(file.write_safety, WriteSafety::Safe);
+    }
+
+    #[test]
+    fn ignores_service_enable_options_in_line_block_comments_and_strings() {
+        let file = inspect_file(
+            PathBuf::from("services.nix"),
+            r#"
+{
+  services.openssh.enable = true;
+  # services.openssh.enable = false;
+  /*
+    services.openssh.enable = false;
+    systemd.services.openssh.enable = false;
+  */
+  description = "services.nginx.enable = true;";
+}
+"#,
+        );
+
+        assert_eq!(file.write_safety, WriteSafety::Safe);
+    }
+
+    #[test]
+    fn rejects_duplicate_declarations_of_the_same_service_option() {
+        let file = inspect_file(
+            PathBuf::from("services.nix"),
+            r#"
+{
+  services.openssh.enable = true;
+  services.nginx.enable = true;
+  services.openssh.enable = false;
+}
+"#,
+        );
+
+        assert_eq!(file.write_safety, WriteSafety::Unsafe);
     }
 
     #[test]

@@ -1221,6 +1221,23 @@ mod tests {
     }
 
     #[test]
+    fn updates_only_the_requested_service_option_in_a_multi_service_file() {
+        let content = r#"
+{
+  services.openssh.enable = false;
+  services.nginx.enable = false;
+  systemd.services.example.enable = false;
+}
+"#;
+
+        let updated = add_service_to_content(content, "openssh", true).unwrap();
+
+        assert!(updated.contains("services.openssh.enable = true;"));
+        assert!(updated.contains("services.nginx.enable = false;"));
+        assert!(updated.contains("systemd.services.example.enable = false;"));
+    }
+
+    #[test]
     fn refuses_to_edit_duplicate_service_assignments() {
         let content =
             "{\n  services.openssh.enable = true;\n  services.openssh.enable = false;\n}\n";

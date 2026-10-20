@@ -91,7 +91,12 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Check frontend formatting
-        run: pnpm format:check
+        run: |
+          pnpm format:check || {
+            pnpm exec prettier src/pages/AppDetail.tsx > /tmp/AppDetail.formatted.tsx
+            diff -u src/pages/AppDetail.tsx /tmp/AppDetail.formatted.tsx || true
+            exit 1
+          }
 
       - name: Test frontend
         run: pnpm test

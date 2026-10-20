@@ -2,6 +2,7 @@ export type CatalogSearchPage<T> = {
   results: T[];
   nextOffset: number;
   hasMore: boolean;
+  resultsLimited: boolean;
 };
 
 type SearchCacheEntry<T> = {
@@ -23,7 +24,13 @@ export class SearchPageCache<T extends { id: string }> {
     loader: () => Promise<CatalogSearchPage<T>>,
   ): Promise<CatalogSearchPage<T>> {
     const key = query.trim().toLowerCase();
-    if (!key) return { results: [], nextOffset: 0, hasMore: false };
+    if (!key)
+      return {
+        results: [],
+        nextOffset: 0,
+        hasMore: false,
+        resultsLimited: false,
+      };
 
     const entry = this.getOrCreateEntry(key);
     const pageKey = `${offset}:${limit}`;

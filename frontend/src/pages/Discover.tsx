@@ -194,7 +194,7 @@ function Discover() {
           }
         });
     },
-    [refreshPackages],
+    [],
   );
 
   // Status checks run only for rendered/near-visible cards. Briefly batch rows
@@ -316,7 +316,6 @@ function Discover() {
       hasMoreResults,
       loadMoreError,
       nextOffset,
-      refreshPackages,
       searching,
       submittedQuery,
     ],
@@ -507,7 +506,6 @@ function Discover() {
 
     let cancelled = false;
     // Nixpkgs evaluation may take time on a cold cache; avoid showing the empty state as success.
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reflect the pending catalog request
     setRecommendationStatus("loading");
     setRecommendationMessage(null);
 

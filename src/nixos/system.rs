@@ -64,6 +64,49 @@ impl SystemState {
         self.packages.iter().any(|name| name == output_name)
     }
 
+    /// Check package presence using its resolved Nix output name and identity.
+    ///
+    /// Exact output names are preferred. When the active generation contains
+    /// another version of the same pname from the same package set, allow that
+    /// version only if the remaining suffix starts with a numeric version.
+    /// This intentionally does not treat a different pname such as ripgrep-all
+    /// as ripgrep.
+    pub fn has_package_identity(
+        &self,
+        identity: &super::provenance::PackageOutputIdentity,
+    ) -> bool {
+        if self.has_package_output(&identity.output_name) {
+            return true;
+        }
+
+        let (Some(pname), Some(version)) =
+            (identity.pname.as_deref(), identity.version.as_deref())
+        else {
+            return false;
+        };
+
+        if !version
+            .chars()
+            .next()
+            .is_some_and(|character| character.is_ascii_digit())
+        {
+            return false;
+        }
+
+        let suffix = format!("{pname}-{version}");
+        let Some(package_set_prefix) = identity.output_name.strip_suffix(&suffix) else {
+            return false;
+        };
+        let package_prefix = format!("{package_set_prefix}{pname}-");
+
+        self.packages.iter().any(|name| {
+            name.strip_prefix(&package_prefix)
+                .and_then(|version_and_output| version_and_output.split('-').next())
+                .and_then(|version| version.chars().next())
+                .is_some_and(|character| character.is_ascii_digit())
+        })
+    }
+
     /// Check a Nixpkgs package reference against active store outputs.
     ///
     /// Package attributes do not necessarily match store output names; always
@@ -75,12 +118,12 @@ impl SystemState {
         configuration_name: &str,
         package: &str,
     ) -> Result<bool, String> {
-        let output_name = super::provenance::evaluate_package_output_name(
+        let identity = super::provenance::evaluate_package_output_identity(
             flake_root,
             configuration_name,
             package,
         )?;
-        Ok(self.has_package_output(&output_name))
+        Ok(self.has_package_identity(&identity))
     }
 
     /// systemd上で指定したsystem serviceが有効になっているか確認する。

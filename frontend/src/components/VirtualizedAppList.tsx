@@ -53,13 +53,14 @@ export default function VirtualizedAppList({
     };
 
     updateViewport();
+    updateViewport();
     window.addEventListener("scroll", updateViewport, { passive: true });
     window.addEventListener("resize", updateViewport);
     return () => {
       window.removeEventListener("scroll", updateViewport);
       window.removeEventListener("resize", updateViewport);
     };
-  }, []);
+  }, [apps.length]);
 
   const offsets = useMemo(
     () =>

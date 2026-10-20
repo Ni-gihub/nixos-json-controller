@@ -171,7 +171,11 @@ fn run_search(query: &str) -> Result<(), String> {
         println!("  Configured: yes");
         println!(
             "  Active in system: {}",
-            yes_no(system.has_command(package) || system.has_package(package))
+            yes_no(system.has_package_reference(
+                context.flake_root(),
+                context.configuration_name(),
+                package,
+            )?)
         );
 
         let declarations = config.package_declarations(package);

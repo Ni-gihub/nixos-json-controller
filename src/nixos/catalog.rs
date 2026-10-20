@@ -235,23 +235,6 @@ fn parse_find_results(output: &[u8], ids: &[String]) -> Result<Vec<CatalogPackag
         .collect())
 }
 
-/// Parse, rank, limit, and enrich search results for the discover page.
-fn parse_results(
-    output: &[u8],
-    query: &str,
-    limit: Option<usize>,
-) -> Result<Vec<CatalogPackage>, String> {
-    let mut results = parse_unlimited_results(output, query)?;
-    if let Some(limit) = limit {
-        results.truncate(limit);
-    }
-
-    Ok(attach_icon_candidates(results)
-        .into_iter()
-        .map(|(_, package)| package)
-        .collect())
-}
-
 /// Parse and rank all results without a limit or icon resolution.
 fn parse_unlimited_results(
     output: &[u8],
@@ -628,7 +611,8 @@ mod tests {
             .collect::<Vec<_>>();
         let output = nix_search_output(&entries);
 
-        let limited = parse_results(&output, "foo", Some(MAX_RESULTS)).unwrap();
+        let ranked = parse_unlimited_results(&output, "foo").unwrap();
+        let limited = paginate_ranked_results(&ranked, 0, MAX_RESULTS).results;
         assert_eq!(limited.len(), MAX_RESULTS);
         assert!(!limited.iter().any(|package| package.id == "foo"));
 

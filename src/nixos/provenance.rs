@@ -485,6 +485,59 @@ mod tests {
     use super::*;
 
     #[test]
+    fn batch_output_lookup_skips_missing_attributes_and_includes_selected_outputs() {
+        // Keep portable CI independent of Nix, while exercising the generated Nix expression
+        // against an isolated attribute set whenever the Nix CLI is available.
+        if Command::new("nix").arg("--version").output().is_err() {
+            return;
+        }
+
+        let apply_expression = package_output_names_apply_expression(
+            "[[\"missing\"] [\"multiOutput\"] [\"multiOutput\" \"missing\"]]",
+        );
+        let mock_nixos = r#"{
+            pkgs = {
+                multiOutput = {
+                    name = "multi-1.0";
+                    outputs = [ "out" "bin" "man" "dev" ];
+                    meta.outputsToInstall = [ "bin" "man" ];
+                };
+            };
+            config.environment.extraOutputsToInstall = [ "dev" ];
+        }"#;
+        let output = Command::new("nix")
+            .args([
+                "eval",
+                "--json",
+                "--apply",
+                &apply_expression,
+                "--expr",
+                mock_nixos,
+            ])
+            .output()
+            .unwrap();
+
+        assert!(
+            output.status.success(),
+            "Nix evaluation failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let resolved: Vec<Option<Vec<String>>> = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(
+            resolved,
+            vec![
+                None,
+                Some(vec![
+                    "multi-1.0-bin".to_string(),
+                    "multi-1.0-man".to_string(),
+                    "multi-1.0-dev".to_string(),
+                ]),
+                None,
+            ]
+        );
+    }
+
+    #[test]
     fn parses_effective_boolean_option_values() {
         assert!(parse_boolean_option_value("services.openssh.enable", b"true").unwrap());
         assert!(!parse_boolean_option_value("services.openssh.enable", b"false").unwrap());

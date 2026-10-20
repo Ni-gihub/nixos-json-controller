@@ -5,7 +5,6 @@ import AppIcon from "@/components/AppIcon";
 import InstallButton from "@/components/InstallButton";
 import type { App } from "@/catalog/apps";
 import type { RecommendationRecord } from "@/catalog/recommendation-data";
-import { useAppState } from "@/lib/app-state";
 
 type RecommendationAppCardProps = {
   app: App;
@@ -27,7 +26,6 @@ export default function RecommendationAppCard({
   statusKnown,
   statusLoading,
 }: RecommendationAppCardProps) {
-  const { refreshPackage } = useAppState();
   const detailPath = `/apps/${app.id}`;
   const popularity = recommendation.popularity.toFixed(2);
 
@@ -129,7 +127,6 @@ export default function RecommendationAppCard({
                 installed={installed}
                 statusKnown={statusKnown}
                 statusLoading={statusLoading}
-                onInstalled={() => refreshPackage(app.id)}
                 className="h-9 rounded-full px-4 text-sm"
                 size="sm"
               />
@@ -221,7 +218,6 @@ export default function RecommendationAppCard({
             installed={installed}
             statusKnown={statusKnown}
             statusLoading={statusLoading}
-            onInstalled={() => refreshPackage(app.id)}
             className="h-9 w-full rounded-full px-3 text-sm"
             size="sm"
           />

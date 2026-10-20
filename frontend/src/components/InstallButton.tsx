@@ -14,7 +14,6 @@ type InstallButtonProps = {
   statusLoading?: boolean;
   statusError?: string | null;
   onRetryStatus?: () => void | Promise<void>;
-  onInstalled?: () => void | Promise<void>;
   className?: string;
   size?: "default" | "sm" | "lg";
 };
@@ -27,7 +26,6 @@ function InstallButtonInstance({
   statusLoading = false,
   statusError = null,
   onRetryStatus,
-  onInstalled,
   className,
   size = "default",
 }: InstallButtonProps) {
@@ -36,6 +34,7 @@ function InstallButtonInstance({
     beginInstallRequest,
     setInstallRequestPhase,
     finishInstallRequest,
+    markPackageInstalled,
   } = useAppState();
   const [passwordRequired, setPasswordRequired] = useState(false);
   const [password, setPassword] = useState("");
@@ -64,16 +63,20 @@ function InstallButtonInstance({
   const install = async (authPassword: string | null) => {
     setError(null);
     try {
-      await invoke("install_app", {
-        package: packageId,
-        password: authPassword,
-      });
-      setInstallSucceeded(true);
-      try {
-        await onInstalled?.();
-      } catch (err) {
-        setError(String(err));
+      const result = await invoke<{ package: string; installed: boolean }>(
+        "install_app",
+        {
+          package: packageId,
+          password: authPassword,
+        },
+      );
+      if (!result.installed) {
+        throw new Error(`インストール完了を確認できませんでした: ${result.package}`);
       }
+      // The backend has completed installation and verification. Reuse its
+      // result rather than running another, expensive Nix evaluation.
+      markPackageInstalled(result.package);
+      setInstallSucceeded(true);
     } catch (err) {
       setError(String(err));
     } finally {

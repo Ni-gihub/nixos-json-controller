@@ -2,7 +2,6 @@ import { Badge } from "@/components/ui/badge";
 import InstallButton from "@/components/InstallButton";
 import AppIcon from "@/components/AppIcon";
 import { Link } from "react-router";
-import { useAppState } from "@/lib/app-state";
 
 type AppCardProps = {
   id: string;
@@ -32,7 +31,6 @@ function AppCard({
   iconCandidates,
   searchQuery,
 }: AppCardProps) {
-  const { refreshPackage } = useAppState();
   const detailPath = searchQuery
     ? `/apps/${id}?query=${encodeURIComponent(searchQuery)}`
     : `/apps/${id}`;
@@ -79,7 +77,6 @@ function AppCard({
           installed={installed}
           statusKnown={statusKnown}
           statusLoading={statusLoading}
-          onInstalled={() => refreshPackage(id)}
           className="h-9 min-w-20 shrink-0 rounded-full px-3 text-sm"
           size="sm"
         />

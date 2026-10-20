@@ -520,8 +520,8 @@ function Discover() {
                           states[featuredRecommendation.id]?.active === true
                         }
                         statusKnown={
-                          states[featuredRecommendation.id]?.active !== null &&
-                          states[featuredRecommendation.id]?.active !== undefined
+                          states[featuredRecommendation.id]?.active === true ||
+                          states[featuredRecommendation.id]?.active === false
                         }
                         statusLoading={
                           states[featuredRecommendation.id] === undefined
@@ -597,8 +597,8 @@ function Discover() {
                                         states[app.id]?.active === true
                                       }
                                       statusKnown={
-                                        states[app.id]?.active !== null &&
-                                        states[app.id]?.active !== undefined
+                                        states[app.id]?.active === true ||
+                                        states[app.id]?.active === false
                                       }
                                       statusLoading={
                                         states[app.id] === undefined
@@ -665,8 +665,8 @@ function Discover() {
                           tags={app.tags}
                           installed={states[app.id]?.active === true}
                           statusKnown={
-                            states[app.id]?.active !== null &&
-                            states[app.id]?.active !== undefined
+                            states[app.id]?.active === true ||
+                            states[app.id]?.active === false
                           }
                           statusLoading={states[app.id] === undefined}
                           icon={app.icon}

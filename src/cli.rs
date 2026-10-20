@@ -238,9 +238,20 @@ fn run_explain(kind: &str, target: &str) -> Result<(), String> {
             let dictionary = nixos_json_controller::dictionary::Dictionary::load()?;
             let package = dictionary
                 .resolve_package(target)
+                .map(str::to_string)
+                .or_else(|| {
+                    Resolver::resolve(
+                        Action::InstallPackage,
+                        Target {
+                            raw: target.to_string(),
+                        },
+                    )
+                    .ok()
+                    .map(|resolved| resolved.name)
+                })
                 .ok_or_else(|| format!("unknown package target: {}", target))?;
 
-            let explanation = explain_package(&context, &system, package)?;
+            let explanation = explain_package(&context, &system, &package)?;
 
             println!("Package: {}", explanation.name);
             println!("System present: {}", yes_no(explanation.system_present));

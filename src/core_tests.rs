@@ -43,7 +43,11 @@ fn catalog_does_not_mark_prefix_similar_package_as_installed() {
     system.packages.insert("foo-bar-2.0".to_string());
 
     let catalog = NxcCore::catalog_with_system(&system).unwrap();
-    let ripgrep = catalog.packages.iter().find(|entry| entry.name == "ripgrep").unwrap();
+    let ripgrep = catalog
+        .packages
+        .iter()
+        .find(|entry| entry.name == "ripgrep")
+        .unwrap();
 
     assert!(!ripgrep.system_present);
 }

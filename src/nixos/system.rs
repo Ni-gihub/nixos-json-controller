@@ -66,8 +66,11 @@ impl SystemState {
     }
 
     /// Check an already-resolved derivation output name against active store outputs.
+    ///
+    /// Unlike unresolved package names, derivation output names already contain
+    /// the full name (usually including the version), so they must match exactly.
     pub fn has_package_output(&self, output_name: &str) -> bool {
-        self.has_package(output_name)
+        self.packages.iter().any(|name| name == output_name)
     }
 
     /// Check a package reference against active store outputs.
@@ -303,4 +306,33 @@ sshd.service enabled enabled
         assert!(state.is_service_enabled("sshd"));
         assert!(!state.is_service_enabled("nginx"));
     }
+    #[test]
+    fn resolved_package_output_requires_exact_match() {
+        let state = SystemState {
+            current_generation: PathBuf::from("/nix/store/example-nixos-system"),
+            binaries: BTreeMap::new(),
+            packages: BTreeSet::from(["foo-1.2-tools".to_string()]),
+            enabled_services: BTreeSet::new(),
+        };
+
+        assert!(!state.has_package_output("foo-1.2"));
+        assert!(state.has_package_output("foo-1.2-tools"));
+    }
+
+    #[test]
+    fn resolved_package_output_matches_exact_entry_when_similar_names_exist() {
+        let state = SystemState {
+            current_generation: PathBuf::from("/nix/store/example-nixos-system"),
+            binaries: BTreeMap::new(),
+            packages: BTreeSet::from([
+                "foo-1.2".to_string(),
+                "foo-1.2-tools".to_string(),
+            ]),
+            enabled_services: BTreeSet::new(),
+        };
+
+        assert!(state.has_package_output("foo-1.2"));
+        assert!(state.has_package_output("foo-1.2-tools"));
+    }
+
 }

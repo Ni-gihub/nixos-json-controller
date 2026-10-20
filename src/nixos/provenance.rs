@@ -19,6 +19,14 @@ pub struct EvaluatedProvenance {
     pub definitions: Vec<OptionDefinition>,
 }
 
+/// Package identity resolved from the selected NixOS flake.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub struct PackageOutputIdentity {
+    pub output_name: String,
+    pub pname: Option<String>,
+    pub version: Option<String>,
+}
+
 impl EvaluatedProvenance {
     pub fn local_files(&self, flake_root: &Path) -> Vec<PathBuf> {
         self.definitions
@@ -155,49 +163,37 @@ pub fn evaluate_package_output_name(
     configuration_name: &str,
     package: &str,
 ) -> Result<String, String> {
-    let package = normalize_package_attribute_path(package)?;
+    Ok(evaluate_package_output_identity(flake_root, configuration_name, package)?.output_name)
+}
 
-    let expression = format!(".#nixosConfigurations.{configuration_name}.pkgs.{package}.name");
-    let output = Command::new("nix")
-        .args(["eval", "--raw", &expression])
-        .current_dir(flake_root)
-        .output()
-        .map_err(|error| {
+/// Resolve one package's output name and stable package identity.
+pub fn evaluate_package_output_identity(
+    flake_root: &Path,
+    configuration_name: &str,
+    package: &str,
+) -> Result<PackageOutputIdentity, String> {
+    let packages = [package.to_string()];
+    evaluate_package_output_identities(flake_root, configuration_name, &packages)?
+        .into_iter()
+        .next()
+        .flatten()
+        .ok_or_else(|| {
             format!(
-                "failed to execute nix while resolving package '{}': {}",
-                package, error
+                "could not resolve package attribute path '{}' to a valid Nix store output identity",
+                package
             )
-        })?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!(
-            "could not resolve package attribute path '{}' to a store output name: {}",
-            package,
-            stderr.trim()
-        ));
-    }
-
-    let name = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if name.is_empty() || name.contains('/') {
-        return Err(format!(
-            "Nix returned an invalid output name for package '{}'",
-            package
-        ));
-    }
-
-    Ok(name)
+        })
 }
 
 /// Resolve multiple Nixpkgs attribute paths in one evaluation.
 ///
-/// Missing or non-package attributes return `None` rather than making the
+/// Missing or non-package attributes return \`None\` rather than making the
 /// entire catalog query fail. An actual Nix evaluation failure is returned.
-pub fn evaluate_package_output_names(
+pub fn evaluate_package_output_identities(
     flake_root: &Path,
     configuration_name: &str,
     packages: &[String],
-) -> Result<Vec<Option<String>>, String> {
+) -> Result<Vec<Option<PackageOutputIdentity>>, String> {
     if packages.is_empty() {
         return Ok(Vec::new());
     }
@@ -225,46 +221,60 @@ pub fn evaluate_package_output_names(
         .join(" ");
 
     let apply_expression = format!(
-        "pkgs: builtins.map (path: let result = builtins.tryEval ((builtins.foldl' (set: attribute: builtins.getAttr attribute set) pkgs path).name); in if result.success && builtins.isString result.value then result.value else null) [{}]",
+        "pkgs: builtins.map (path: let attribute = builtins.tryEval (builtins.foldl' (set: key: builtins.getAttr key set) pkgs path); name = if attribute.success then builtins.tryEval attribute.value.name else {{ success = false; value = null; }}; pname = if attribute.success then builtins.tryEval attribute.value.pname else {{ success = false; value = null; }}; version = if attribute.success then builtins.tryEval attribute.value.version else {{ success = false; value = null; }}; in if !name.success || !builtins.isString name.value || name.value == \"\" then null else {{ output_name = name.value; pname = if pname.success && builtins.isString pname.value then pname.value else null; version = if version.success && builtins.isString version.value then version.value else null; }}) [{}]",
         paths_expression
     );
-    let expression = format!(
-        ".#nixosConfigurations.{}.pkgs",
-        configuration_name
-    );
+    let expression = format!(".#nixosConfigurations.{}.pkgs", configuration_name);
 
     let output = Command::new("nix")
         .args(["eval", "--json", "--apply", &apply_expression, &expression])
         .current_dir(flake_root)
         .output()
         .map_err(|error| {
-            format!("failed to execute nix while resolving package output names: {error}")
+            format!("failed to execute nix while resolving package output identities: {error}")
         })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(format!(
-            "could not resolve package output names for NixOS configuration '{}': {}",
+            "could not resolve package output identities for NixOS configuration '{}': {}",
             configuration_name,
             stderr.trim()
         ));
     }
 
-    let names: Vec<Option<String>> = serde_json::from_slice(&output.stdout).map_err(|error| {
-        format!("failed to parse package output names returned by nix: {error}")
-    })?;
+    let identities: Vec<Option<PackageOutputIdentity>> =
+        serde_json::from_slice(&output.stdout).map_err(|error| {
+            format!("failed to parse package output identities returned by nix: {error}")
+        })?;
 
-    if names.len() != packages.len() {
+    if identities.len() != packages.len() {
         return Err(format!(
-            "Nix returned {} package output names for {} requested packages",
-            names.len(),
+            "Nix returned {} package output identities for {} requested packages",
+            identities.len(),
             packages.len()
         ));
     }
 
-    Ok(names
+    Ok(identities
         .into_iter()
-        .map(|name| name.filter(|name| !name.is_empty() && !name.contains('/')))
+        .map(|identity| {
+            identity.filter(|identity| {
+                !identity.output_name.is_empty() && !identity.output_name.contains('/')
+            })
+        })
+        .collect())
+}
+
+/// Resolve only the output names when the package identity metadata is not needed.
+pub fn evaluate_package_output_names(
+    flake_root: &Path,
+    configuration_name: &str,
+    packages: &[String],
+) -> Result<Vec<Option<String>>, String> {
+    Ok(evaluate_package_output_identities(flake_root, configuration_name, packages)?
+        .into_iter()
+        .map(|identity| identity.map(|identity| identity.output_name))
         .collect())
 }
 

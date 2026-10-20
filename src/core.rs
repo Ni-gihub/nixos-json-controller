@@ -196,7 +196,7 @@ fn package_outputs_present(output_names: Option<&[String]>, system: &SystemState
     })
 }
 
-fn package_catalog_entries(
+pub(crate) fn package_catalog_entries(
     entries: Vec<(String, Vec<String>)>,
     output_names: Vec<Option<Vec<String>>>,
     system: &SystemState,

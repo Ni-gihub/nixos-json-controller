@@ -390,7 +390,7 @@ fn parse_package_line(line: &str) -> Option<String> {
     Some(token.to_string())
 }
 
-fn is_package_attribute_segment(segment: &str) -> bool {
+pub(crate) fn is_package_attribute_segment(segment: &str) -> bool {
     let mut chars = segment.chars();
     let Some(first) = chars.next() else {
         return false;

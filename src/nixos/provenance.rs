@@ -132,14 +132,69 @@ fn parse_boolean_option_value(option: &str, output: &[u8]) -> Result<bool, Strin
     })
 }
 
+/// Resolve a package attribute path to the derivation name used by Nix store paths.
+pub fn evaluate_package_output_name(
+    flake_root: &Path,
+    configuration_name: &str,
+    package: &str,
+) -> Result<String, String> {
+    if package.is_empty()
+        || !package.split('.').all(|segment| {
+            let mut chars = segment.chars();
+            chars.next().is_some_and(|first| {
+                (first.is_ascii_alphabetic() || first == '_')
+                    && chars.all(|character| {
+                        character.is_ascii_alphanumeric()
+                            || matches!(character, '_' | '-' | '\'')
+                    })
+            })
+        })
+    {
+        return Err(format!("unsafe package attribute path: '{}'", package));
+    }
+
+    let expression = format!(
+        ".#nixosConfigurations.{configuration_name}.pkgs.{package}.name"
+    );
+    let output = Command::new("nix")
+        .args(["eval", "--raw", &expression])
+        .current_dir(flake_root)
+        .output()
+        .map_err(|error| format!("failed to execute nix while resolving package '{}': {}", package, error))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!(
+            "could not resolve package attribute path '{}' to a store output name: {}",
+            package,
+            stderr.trim()
+        ));
+    }
+
+    let name = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if name.is_empty() || name.contains('/') {
+        return Err(format!(
+            "Nix returned an invalid output name for package '{}'",
+            package
+        ));
+    }
+
+    Ok(name)
+}
+
 pub fn evaluate_package_provenance(
     flake_root: &Path,
     configuration_name: &str,
     package: &str,
 ) -> Result<EvaluatedProvenance, String> {
     let provenance = evaluate_option(flake_root, configuration_name, "environment.systemPackages")?;
+    let output_name = if package.contains('.') {
+        evaluate_package_output_name(flake_root, configuration_name, package)?
+    } else {
+        package.to_string()
+    };
 
-    if provenance.contains_local_package(flake_root, package) {
+    if provenance.contains_local_package(flake_root, &output_name) {
         Ok(provenance)
     } else {
         Ok(EvaluatedProvenance::default())

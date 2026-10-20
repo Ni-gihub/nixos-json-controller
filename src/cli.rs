@@ -169,14 +169,17 @@ fn run_search(query: &str) -> Result<(), String> {
     for package in &matches {
         println!("Package: {}", package);
         println!("  Configured: yes");
-        println!(
-            "  Active in system: {}",
-            yes_no(system.has_package_reference(
-                context.flake_root(),
-                context.configuration_name(),
-                package,
-            )?)
-        );
+        match system.has_package_reference(
+            context.flake_root(),
+            context.configuration_name(),
+            package,
+        ) {
+            Ok(active) => println!("  Active in system: {}", yes_no(active)),
+            Err(error) => println!(
+                "  Active in system: unknown ({})",
+                error.replace('\n', " ").replace('\r', " ")
+            ),
+        }
 
         let declarations = config.package_declarations(package);
         print_locations(

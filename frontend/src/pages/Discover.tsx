@@ -219,7 +219,11 @@ function Discover() {
             const knownIds = new Set(current.map((app) => app.id));
             return [
               ...current,
-              ...page.results.filter((app) => !knownIds.has(app.id)),
+              ...page.results.filter((app) => {
+                if (knownIds.has(app.id)) return false;
+                knownIds.add(app.id);
+                return true;
+              }),
             ];
           });
           setNextOffset(page.nextOffset);
@@ -808,7 +812,10 @@ function Discover() {
                         aria-hidden="true"
                       />
                       {loadingMore && (
-                        <p className="py-4 text-center text-sm text-muted-foreground" role="status">
+                        <p
+                          className="py-4 text-center text-sm text-muted-foreground"
+                          role="status"
+                        >
                           追加の検索結果を読み込み中...
                         </p>
                       )}
@@ -832,7 +839,10 @@ function Discover() {
                         </div>
                       )}
                       {!hasMoreResults && results.length > 0 && !searching && (
-                        <p className="py-4 text-center text-sm text-muted-foreground" role="status">
+                        <p
+                          className="py-4 text-center text-sm text-muted-foreground"
+                          role="status"
+                        >
                           すべての検索結果を表示しました。
                         </p>
                       )}

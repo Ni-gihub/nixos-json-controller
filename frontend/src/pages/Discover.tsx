@@ -20,8 +20,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import AppCard from "@/components/AppCard";
 import RecommendationAppCard from "@/components/RecommendationAppCard";
+import VirtualizedAppList from "@/components/VirtualizedAppList";
 import RecommendationCarousel from "@/components/RecommendationCarousel";
 import DiscoverPreSearch, {
   type RecommendationStatus,
@@ -146,6 +146,11 @@ function Discover() {
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
   const loadingMoreRef = useRef(false);
   const loadingMoreRequestIdRef = useRef<number | null>(null);
+  const requestedStateIdsRef = useRef(new Set<string>());
+  const pendingStateIdsRef = useRef(new Set<string>());
+  const stateRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const pendingUrlQueryRef = useRef<string | null>(null);
   const lastHandledLocationKeyRef = useRef<string | null>(null);
 
@@ -173,7 +178,6 @@ function Discover() {
           setNextOffset(page.nextOffset);
           setHasMoreResults(page.hasMore);
           setResultsLimited(page.resultsLimited);
-          void refreshPackages(page.results.map((app) => app.id));
         })
         .catch((err: unknown) => {
           if (!isCurrentSearchRequest(requestId, searchRequestIdRef.current)) {
@@ -190,6 +194,54 @@ function Discover() {
         });
     },
     [refreshPackages],
+  );
+
+  // Status checks run only for rendered/near-visible cards. Briefly batch rows
+  // entering the virtual window so scrolling does not launch one Nix evaluation
+  // per card.
+  const dispatchQueuedPackageStates = useCallback(() => {
+    if (
+      pendingStateIdsRef.current.size === 0 ||
+      stateRefreshTimerRef.current !== null
+    ) {
+      return;
+    }
+
+    stateRefreshTimerRef.current = setTimeout(() => {
+      stateRefreshTimerRef.current = null;
+      const batch = Array.from(pendingStateIdsRef.current).slice(0, 40);
+      for (const packageName of batch) {
+        pendingStateIdsRef.current.delete(packageName);
+      }
+      void refreshPackages(batch);
+      dispatchQueuedPackageStates();
+    }, 120);
+  }, [refreshPackages]);
+
+  const requestVisiblePackageStates = useCallback(
+    (packageNames: string[]) => {
+      for (const packageName of packageNames) {
+        if (
+          states[packageName] !== undefined ||
+          requestedStateIdsRef.current.has(packageName)
+        ) {
+          continue;
+        }
+        requestedStateIdsRef.current.add(packageName);
+        pendingStateIdsRef.current.add(packageName);
+      }
+      dispatchQueuedPackageStates();
+    },
+    [dispatchQueuedPackageStates, states],
+  );
+
+  useEffect(
+    () => () => {
+      if (stateRefreshTimerRef.current !== null) {
+        clearTimeout(stateRefreshTimerRef.current);
+      }
+    },
+    [],
   );
 
   const loadMoreResults = useCallback(
@@ -232,9 +284,6 @@ function Discover() {
           setNextOffset(page.nextOffset);
           setHasMoreResults(page.hasMore);
           setResultsLimited(page.resultsLimited);
-          if (page.results.length > 0) {
-            void refreshPackages(page.results.map((app) => app.id));
-          }
         })
         .catch((err: unknown) => {
           if (isCurrentSearchRequest(requestId, searchRequestIdRef.current)) {
@@ -791,27 +840,13 @@ function Discover() {
                     </div>
                   ) : (
                     <div className="max-w-5xl space-y-2">
-                      {results.map((app) => (
-                        <AppCard
-                          key={app.id}
-                          id={app.id}
-                          name={app.name}
-                          description={app.description}
-                          category={app.category}
-                          tags={app.tags}
-                          installed={states[app.id]?.active === true}
-                          statusKnown={
-                            states[app.id]?.active === true ||
-                            states[app.id]?.active === false
-                          }
-                          statusLoading={
-                            loading && states[app.id] === undefined
-                          }
-                          icon={app.icon}
-                          iconCandidates={app.iconCandidates}
-                          searchQuery={submittedQuery}
-                        />
-                      ))}
+                      <VirtualizedAppList
+                        apps={results}
+                        states={states}
+                        loading={loading}
+                        searchQuery={submittedQuery}
+                        onVisiblePackages={requestVisiblePackageStates}
+                      />
                       <div
                         ref={loadMoreSentinelRef}
                         className="h-px"

@@ -852,7 +852,7 @@ function Discover() {
                   ) : (
                     <div className="max-w-5xl space-y-2">
                       <VirtualizedAppList
-                        key={submittedQuery}
+                        key={`${submittedQuery}:${searching ? "loading" : "ready"}`}
                         apps={results}
                         states={states}
                         loading={loading}

@@ -181,6 +181,8 @@ impl NxcCore {
 
         Ok(report)
     }
+}
+
 /// Check one resolved output name without applying a package-name prefix match.
 pub(crate) fn package_output_present(output_name: Option<&str>, system: &SystemState) -> bool {
     output_name.is_some_and(|output_name| system.has_package_output(output_name))
@@ -216,8 +218,6 @@ fn package_catalog_entries(
             system_present: package_outputs_present(output_names.as_deref(), system),
         })
         .collect())
-}
-
 }
 
 fn filter_catalog(catalog: AppStoreCatalog, query: &str) -> AppStoreCatalog {

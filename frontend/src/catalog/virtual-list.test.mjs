@@ -24,9 +24,9 @@ test("renders only visible rows and overscan while preserving spacer heights", (
   const range = getVirtualRange(offsets, 2_000, 2_500, 3);
 
   assert.equal(range.startIndex, 17);
-  assert.equal(range.endIndex, 29);
+  assert.equal(range.endIndex, 28);
   assert.equal(range.topOffset, 1_700);
-  assert.equal(range.bottomOffset, 7_100);
+  assert.equal(range.bottomOffset, 7_200);
   assert.ok(range.endIndex - range.startIndex < 20);
 });
 

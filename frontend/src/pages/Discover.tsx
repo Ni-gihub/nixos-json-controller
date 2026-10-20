@@ -516,12 +516,16 @@ function Discover() {
                         recommendation={featuredRecommendation.recommendation}
                         rank={1}
                         featured
-                        installed={states[featuredRecommendation.id]?.active === true}
+                        installed={
+                          states[featuredRecommendation.id]?.active === true
+                        }
                         statusKnown={
                           states[featuredRecommendation.id]?.active !== null &&
                           states[featuredRecommendation.id]?.active !== undefined
                         }
-                        statusLoading={states[featuredRecommendation.id] === undefined}
+                        statusLoading={
+                          states[featuredRecommendation.id] === undefined
+                        }
                       />
                     )}
 
@@ -589,12 +593,16 @@ function Discover() {
                                           : 1)
                                       }
                                       featured={false}
-                                      installed={states[app.id]?.active === true}
+                                      installed={
+                                        states[app.id]?.active === true
+                                      }
                                       statusKnown={
                                         states[app.id]?.active !== null &&
                                         states[app.id]?.active !== undefined
                                       }
-                                      statusLoading={states[app.id] === undefined}
+                                      statusLoading={
+                                        states[app.id] === undefined
+                                      }
                                     />
                                   </div>
                                 ))}

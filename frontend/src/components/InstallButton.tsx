@@ -101,7 +101,7 @@ function InstallButton({
 
       {!statusKnown && !effectiveInstalled && !error && (
         <p className="mt-2 text-xs text-muted-foreground">
-{statusLoading
+          {statusLoading
             ? "インストール状態を確認中..."
             : "このパッケージのインストール状態を確認できません。"}
         </p>

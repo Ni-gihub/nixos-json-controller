@@ -310,9 +310,7 @@ impl Planner {
 }
 
 /// Build a safe removal plan for a stale declaration when Nix can no longer resolve it.
-fn stale_package_declaration_plan(
-    direct_declarations: &[&std::path::Path],
-) -> Option<PlanDetails> {
+fn stale_package_declaration_plan(direct_declarations: &[&std::path::Path]) -> Option<PlanDetails> {
     if direct_declarations.is_empty() {
         return None;
     }
@@ -342,8 +340,7 @@ mod removal_fallback_tests {
 
     #[test]
     fn stale_package_declaration_can_be_removed_when_output_resolution_fails() {
-        let plan =
-            stale_package_declaration_plan(&[Path::new("nxc/packages.nix")]).unwrap();
+        let plan = stale_package_declaration_plan(&[Path::new("nxc/packages.nix")]).unwrap();
 
         assert_eq!(plan.strategy, "declared-source");
         assert_eq!(

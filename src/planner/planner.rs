@@ -121,13 +121,12 @@ impl Planner {
         } else {
             None
         };
-        let provenance =
-            crate::nixos::provenance::evaluate_package_provenance_with_output_name(
-                context.flake_root(),
-                context.configuration_name(),
-                package,
-                output_name.as_deref(),
-            )?;
+        let provenance = crate::nixos::provenance::evaluate_package_provenance_with_output_name(
+            context.flake_root(),
+            context.configuration_name(),
+            package,
+            output_name.as_deref(),
+        )?;
         let provenance_paths = provenance.local_files(context.flake_root());
         let config = ConfigState::discover(context.flake_root())?;
 

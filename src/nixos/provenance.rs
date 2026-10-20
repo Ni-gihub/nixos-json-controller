@@ -284,21 +284,11 @@ pub fn evaluate_package_provenance(
     configuration_name: &str,
     package: &str,
 ) -> Result<EvaluatedProvenance, String> {
-    let output_name = if package.contains('.') {
-        Some(evaluate_package_output_name(
-            flake_root,
-            configuration_name,
-            package,
-        )?)
-    } else {
-        None
-    };
-
     evaluate_package_provenance_with_output_name(
         flake_root,
         configuration_name,
         package,
-        output_name.as_deref(),
+        None,
     )
 }
 
@@ -311,10 +301,11 @@ pub(crate) fn evaluate_package_provenance_with_output_name(
     output_name: Option<&str>,
 ) -> Result<EvaluatedProvenance, String> {
     let provenance = evaluate_option(flake_root, configuration_name, "environment.systemPackages")?;
-    let found = match output_name {
-        Some(output_name) => provenance.contains_local_output_name(flake_root, output_name),
-        None => provenance.contains_local_package(flake_root, package),
+    let output_name = match output_name {
+        Some(output_name) => output_name.to_string(),
+        None => evaluate_package_output_name(flake_root, configuration_name, package)?,
     };
+    let found = provenance.contains_local_output_name(flake_root, &output_name);
 
     if found {
         Ok(provenance)

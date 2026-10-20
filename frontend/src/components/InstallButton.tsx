@@ -120,7 +120,7 @@ function InstallButtonInstance({
   };
 
   const handleInstall = async () => {
-    if (busy || effectiveInstalled || !statusKnown) return;
+    if (busy || verificationPending || effectiveInstalled || !statusKnown) return;
     if (!beginInstallRequest(packageId, "checking")) return;
 
     let keepReservation = false;
@@ -196,7 +196,7 @@ function InstallButtonInstance({
         type="button"
         size={size}
         className={className}
-        disabled={busy || effectiveInstalled || !statusKnown}
+        disabled={busy || verificationPending || effectiveInstalled || !statusKnown}
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();

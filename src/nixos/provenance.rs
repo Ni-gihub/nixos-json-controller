@@ -170,11 +170,8 @@ pub fn evaluate_package_output_names_for_package(
     configuration_name: &str,
     package: &str,
 ) -> Result<Vec<String>, String> {
-    let names = evaluate_package_output_names(
-        flake_root,
-        configuration_name,
-        &[package.to_string()],
-    )?;
+    let names =
+        evaluate_package_output_names(flake_root, configuration_name, &[package.to_string()])?;
 
     names
         .into_iter()
@@ -309,11 +306,7 @@ pub(crate) fn evaluate_package_provenance_with_output_names(
     let provenance = evaluate_option(flake_root, configuration_name, "environment.systemPackages")?;
     let resolved_names = match output_names {
         Some(output_names) => output_names.to_vec(),
-        None => evaluate_package_output_names_for_package(
-            flake_root,
-            configuration_name,
-            package,
-        )?,
+        None => evaluate_package_output_names_for_package(flake_root, configuration_name, package)?,
     };
     let found = provenance.contains_local_output_names(flake_root, &resolved_names);
 

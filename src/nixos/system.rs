@@ -64,6 +64,13 @@ impl SystemState {
         self.packages.iter().any(|name| name == output_name)
     }
 
+    /// Check whether any selected output for a package is part of the active system.
+    pub fn has_any_package_output(&self, output_names: &[String]) -> bool {
+        output_names
+            .iter()
+            .any(|output_name| self.has_package_output(output_name))
+    }
+
     /// Check a Nixpkgs package reference against active store outputs.
     ///
     /// Package attributes do not necessarily match store output names; always
@@ -75,12 +82,12 @@ impl SystemState {
         configuration_name: &str,
         package: &str,
     ) -> Result<bool, String> {
-        let output_name = super::provenance::evaluate_package_output_name(
+        let output_names = super::provenance::evaluate_package_output_names_for_package(
             flake_root,
             configuration_name,
             package,
         )?;
-        Ok(self.has_package_output(&output_name))
+        Ok(self.has_any_package_output(&output_names))
     }
 
     /// systemd上で指定したsystem serviceが有効になっているか確認する。

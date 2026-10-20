@@ -1,7 +1,10 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import InstallProgressIndicator from "@/components/InstallProgressIndicator";
+import { submitInstallPassword } from "@/components/install-flow";
+import { useAppState } from "@/lib/app-state";
 
 type InstallButtonProps = {
   packageId: string;
@@ -28,16 +31,34 @@ function InstallButton({
   className,
   size = "default",
 }: InstallButtonProps) {
-  const [installing, setInstalling] = useState(false);
+  const {
+    installPhases,
+    beginInstallRequest,
+    setInstallRequestPhase,
+    finishInstallRequest,
+  } = useAppState();
   const [passwordRequired, setPasswordRequired] = useState(false);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [installSucceeded, setInstallSucceeded] = useState(false);
+  const passwordPromptOpenRef = useRef(false);
 
+  const installPhase = installPhases[packageId] ?? null;
+  const busy = installPhase !== null;
   const effectiveInstalled = installed || installSucceeded;
 
+  useEffect(() => {
+    return () => {
+      // A password prompt may be abandoned by navigating to another page.
+      // Release only that prompt's reservation; an active install owns its lock
+      // until its command settles.
+      if (passwordPromptOpenRef.current) {
+        finishInstallRequest(packageId);
+      }
+    };
+  }, [finishInstallRequest, packageId]);
+
   const install = async (authPassword: string | null) => {
-    setInstalling(true);
     setError(null);
     try {
       await invoke("install_app", {
@@ -45,8 +66,6 @@ function InstallButton({
         password: authPassword,
       });
       setInstallSucceeded(true);
-      setPassword("");
-      setPasswordRequired(false);
       try {
         await onInstalled?.();
       } catch (err) {
@@ -55,31 +74,61 @@ function InstallButton({
     } catch (err) {
       setError(String(err));
     } finally {
-      setInstalling(false);
+      // Do not retain the password in React state after either success or failure.
+      setPassword("");
     }
   };
 
   const handleInstall = async () => {
-    if (installing || effectiveInstalled || !statusKnown) return;
+    if (busy || effectiveInstalled || !statusKnown) return;
+    if (!beginInstallRequest(packageId, "checking")) return;
 
+    let keepReservation = false;
     setError(null);
     try {
       const available = await invoke<boolean>("sudo_available");
       if (available) {
+        setInstallRequestPhase(packageId, "installing");
         await install(null);
       } else {
+        setInstallRequestPhase(packageId, "password");
+        passwordPromptOpenRef.current = true;
         setPasswordRequired(true);
+        keepReservation = true;
       }
     } catch (err) {
       setError(String(err));
+    } finally {
+      if (!keepReservation) {
+        finishInstallRequest(packageId);
+      }
     }
   };
 
   const handlePasswordSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!password) return;
+    if (!password || installPhase !== "password") return;
+
+    const submittedPassword = password;
+    passwordPromptOpenRef.current = false;
+    setInstallRequestPhase(packageId, "installing");
+
+    try {
+      await submitInstallPassword(submittedPassword, {
+        closePasswordPrompt: () => setPasswordRequired(false),
+        clearPassword: () => setPassword(""),
+        install,
+      });
+    } finally {
+      finishInstallRequest(packageId);
+    }
+  };
+
+  const closePasswordPrompt = () => {
+    passwordPromptOpenRef.current = false;
+    setPassword("");
     setPasswordRequired(false);
-    await install(password);
+    finishInstallRequest(packageId);
   };
 
   return (
@@ -89,7 +138,7 @@ function InstallButton({
         type="button"
         size={size}
         className={className}
-        disabled={installing || effectiveInstalled || !statusKnown}
+        disabled={busy || effectiveInstalled || !statusKnown}
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
@@ -98,9 +147,13 @@ function InstallButton({
       >
         {effectiveInstalled
           ? "インストール済み"
-          : installing
-            ? "インストール中..."
-            : "インストール"}
+          : installPhase === "installing"
+            ? <InstallProgressIndicator label="インストール中..." />
+            : installPhase === "checking"
+              ? <InstallProgressIndicator label="確認中..." />
+              : installPhase === "password"
+                ? "認証待ち..."
+                : "インストール"}
       </Button>
 
       {!statusKnown && !effectiveInstalled && (
@@ -133,10 +186,7 @@ function InstallButton({
       {passwordRequired && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-6 backdrop-blur-sm"
-          onClick={() => {
-            setPassword("");
-            setPasswordRequired(false);
-          }}
+          onClick={closePasswordPrompt}
         >
           <form
             onSubmit={handlePasswordSubmit}
@@ -160,17 +210,14 @@ function InstallButton({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => {
-                  setPassword("");
-                  setPasswordRequired(false);
-                }}
+                onClick={closePasswordPrompt}
               >
                 キャンセル
               </Button>
               <Button
                 type="submit"
                 className="bg-primary text-primary-foreground hover:bg-primary/90"
-                disabled={!password}
+                disabled={!password || busy && installPhase !== "password"}
               >
                 続行
               </Button>

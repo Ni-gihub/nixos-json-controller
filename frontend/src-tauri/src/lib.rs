@@ -23,13 +23,20 @@ fn sudo_available() -> bool {
 }
 
 #[tauri::command]
-fn install_app(package: String, password: Option<String>) -> Result<InstallResult, String> {
-    nixos_json_controller::install_package_with_password(&package, password.as_deref())?;
+async fn install_app(
+    package: String,
+    password: Option<String>,
+) -> Result<InstallResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        nixos_json_controller::install_package_with_password(&package, password.as_deref())?;
 
-    Ok(InstallResult {
-        package,
-        installed: true,
+        Ok(InstallResult {
+            package,
+            installed: true,
+        })
     })
+    .await
+    .map_err(|error| format!("installation task failed: {error}"))?
 }
 
 #[tauri::command]

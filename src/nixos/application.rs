@@ -17,7 +17,11 @@ impl ApplicationState {
         package: &str,
         system: &SystemState,
     ) -> Result<Self, String> {
-        let system_present = system.has_command(package) || system.has_package(package);
+        let system_present = system.has_package_reference(
+            context.flake_root(),
+            context.configuration_name(),
+            package,
+        )?;
 
         // The active system is authoritative for the "already installed"
         // fast path. Do not make an otherwise successful no-op depend on

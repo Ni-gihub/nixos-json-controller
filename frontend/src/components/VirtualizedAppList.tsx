@@ -26,21 +26,30 @@ export default function VirtualizedAppList({
   onVisiblePackages,
 }: VirtualizedAppListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const measuredHeightsRef = useRef(new Map<string, number>());
-  const [measurementVersion, setMeasurementVersion] = useState(0);
+  const [measuredHeights, setMeasuredHeights] = useState(
+    () => new Map<string, number>(),
+  );
   const [viewport, setViewport] = useState(() => ({
     scrollY: typeof window === "undefined" ? 0 : window.scrollY,
     height: typeof window === "undefined" ? 0 : window.innerHeight,
   }));
+  const [listTop, setListTop] = useState(0);
 
   useEffect(() => {
     const updateViewport = () => {
       setViewport((current) => {
         const next = { scrollY: window.scrollY, height: window.innerHeight };
-        return current.scrollY === next.scrollY && current.height === next.height
+        return current.scrollY === next.scrollY &&
+          current.height === next.height
           ? current
           : next;
       });
+
+      const container = containerRef.current;
+      const nextTop = container
+        ? container.getBoundingClientRect().top + window.scrollY
+        : 0;
+      setListTop((current) => (current === nextTop ? current : nextTop));
     };
 
     window.addEventListener("scroll", updateViewport, { passive: true });
@@ -55,15 +64,11 @@ export default function VirtualizedAppList({
     () =>
       buildRowOffsets(
         apps.map((app) => app.id),
-        measuredHeightsRef.current,
+        measuredHeights,
         ESTIMATED_ROW_HEIGHT,
       ),
-    [apps, measurementVersion],
+    [apps, measuredHeights],
   );
-
-  const listTop = containerRef.current
-    ? containerRef.current.getBoundingClientRect().top + viewport.scrollY
-    : 0;
   const range = useMemo(
     () =>
       getVirtualRange(
@@ -80,22 +85,24 @@ export default function VirtualizedAppList({
     if (!root || typeof ResizeObserver === "undefined") return;
 
     const observer = new ResizeObserver((entries) => {
-      let changed = false;
-      for (const entry of entries) {
-        const element = entry.target as HTMLElement;
-        const id = element.dataset.virtualAppId;
-        if (!id) continue;
+      setMeasuredHeights((current) => {
+        let next = current;
+        for (const entry of entries) {
+          const element = entry.target as HTMLElement;
+          const id = element.dataset.virtualAppId;
+          if (!id) continue;
 
-        const height = element.getBoundingClientRect().height;
-        if (!Number.isFinite(height) || height <= 0) continue;
+          const height = element.getBoundingClientRect().height;
+          if (!Number.isFinite(height) || height <= 0) continue;
 
-        const previous = measuredHeightsRef.current.get(id);
-        if (previous === undefined || Math.abs(previous - height) > 1) {
-          measuredHeightsRef.current.set(id, height);
-          changed = true;
+          const previous = current.get(id);
+          if (previous === undefined || Math.abs(previous - height) > 1) {
+            if (next === current) next = new Map(current);
+            next.set(id, height);
+          }
         }
-      }
-      if (changed) setMeasurementVersion((version) => version + 1);
+        return next;
+      });
     });
 
     root

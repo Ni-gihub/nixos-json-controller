@@ -50,6 +50,7 @@ struct SearchCache {
 }
 
 impl SearchCache {
+    /// Return cached ranked results and mark the query as recently used.
     fn get(&mut self, query: &str) -> Option<Arc<CachedSearchResults>> {
         let results = self.entries.get(query)?.clone();
         self.recency.retain(|key| key != query);
@@ -57,6 +58,7 @@ impl SearchCache {
         Some(results)
     }
 
+    /// Store a query result and evict least-recently-used entries over the cap.
     fn insert(&mut self, query: String, results: Arc<CachedSearchResults>) {
         self.entries.remove(&query);
         self.recency.retain(|key| key != &query);
@@ -128,6 +130,7 @@ pub fn search_page(query: &str, offset: usize, limit: usize) -> Result<CatalogSe
     ))
 }
 
+/// Select one bounded page and resolve icons only for packages in that page.
 fn paginate_ranked_results(
     ranked: &[(u32, CatalogPackage)],
     offset: usize,

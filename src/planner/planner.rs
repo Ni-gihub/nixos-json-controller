@@ -112,20 +112,16 @@ impl Planner {
         system: &SystemState,
         package: &str,
     ) -> Result<PlanDetails, String> {
-        let output_name = if package.contains('.') {
-            Some(crate::nixos::provenance::evaluate_package_output_name(
-                context.flake_root(),
-                context.configuration_name(),
-                package,
-            )?)
-        } else {
-            None
-        };
+        let output_name = crate::nixos::provenance::evaluate_package_output_name(
+            context.flake_root(),
+            context.configuration_name(),
+            package,
+        )?;
         let provenance = crate::nixos::provenance::evaluate_package_provenance_with_output_name(
             context.flake_root(),
             context.configuration_name(),
             package,
-            output_name.as_deref(),
+            Some(&output_name),
         )?;
         let provenance_paths = provenance.local_files(context.flake_root());
         let config = ConfigState::discover(context.flake_root())?;
@@ -160,14 +156,7 @@ impl Planner {
             ));
         }
 
-        let package_is_active = match output_name.as_deref() {
-            Some(output_name) => system.has_package_output(output_name),
-            None => system.has_package_reference(
-                context.flake_root(),
-                context.configuration_name(),
-                package,
-            )?,
-        };
+        let package_is_active = system.has_package_output(&output_name);
 
         if package_is_active {
             return Ok(PlanDetails {

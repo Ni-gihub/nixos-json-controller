@@ -20,6 +20,7 @@ export class SearchPageCache<T extends { id: string }> {
     this.maxQueries = maxQueries;
   }
 
+  /** Return a cached page or fetch and deduplicate a single in-flight request. */
   async load(
     query: string,
     offset: number,
@@ -74,6 +75,7 @@ export class SearchPageCache<T extends { id: string }> {
     return request;
   }
 
+  /** Find a package across the pages already loaded for a query. */
   findCached(query: string, id: string): T | undefined {
     const key = query.trim().toLowerCase();
     const entry = this.entries.get(key);
@@ -83,6 +85,7 @@ export class SearchPageCache<T extends { id: string }> {
     return entry.results.find((item) => item.id === id);
   }
 
+  /** Access or create a query entry, evicting older entries when necessary. */
   private getOrCreateEntry(key: string): SearchCacheEntry<T> {
     const existing = this.entries.get(key);
     if (existing) {
@@ -106,6 +109,7 @@ export class SearchPageCache<T extends { id: string }> {
     return entry;
   }
 
+  /** Move an existing query entry to the most-recently-used position. */
   private touch(key: string, entry: SearchCacheEntry<T>): void {
     this.entries.delete(key);
     this.entries.set(key, entry);

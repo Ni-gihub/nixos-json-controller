@@ -216,7 +216,7 @@ pub fn evaluate_package_output_names(
             format!(
                 "[{}]",
                 path.iter()
-                    .map(|segment| format!("\\\"{}\\\"", segment))
+                    .map(|segment| format!("\"{}\"", segment))
                     .collect::<Vec<_>>()
                     .join(" ")
             )

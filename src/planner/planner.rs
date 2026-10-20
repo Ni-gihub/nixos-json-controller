@@ -115,17 +115,12 @@ impl Planner {
             package,
         ) {
             Ok(output_names) => output_names,
-            Err(_error) if !direct_declarations.is_empty() => {
-                return Ok(Self::change(
-                    "declared-source",
-                    direct_declarations
-                        .into_iter()
-                        .map(std::path::Path::to_path_buf)
-                        .collect(),
-                    "remove a stale package declaration without resolving its Nix output",
-                ));
+            Err(error) => {
+                if let Some(plan) = stale_package_declaration_plan(&direct_declarations) {
+                    return Ok(plan);
+                }
+                return Err(error);
             }
-            Err(error) => return Err(error),
         };
         let provenance =
             crate::nixos::provenance::evaluate_package_provenance_with_output_names(
@@ -314,10 +309,53 @@ impl Planner {
     }
 }
 
+/// Build a safe removal plan for a stale declaration when Nix can no longer resolve it.
+fn stale_package_declaration_plan(
+    direct_declarations: &[&std::path::Path],
+) -> Option<PlanDetails> {
+    if direct_declarations.is_empty() {
+        return None;
+    }
+
+    Some(Planner::change(
+        "declared-source",
+        direct_declarations
+            .iter()
+            .map(|path| (*path).to_path_buf())
+            .collect(),
+        "remove a stale package declaration without resolving its Nix output",
+    ))
+}
+
 fn format_paths(paths: &[std::path::PathBuf]) -> String {
     paths
         .iter()
         .map(|path| path.display().to_string())
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+#[cfg(test)]
+mod removal_fallback_tests {
+    use super::stale_package_declaration_plan;
+    use std::path::Path;
+
+    #[test]
+    fn stale_package_declaration_can_be_removed_when_output_resolution_fails() {
+        let plan =
+            stale_package_declaration_plan(&[Path::new("nxc/packages.nix")]).unwrap();
+
+        assert_eq!(plan.strategy, "declared-source");
+        assert_eq!(
+            plan.affected_files,
+            vec![Path::new("nxc/packages.nix").to_path_buf()]
+        );
+        assert!(plan.change_required);
+        assert!(plan.rebuild_required);
+    }
+
+    #[test]
+    fn unresolved_package_without_a_declaration_keeps_the_error_path() {
+        assert!(stale_package_declaration_plan(&[]).is_none());
+    }
 }

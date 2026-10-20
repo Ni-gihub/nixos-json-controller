@@ -243,8 +243,8 @@ pub fn evaluate_package_output_identities(
         ));
     }
 
-    let identities: Vec<Option<PackageOutputIdentity>> =
-        serde_json::from_slice(&output.stdout).map_err(|error| {
+    let identities: Vec<Option<PackageOutputIdentity>> = serde_json::from_slice(&output.stdout)
+        .map_err(|error| {
             format!("failed to parse package output identities returned by nix: {error}")
         })?;
 
@@ -272,10 +272,12 @@ pub fn evaluate_package_output_names(
     configuration_name: &str,
     packages: &[String],
 ) -> Result<Vec<Option<String>>, String> {
-    Ok(evaluate_package_output_identities(flake_root, configuration_name, packages)?
-        .into_iter()
-        .map(|identity| identity.map(|identity| identity.output_name))
-        .collect())
+    Ok(
+        evaluate_package_output_identities(flake_root, configuration_name, packages)?
+            .into_iter()
+            .map(|identity| identity.map(|identity| identity.output_name))
+            .collect(),
+    )
 }
 
 /// Remove one optional `pkgs.` prefix and validate the canonical Nixpkgs path.

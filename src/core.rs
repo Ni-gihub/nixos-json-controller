@@ -84,17 +84,7 @@ impl NxcCore {
             &package_names,
         )?;
 
-        let mut packages = package_entries
-            .into_iter()
-            .zip(output_names)
-            .map(|((name, aliases), output_name)| CatalogEntry {
-                name,
-                aliases,
-                system_present: output_name
-                    .as_deref()
-                    .is_some_and(|output_name| system.has_package_output(output_name)),
-            })
-            .collect::<Vec<_>>();
+        let mut packages = package_catalog_entries(package_entries, output_names, system)?;
 
         let mut services = dictionary
             .services()
@@ -111,20 +101,20 @@ impl NxcCore {
         Ok(AppStoreCatalog { packages, services })
     }
 
-    // This helper deliberately performs no fuzzy package lookup. Production
-    // catalog state uses the selected flake's resolved output names above.
+    // This test helper feeds synthetic output names through the same pure mapping
+    // function used by the production catalog after Nix resolves real output names.
     #[cfg(test)]
     pub(crate) fn catalog_with_system(system: &SystemState) -> Result<AppStoreCatalog, String> {
         let dictionary = crate::dictionary::Dictionary::load()?;
-
-        let mut packages = dictionary
+        let package_entries: Vec<(String, Vec<String>)> = dictionary
             .packages()
-            .map(|(name, aliases)| CatalogEntry {
-                name: name.to_string(),
-                aliases: aliases.to_vec(),
-                system_present: system.has_package_output(name),
-            })
-            .collect::<Vec<_>>();
+            .map(|(name, aliases)| (name.to_string(), aliases.to_vec()))
+            .collect();
+        let output_names = package_entries
+            .iter()
+            .map(|(name, _)| Some(vec![name.clone()]))
+            .collect();
+        let mut packages = package_catalog_entries(package_entries, output_names, system)?;
 
         let mut services = dictionary
             .services()
@@ -191,6 +181,43 @@ impl NxcCore {
 
         Ok(report)
     }
+/// Check one resolved output name without applying a package-name prefix match.
+pub(crate) fn package_output_present(output_name: Option<&str>, system: &SystemState) -> bool {
+    output_name.is_some_and(|output_name| system.has_package_output(output_name))
+}
+
+fn package_outputs_present(output_names: Option<&[String]>, system: &SystemState) -> bool {
+    output_names.is_some_and(|names| {
+        names
+            .iter()
+            .any(|output_name| package_output_present(Some(output_name), system))
+    })
+}
+
+fn package_catalog_entries(
+    entries: Vec<(String, Vec<String>)>,
+    output_names: Vec<Option<Vec<String>>>,
+    system: &SystemState,
+) -> Result<Vec<CatalogEntry>, String> {
+    if entries.len() != output_names.len() {
+        return Err(format!(
+            "catalog contains {} package entries but Nix returned {} output-name entries",
+            entries.len(),
+            output_names.len()
+        ));
+    }
+
+    Ok(entries
+        .into_iter()
+        .zip(output_names)
+        .map(|((name, aliases), output_names)| CatalogEntry {
+            name,
+            aliases,
+            system_present: package_outputs_present(output_names.as_deref(), system),
+        })
+        .collect())
+}
+
 }
 
 fn filter_catalog(catalog: AppStoreCatalog, query: &str) -> AppStoreCatalog {

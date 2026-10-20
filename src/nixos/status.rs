@@ -46,14 +46,29 @@ pub fn package_states(packages: &[String]) -> Result<Vec<PackageState>, String> 
     )?;
     let system = SystemState::discover()?;
 
-    Ok(packages
+    packages
         .iter()
-        .map(|package| PackageState {
-            name: package.clone(),
-            configured: provenance.contains_package(package),
-            active: system.has_command(package) || system.has_package(package),
+        .map(|package| {
+            let output_name = if package.contains('.') {
+                super::provenance::evaluate_package_output_name(
+                    context.flake_root(),
+                    context.configuration_name(),
+                    package,
+                )?
+            } else {
+                package.clone()
+            };
+            Ok(PackageState {
+                name: package.clone(),
+                configured: provenance.contains_package(&output_name),
+                active: system.has_package_reference(
+                    context.flake_root(),
+                    context.configuration_name(),
+                    package,
+                )?,
+            })
         })
-        .collect())
+        .collect()
 }
 
 pub fn package_state(package: &str) -> Result<PackageState, String> {
@@ -92,7 +107,11 @@ pub fn explain_package(
 
     Ok(PackageExplanation {
         name: package.to_string(),
-        system_present: system.has_command(package) || system.has_package(package),
+        system_present: system.has_package_reference(
+            context.flake_root(),
+            context.configuration_name(),
+            package,
+        )?,
         declared_in_config: !declaration_locations.is_empty(),
         declaration_locations,
         safe_declaration_locations,

@@ -71,7 +71,9 @@ function InstallButtonInstance({
         },
       );
       if (!result.installed) {
-        throw new Error(`インストール完了を確認できませんでした: ${result.package}`);
+        throw new Error(
+          `インストール完了を確認できませんでした: ${result.package}`,
+        );
       }
       // The backend has completed installation and verification. Reuse its
       // result rather than running another, expensive Nix evaluation.

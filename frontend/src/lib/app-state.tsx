@@ -12,10 +12,7 @@ import {
   InstallRequestLock,
   type InstallRequestPhase,
 } from "./install-request-lock";
-import {
-  withInstalledPackageState,
-  type PackageState,
-} from "./package-state";
+import { withInstalledPackageState, type PackageState } from "./package-state";
 
 export type AppState = PackageState;
 

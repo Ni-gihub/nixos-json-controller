@@ -3,10 +3,15 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import {
+  InstallRequestLock,
+  type InstallRequestPhase,
+} from "./install-request-lock";
 
 export type AppState = {
   name: string;
@@ -18,6 +23,16 @@ type AppStateContextValue = {
   states: Record<string, AppState>;
   loading: boolean;
   error: string | null;
+  installPhases: Record<string, InstallRequestPhase>;
+  beginInstallRequest: (
+    packageName: string,
+    phase: InstallRequestPhase,
+  ) => boolean;
+  setInstallRequestPhase: (
+    packageName: string,
+    phase: InstallRequestPhase,
+  ) => void;
+  finishInstallRequest: (packageName: string) => void;
   refreshPackages: (packageNames: string[]) => Promise<void>;
   refreshPackage: (packageName: string) => Promise<void>;
 };
@@ -28,6 +43,48 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [states, setStates] = useState<Record<string, AppState>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [installPhases, setInstallPhases] = useState<
+    Record<string, InstallRequestPhase>
+  >({});
+  const installLockRef = useRef<InstallRequestLock | null>(null);
+  if (installLockRef.current === null) {
+    installLockRef.current = new InstallRequestLock();
+  }
+  const installLock = installLockRef.current;
+
+  const beginInstallRequest = useCallback(
+    (packageName: string, phase: InstallRequestPhase) => {
+      if (!installLock.tryAcquire(packageName)) return false;
+      setInstallPhases((current) => ({ ...current, [packageName]: phase }));
+      return true;
+    },
+    [installLock],
+  );
+
+  const setInstallRequestPhase = useCallback(
+    (packageName: string, phase: InstallRequestPhase) => {
+      if (!installLock.isLocked(packageName)) return;
+      setInstallPhases((current) =>
+        current[packageName] === phase
+          ? current
+          : { ...current, [packageName]: phase },
+      );
+    },
+    [installLock],
+  );
+
+  const finishInstallRequest = useCallback(
+    (packageName: string) => {
+      installLock.release(packageName);
+      setInstallPhases((current) => {
+        if (!(packageName in current)) return current;
+        const next = { ...current };
+        delete next[packageName];
+        return next;
+      });
+    },
+    [installLock],
+  );
 
   const refreshPackages = useCallback(async (packageNames: string[]) => {
     if (packageNames.length === 0) return;
@@ -58,8 +115,28 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ states, loading, error, refreshPackages, refreshPackage }),
-    [states, loading, error, refreshPackages, refreshPackage],
+    () => ({
+      states,
+      loading,
+      error,
+      installPhases,
+      beginInstallRequest,
+      setInstallRequestPhase,
+      finishInstallRequest,
+      refreshPackages,
+      refreshPackage,
+    }),
+    [
+      states,
+      loading,
+      error,
+      installPhases,
+      beginInstallRequest,
+      setInstallRequestPhase,
+      finishInstallRequest,
+      refreshPackages,
+      refreshPackage,
+    ],
   );
 
   return (

@@ -71,7 +71,10 @@ fn catalog_entries_use_resolved_output_names_for_presence() {
     system.packages.insert("ripgrep-14.1.0-bin".to_string());
     let installed_output = crate::core::package_catalog_entries(
         entries,
-        vec![Some(vec!["ripgrep-14.1.0".to_string(), "ripgrep-14.1.0-bin".to_string()])],
+        vec![Some(vec![
+            "ripgrep-14.1.0".to_string(),
+            "ripgrep-14.1.0-bin".to_string(),
+        ])],
         &system,
     )
     .unwrap();

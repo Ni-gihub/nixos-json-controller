@@ -20,8 +20,8 @@ pub struct PackageExplanation {
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct PackageState {
     pub name: String,
-    pub configured: bool,
-    pub active: bool,
+    pub configured: Option<bool>,
+    pub active: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,23 +50,7 @@ pub fn package_states(packages: &[String]) -> Result<Vec<PackageState>, String> 
         packages,
     )?;
 
-    packages
-        .iter()
-        .zip(output_names)
-        .map(|(package, output_names)| {
-            let output_names = output_names.ok_or_else(|| {
-                format!(
-                    "could not determine the installed state of package '{}': its Nixpkgs attribute path could not be resolved",
-                    package
-                )
-            })?;
-            Ok(PackageState {
-                name: package.clone(),
-                configured: provenance.contains_output_names(&output_names),
-                active: system.has_any_package_output(&output_names),
-            })
-        })
-        .collect()
+    package_states_from_output_names(packages, output_names, &provenance, &system)
 }
 
 pub fn package_state(package: &str) -> Result<PackageState, String> {
@@ -74,6 +58,38 @@ pub fn package_state(package: &str) -> Result<PackageState, String> {
         .into_iter()
         .next()
         .ok_or_else(|| "package state was not returned".to_string())
+}
+
+fn package_states_from_output_names(
+    packages: &[String],
+    output_names: Vec<Option<Vec<String>>>,
+    provenance: &super::provenance::EvaluatedProvenance,
+    system: &SystemState,
+) -> Result<Vec<PackageState>, String> {
+    if packages.len() != output_names.len() {
+        return Err(format!(
+            "received {} package names but {} output-name results",
+            packages.len(),
+            output_names.len()
+        ));
+    }
+
+    Ok(packages
+        .iter()
+        .zip(output_names)
+        .map(|(package, output_names)| match output_names {
+            Some(output_names) => PackageState {
+                name: package.clone(),
+                configured: Some(provenance.contains_output_names(&output_names)),
+                active: Some(system.has_any_package_output(&output_names)),
+            },
+            None => PackageState {
+                name: package.clone(),
+                configured: None,
+                active: None,
+            },
+        })
+        .collect())
 }
 
 pub fn explain_package(
@@ -157,6 +173,35 @@ pub fn explain_service(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::{BTreeMap, BTreeSet};
+
+    #[test]
+    fn unresolved_package_does_not_hide_other_batch_states() {
+        let system = SystemState {
+            current_generation: PathBuf::from("/nix/store/test-system"),
+            binaries: BTreeMap::new(),
+            packages: BTreeSet::from(["valid-1.0".to_string()]),
+            enabled_services: BTreeSet::new(),
+        };
+        let provenance = super::super::provenance::EvaluatedProvenance::default();
+        let states = package_states_from_output_names(
+            &["valid".to_string(), "missing".to_string()],
+            vec![Some(vec!["valid-1.0".to_string()]), None],
+            &provenance,
+            &system,
+        )
+        .unwrap();
+
+        assert_eq!(states.len(), 2);
+        assert_eq!(states[0].active, Some(true));
+        assert_eq!(states[0].configured, Some(false));
+        assert_eq!(states[1].active, None);
+        assert_eq!(states[1].configured, None);
+
+        let unresolved_json = serde_json::to_value(&states[1]).unwrap();
+        assert!(unresolved_json["active"].is_null());
+        assert!(unresolved_json["configured"].is_null());
+    }
 
     #[test]
     fn package_explanation_tracks_system_and_config_state() {

@@ -20,7 +20,8 @@ function AppDetail() {
 
   const appState = id ? states[id] : undefined;
   const installed = appState?.active === true;
-  const statusKnown = appState !== undefined;
+  const statusKnown = appState !== undefined && appState.active !== null;
+  const statusLoading = appState === undefined;
 
   useEffect(() => {
     if (!id) return;
@@ -141,6 +142,7 @@ function AppDetail() {
                         appName={app.name}
                         installed={installed}
                         statusKnown={statusKnown}
+                        statusLoading={statusLoading}
                         onInstalled={() => refreshPackage(id)}
                         className="h-10 shrink-0 rounded-full bg-primary px-4 text-sm text-white hover:bg-primary/90"
                         size="sm"

@@ -8,6 +8,7 @@ type InstallButtonProps = {
   appName: string;
   installed: boolean;
   statusKnown?: boolean;
+  statusLoading?: boolean;
   onInstalled?: () => void | Promise<void>;
   className?: string;
   size?: "default" | "sm" | "lg";
@@ -18,6 +19,7 @@ function InstallButton({
   appName,
   installed,
   statusKnown = true,
+  statusLoading = false,
   onInstalled,
   className,
   size = "default",
@@ -99,7 +101,9 @@ function InstallButton({
 
       {!statusKnown && !effectiveInstalled && !error && (
         <p className="mt-2 text-xs text-muted-foreground">
-          インストール状態を確認中...
+{statusLoading
+            ? "インストール状態を確認中..."
+            : "このパッケージのインストール状態を確認できません。"}
         </p>
       )}
 

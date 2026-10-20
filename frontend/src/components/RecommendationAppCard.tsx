@@ -13,6 +13,8 @@ type RecommendationAppCardProps = {
   rank: number;
   featured: boolean;
   installed: boolean;
+  statusKnown: boolean;
+  statusLoading: boolean;
 };
 
 /** A restrained App Store-style card, with a denser layout for genre rankings. */
@@ -22,6 +24,8 @@ export default function RecommendationAppCard({
   rank,
   featured,
   installed,
+  statusKnown,
+  statusLoading,
 }: RecommendationAppCardProps) {
   const { refreshPackage } = useAppState();
   const detailPath = `/apps/${app.id}`;
@@ -123,6 +127,8 @@ export default function RecommendationAppCard({
                 packageId={app.id}
                 appName={app.name}
                 installed={installed}
+                statusKnown={statusKnown}
+                statusLoading={statusLoading}
                 onInstalled={() => refreshPackage(app.id)}
                 className="h-9 rounded-full px-4 text-sm"
                 size="sm"
@@ -213,6 +219,8 @@ export default function RecommendationAppCard({
             packageId={app.id}
             appName={app.name}
             installed={installed}
+            statusKnown={statusKnown}
+            statusLoading={statusLoading}
             onInstalled={() => refreshPackage(app.id)}
             className="h-9 w-full rounded-full px-3 text-sm"
             size="sm"

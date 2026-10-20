@@ -73,7 +73,7 @@ impl SystemState {
     /// as ripgrep.
     pub fn has_package_identity(
         &self,
-        identity: &super::provenance::PackageOutputIdentity,
+        identity: &crate::nixos::provenance::PackageOutputIdentity,
     ) -> bool {
         if self.has_package_output(&identity.output_name) {
             return true;
@@ -346,7 +346,7 @@ sshd.service enabled enabled
             packages: BTreeSet::from(["firefox-123.0".to_string()]),
             enabled_services: BTreeSet::new(),
         };
-        let identity = super::provenance::PackageOutputIdentity {
+        let identity = crate::nixos::provenance::PackageOutputIdentity {
             output_name: "firefox-124.0".to_string(),
             pname: Some("firefox".to_string()),
             version: Some("124.0".to_string()),
@@ -363,7 +363,7 @@ sshd.service enabled enabled
             packages: BTreeSet::from(["ripgrep-all-1.0".to_string()]),
             enabled_services: BTreeSet::new(),
         };
-        let identity = super::provenance::PackageOutputIdentity {
+        let identity = crate::nixos::provenance::PackageOutputIdentity {
             output_name: "ripgrep-14.1.1".to_string(),
             pname: Some("ripgrep".to_string()),
             version: Some("14.1.1".to_string()),
@@ -380,12 +380,12 @@ sshd.service enabled enabled
             packages: BTreeSet::from(["python3.13-requests-2.31.0".to_string()]),
             enabled_services: BTreeSet::new(),
         };
-        let matching = super::provenance::PackageOutputIdentity {
+        let matching = crate::nixos::provenance::PackageOutputIdentity {
             output_name: "python3.13-requests-2.32.4".to_string(),
             pname: Some("requests".to_string()),
             version: Some("2.32.4".to_string()),
         };
-        let other_package_set = super::provenance::PackageOutputIdentity {
+        let other_package_set = crate::nixos::provenance::PackageOutputIdentity {
             output_name: "python3.12-requests-2.32.4".to_string(),
             pname: Some("requests".to_string()),
             version: Some("2.32.4".to_string()),

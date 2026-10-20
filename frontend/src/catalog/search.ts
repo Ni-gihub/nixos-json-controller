@@ -1,9 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { App } from "./apps";
-import {
-  SearchPageCache,
-  type CatalogSearchPage,
-} from "./search-cache";
+import { SearchPageCache, type CatalogSearchPage } from "./search-cache";
 
 const PAGE_SIZE = 40;
 const searchCache = new SearchPageCache<App>(4);

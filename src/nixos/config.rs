@@ -383,14 +383,22 @@ fn parse_package_line(line: &str) -> Option<String> {
         .trim_matches(|c: char| matches!(c, '[' | ']' | '(' | ')' | ','));
     let token = token.strip_prefix("pkgs.").unwrap_or(token);
 
-    if token.is_empty() || token.contains('.') {
+    if token.is_empty() || !token.split('.').all(is_package_attribute_segment) {
         return None;
     }
 
-    token
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
-        .then(|| token.to_string())
+    Some(token.to_string())
+}
+
+fn is_package_attribute_segment(segment: &str) -> bool {
+    let mut chars = segment.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+
+    (first.is_ascii_alphabetic() || first == '_')
+        && chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '\''))
+}
 }
 
 fn parse_service_names(content: &str) -> Vec<String> {

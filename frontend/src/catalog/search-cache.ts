@@ -14,8 +14,11 @@ type SearchCacheEntry<T> = {
 /** Small LRU cache that also deduplicates in-flight page requests per query. */
 export class SearchPageCache<T extends { id: string }> {
   private readonly entries = new Map<string, SearchCacheEntry<T>>();
+  private readonly maxQueries: number;
 
-  constructor(private readonly maxQueries = 4) {}
+  constructor(maxQueries = 4) {
+    this.maxQueries = maxQueries;
+  }
 
   async load(
     query: string,

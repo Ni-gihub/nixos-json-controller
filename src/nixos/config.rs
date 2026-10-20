@@ -61,6 +61,8 @@ impl ConfigState {
     }
 
     pub fn package_declarations(&self, package: &str) -> Vec<&Path> {
+        let package = package.strip_prefix("pkgs.").unwrap_or(package);
+
         self.files
             .iter()
             .filter(|file| file.declared_packages.contains(package))
@@ -985,5 +987,16 @@ environment.systemPackages = with pkgs; [
         assert!(file.declared_packages.contains("python3Packages.requests"));
         assert!(file.declared_packages.contains("python3Packages.urllib3"));
         assert!(!file.declared_packages.contains("foo..bar"));
+
+        let path = file.path.clone();
+        let config = ConfigState { files: vec![file] };
+        assert_eq!(
+            config.package_declarations("python3Packages.requests"),
+            vec![path.as_path()]
+        );
+        assert_eq!(
+            config.package_declarations("pkgs.python3Packages.requests"),
+            vec![path.as_path()]
+        );
     }
 }

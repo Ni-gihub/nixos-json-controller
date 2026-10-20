@@ -4,7 +4,7 @@ pub mod package;
 pub mod service;
 
 pub use error::ExecutorError;
-pub use executor::Executor;
+pub use executor::{ExecutionOutcome, Executor};
 
 #[cfg(test)]
 mod tests;

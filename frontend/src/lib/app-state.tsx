@@ -12,7 +12,12 @@ import {
   InstallRequestLock,
   type InstallRequestPhase,
 } from "./install-request-lock";
-import { withInstalledPackageState, type PackageState } from "./package-state";
+import {
+  PackageStateRevision,
+  withUnknownPackageState,
+  withVerifiedActivePackageState,
+  type PackageState,
+} from "./package-state";
 
 export type AppState = PackageState;
 
@@ -30,9 +35,10 @@ type AppStateContextValue = {
     phase: InstallRequestPhase,
   ) => void;
   finishInstallRequest: (packageName: string) => void;
-  markPackageInstalled: (packageName: string) => void;
+  markPackageActiveVerified: (packageName: string) => void;
+  markPackageNeedsVerification: (packageName: string) => void;
   refreshPackages: (packageNames: string[]) => Promise<void>;
-  refreshPackage: (packageName: string) => Promise<void>;
+  refreshPackage: (packageName: string) => Promise<AppState | null>;
 };
 
 const AppStateContext = createContext<AppStateContextValue | null>(null);
@@ -49,6 +55,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     installLockRef.current = new InstallRequestLock();
   }
   const installLock = installLockRef.current;
+  const packageStateRevisionRef = useRef<PackageStateRevision | null>(null);
+  if (packageStateRevisionRef.current === null) {
+    packageStateRevisionRef.current = new PackageStateRevision();
+  }
+  const packageStateRevision = packageStateRevisionRef.current;
 
   const beginInstallRequest = useCallback(
     (packageName: string, phase: InstallRequestPhase) => {
@@ -84,37 +95,79 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     [installLock],
   );
 
-  const markPackageInstalled = useCallback((packageName: string) => {
-    setStates((current) => withInstalledPackageState(current, packageName));
-  }, []);
+  const markPackageActiveVerified = useCallback(
+    (packageName: string) => {
+      packageStateRevision.advance(packageName);
+      setStates((current) =>
+        withVerifiedActivePackageState(current, packageName),
+      );
+    },
+    [packageStateRevision],
+  );
 
-  const refreshPackages = useCallback(async (packageNames: string[]) => {
-    if (packageNames.length === 0) return;
+  const markPackageNeedsVerification = useCallback(
+    (packageName: string) => {
+      packageStateRevision.advance(packageName);
+      setStates((current) => withUnknownPackageState(current, packageName));
+    },
+    [packageStateRevision],
+  );
 
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await invoke<AppState[]>("get_app_states", {
-        packages: packageNames,
+  const refreshPackages = useCallback(
+    async (packageNames: string[]) => {
+      if (packageNames.length === 0) return;
+
+      // Capture each package's revision before issuing the request. Any package
+      // installed while this request is pending advances its revision and makes
+      // that part of the older response stale.
+      const requestRevisions = new Map(
+        packageNames.map((name) => [
+          name,
+          packageStateRevision.current(name),
+        ]),
+      );
+
+      setLoading(true);
+      setError(null);
+      try {
+        const result = await invoke<AppState[]>("get_app_states", {
+          packages: packageNames,
+        });
+        setStates((current) => {
+          const next = { ...current };
+          for (const state of result) {
+            const revision = requestRevisions.get(state.name);
+            if (
+              revision !== undefined &&
+              packageStateRevision.isCurrent(state.name, revision)
+            ) {
+              next[state.name] = state;
+            }
+          }
+          return next;
+        });
+      } catch (err) {
+        setError(String(err));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [packageStateRevision],
+  );
+
+  const refreshPackage = useCallback(
+    async (packageName: string) => {
+      setError(null);
+      const revision = packageStateRevision.current(packageName);
+      const state = await invoke<AppState>("get_app_state", {
+        package: packageName,
       });
-      setStates((current) => ({
-        ...current,
-        ...Object.fromEntries(result.map((state) => [state.name, state])),
-      }));
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const refreshPackage = useCallback(async (packageName: string) => {
-    setError(null);
-    const state = await invoke<AppState>("get_app_state", {
-      package: packageName,
-    });
-    setStates((current) => ({ ...current, [state.name]: state }));
-  }, []);
+      if (!packageStateRevision.isCurrent(packageName, revision)) return null;
+      setStates((current) => ({ ...current, [state.name]: state }));
+      return state;
+    },
+    [packageStateRevision],
+  );
 
   const value = useMemo(
     () => ({
@@ -125,7 +178,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       beginInstallRequest,
       setInstallRequestPhase,
       finishInstallRequest,
-      markPackageInstalled,
+      markPackageActiveVerified,
+      markPackageNeedsVerification,
       refreshPackages,
       refreshPackage,
     }),
@@ -137,7 +191,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       beginInstallRequest,
       setInstallRequestPhase,
       finishInstallRequest,
-      markPackageInstalled,
+      markPackageActiveVerified,
+      markPackageNeedsVerification,
       refreshPackages,
       refreshPackage,
     ],

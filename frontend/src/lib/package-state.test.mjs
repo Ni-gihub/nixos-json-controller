@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { withInstalledPackageState } from "./package-state.ts";
+import {
+  PackageStateRevision,
+  withUnknownPackageState,
+  withVerifiedActivePackageState,
+} from "./package-state.ts";
 
-test("marks a successfully installed package as configured and active", () => {
+test("updates only the verified package and does not claim configured provenance", () => {
   const existing = {
     chromium: {
       name: "chromium",
@@ -16,44 +20,46 @@ test("marks a successfully installed package as configured and active", () => {
     },
   };
 
-  const next = withInstalledPackageState(existing, "firefox");
+  const next = withVerifiedActivePackageState(existing, "firefox");
 
   assert.deepEqual(next.firefox, {
     name: "firefox",
-    configured: true,
+    configured: null,
     active: true,
   });
   assert.deepEqual(next.chromium, existing.chromium);
   assert.deepEqual(next.vscode, existing.vscode);
-  assert.deepEqual(existing, {
-    chromium: {
-      name: "chromium",
-      configured: false,
-      active: false,
-    },
-    vscode: {
-      name: "vscode",
-      configured: null,
-      active: null,
-    },
-  });
+  assert.deepEqual(existing.firefox, undefined);
 });
 
-test("updates an existing package's state after a successful reinstall", () => {
-  const next = withInstalledPackageState(
-    {
-      firefox: {
-        name: "firefox",
-        configured: true,
-        active: false,
-      },
-    },
-    "firefox",
-  );
+test("marks an unverified result unknown without claiming installation succeeded", () => {
+  const existing = {
+    firefox: { name: "firefox", configured: false, active: false },
+    chromium: { name: "chromium", configured: true, active: true },
+  };
+
+  const next = withUnknownPackageState(existing, "firefox");
 
   assert.deepEqual(next.firefox, {
     name: "firefox",
-    configured: true,
-    active: true,
+    configured: null,
+    active: null,
   });
+  assert.deepEqual(next.chromium, existing.chromium);
+  assert.deepEqual(existing.firefox, {
+    name: "firefox",
+    configured: false,
+    active: false,
+  });
+});
+
+test("invalidates a package-state response that started before installation", () => {
+  const revisions = new PackageStateRevision();
+  const revisionBeforeInstall = revisions.current("firefox");
+
+  revisions.advance("firefox");
+
+  assert.equal(revisions.isCurrent("firefox", revisionBeforeInstall), false);
+  assert.equal(revisions.isCurrent("firefox", revisions.current("firefox")), true);
+  assert.equal(revisions.isCurrent("chromium", revisionBeforeInstall), true);
 });

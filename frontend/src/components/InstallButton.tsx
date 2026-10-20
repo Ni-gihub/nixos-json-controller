@@ -34,12 +34,15 @@ function InstallButtonInstance({
     beginInstallRequest,
     setInstallRequestPhase,
     finishInstallRequest,
-    markPackageInstalled,
+    markPackageActiveVerified,
+    markPackageNeedsVerification,
+    refreshPackage,
   } = useAppState();
   const [passwordRequired, setPasswordRequired] = useState(false);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [installSucceeded, setInstallSucceeded] = useState(false);
+  const [verificationPending, setVerificationPending] = useState(false);
   const passwordPromptOpenRef = useRef(false);
   const unmountedRef = useRef(false);
 
@@ -63,22 +66,51 @@ function InstallButtonInstance({
   const install = async (authPassword: string | null) => {
     setError(null);
     try {
-      const result = await invoke<{ package: string; installed: boolean }>(
-        "install_app",
-        {
-          package: packageId,
-          password: authPassword,
-        },
-      );
+      const result = await invoke<{
+        package: string;
+        installed: boolean;
+        active_state_verified: boolean;
+      }>("install_app", {
+        package: packageId,
+        password: authPassword,
+      });
       if (!result.installed) {
         throw new Error(
-          `インストール完了を確認できませんでした: ${result.package}`,
+          `インストール処理が完了しませんでした: ${result.package}`,
         );
       }
-      // The backend has completed installation and verification. Reuse its
-      // result rather than running another, expensive Nix evaluation.
-      markPackageInstalled(result.package);
-      setInstallSucceeded(true);
+
+      if (result.active_state_verified) {
+        // Reuse the backend's verification after nixos-rebuild instead of
+        // running another Nix evaluation for the same package.
+        markPackageActiveVerified(result.package);
+        setInstallSucceeded(true);
+      } else {
+        // A successful no-op path does not prove that the package is active.
+        // Invalidate older lookups and refresh the actual state in the background.
+        markPackageNeedsVerification(result.package);
+        setInstallSucceeded(false);
+        setVerificationPending(true);
+        void refreshPackage(result.package)
+          .then((state) => {
+            if (unmountedRef.current || state === null) return;
+            if (state.active === true) {
+              setInstallSucceeded(true);
+            } else {
+              setError(
+                "処理は完了しましたが、アクティブなシステムでインストール状態を確認できませんでした。",
+              );
+            }
+          })
+          .catch((err) => {
+            if (!unmountedRef.current) {
+              setError(`インストール状態の確認に失敗しました: ${String(err)}`);
+            }
+          })
+          .finally(() => {
+            if (!unmountedRef.current) setVerificationPending(false);
+          });
+      }
     } catch (err) {
       setError(String(err));
     } finally {
@@ -143,6 +175,7 @@ function InstallButtonInstance({
 
   const renderInstallButtonContent = () => {
     if (effectiveInstalled) return "インストール済み";
+    if (verificationPending) return "処理完了";
 
     switch (installPhase) {
       case "installing":
@@ -173,7 +206,13 @@ function InstallButtonInstance({
         {renderInstallButtonContent()}
       </Button>
 
-      {!statusKnown && !effectiveInstalled && (
+      {verificationPending && (
+        <p className="mt-2 text-xs text-muted-foreground" role="status">
+          アクティブなシステムへの反映を確認中...
+        </p>
+      )}
+
+      {!statusKnown && !effectiveInstalled && !verificationPending && (
         <div className="mt-2 space-y-1">
           <p className="text-xs text-muted-foreground">
             {statusLoading

@@ -53,17 +53,17 @@ pub fn package_states(packages: &[String]) -> Result<Vec<PackageState>, String> 
     packages
         .iter()
         .zip(output_names)
-        .map(|(package, output_name)| {
-            let output_name = output_name.ok_or_else(|| {
+        .map(|(package, output_names)| {
+            let output_names = output_names.ok_or_else(|| {
                 format!(
-                    "could not determine the installed state of package '{}': its Nixpkgs output name could not be resolved",
+                    "could not determine the installed state of package '{}': its Nixpkgs attribute path could not be resolved",
                     package
                 )
             })?;
             Ok(PackageState {
                 name: package.clone(),
-                configured: provenance.contains_output_name(&output_name),
-                active: system.has_package_output(&output_name),
+                configured: provenance.contains_output_names(&output_names),
+                active: system.has_any_package_output(&output_names),
             })
         })
         .collect()
@@ -83,16 +83,16 @@ pub fn explain_package(
 ) -> Result<PackageExplanation, String> {
     // Resolve the package exactly once and use its full derivation name for
     // both active-system and provenance checks.
-    let output_name = super::provenance::evaluate_package_output_name(
+    let output_names = super::provenance::evaluate_package_output_names_for_package(
         context.flake_root(),
         context.configuration_name(),
         package,
     )?;
-    let provenance = super::provenance::evaluate_package_provenance_with_output_name(
+    let provenance = super::provenance::evaluate_package_provenance_with_output_names(
         context.flake_root(),
         context.configuration_name(),
         package,
-        Some(&output_name),
+        Some(&output_names),
     )?;
 
     let declaration_locations = provenance.local_files(context.flake_root());
@@ -112,7 +112,7 @@ pub fn explain_package(
 
     Ok(PackageExplanation {
         name: package.to_string(),
-        system_present: system.has_package_output(&output_name),
+        system_present: system.has_any_package_output(&output_names),
         declared_in_config: !declaration_locations.is_empty(),
         declaration_locations,
         safe_declaration_locations,

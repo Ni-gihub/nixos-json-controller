@@ -65,6 +65,11 @@ impl SystemState {
             .any(|name| name == package || name.starts_with(&format!("{package}-")))
     }
 
+    /// Check an already-resolved derivation output name against active store outputs.
+    pub fn has_package_output(&self, output_name: &str) -> bool {
+        self.has_package(output_name)
+    }
+
     /// Check a package reference against active store outputs.
     ///
     /// Dotted Nixpkgs attribute paths are not necessarily reflected in store
@@ -82,7 +87,7 @@ impl SystemState {
                 configuration_name,
                 package,
             )?;
-            Ok(self.has_package(&output_name))
+            Ok(self.has_package_output(&output_name))
         } else {
             Ok(self.has_command(package) || self.has_package(package))
         }

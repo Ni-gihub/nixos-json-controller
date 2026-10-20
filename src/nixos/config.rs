@@ -335,11 +335,7 @@ fn has_duplicate_service_enable_assignments(content: &str) -> bool {
 /// The NixOS services namespace and systemd.services namespace are kept
 /// distinct. The services substring inside systemd.services is not treated
 /// as a second option.
-fn service_enable_option_at(
-    content: &str,
-    code: &[bool],
-    start: usize,
-) -> Option<(String, usize)> {
+fn service_enable_option_at(content: &str, code: &[bool], start: usize) -> Option<(String, usize)> {
     if start >= content.len() || !code.get(start).copied().unwrap_or(false) {
         return None;
     }
@@ -435,10 +431,7 @@ fn skip_service_assignment_trivia(content: &str, mut cursor: usize) -> Option<us
             cursor += 2;
             let mut depth = 1usize;
             while cursor < bytes.len() && depth > 0 {
-                if cursor + 1 < bytes.len()
-                    && bytes[cursor] == b'/'
-                    && bytes[cursor + 1] == b'*'
-                {
+                if cursor + 1 < bytes.len() && bytes[cursor] == b'/' && bytes[cursor + 1] == b'*' {
                     depth += 1;
                     cursor += 2;
                 } else if cursor + 1 < bytes.len()

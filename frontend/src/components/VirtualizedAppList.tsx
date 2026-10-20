@@ -52,6 +52,7 @@ export default function VirtualizedAppList({
       setListTop((current) => (current === nextTop ? current : nextTop));
     };
 
+    updateViewport();
     window.addEventListener("scroll", updateViewport, { passive: true });
     window.addEventListener("resize", updateViewport);
     return () => {

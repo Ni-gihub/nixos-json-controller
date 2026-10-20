@@ -15,7 +15,13 @@ export async function searchApps(
   limit = PAGE_SIZE,
 ): Promise<CatalogSearchPage<App>> {
   const normalized = query.trim();
-  if (!normalized) return { results: [], nextOffset: 0, hasMore: false };
+  if (!normalized)
+    return {
+      results: [],
+      nextOffset: 0,
+      hasMore: false,
+      resultsLimited: false,
+    };
 
   return searchCache.load(normalized, offset, limit, () =>
     invoke<CatalogSearchPage<App>>("search_catalog", {

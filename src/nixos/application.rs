@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use super::discovery::DiscoveryContext;
 use super::provenance::{
-    evaluate_package_output_name, evaluate_package_provenance_with_output_name,
+    evaluate_package_output_identity, evaluate_package_provenance_with_output_name,
 };
 use super::system::SystemState;
 
@@ -19,12 +19,12 @@ impl ApplicationState {
         package: &str,
         system: &SystemState,
     ) -> Result<Self, String> {
-        let output_name = evaluate_package_output_name(
+        let identity = evaluate_package_output_identity(
             context.flake_root(),
             context.configuration_name(),
             package,
         )?;
-        let system_present = system.has_package_output(&output_name);
+        let system_present = system.has_package_identity(&identity);
 
         // The active system is authoritative for the "already installed"
         // fast path. Do not make an otherwise successful no-op depend on
@@ -41,7 +41,7 @@ impl ApplicationState {
             context.flake_root(),
             context.configuration_name(),
             package,
-            Some(&output_name),
+            Some(&identity.output_name),
         )?;
 
         let declaration_locations = provenance.local_files(context.flake_root());

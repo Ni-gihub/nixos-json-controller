@@ -54,6 +54,31 @@ fn exact_output_presence_check_rejects_prefix_similar_packages() {
     assert!(!crate::core::package_output_present(None, &system));
 }
 
+#[test]
+fn catalog_entries_use_resolved_output_names_for_presence() {
+    let mut system = test_system_state();
+    system.packages.insert("ripgrep-all-1.0".to_string());
+    let entries = vec![("ripgrep".to_string(), Vec::new())];
+
+    let missing = crate::core::package_catalog_entries(
+        entries.clone(),
+        vec![Some(vec!["ripgrep-14.1.0".to_string()])],
+        &system,
+    )
+    .unwrap();
+    assert!(!missing[0].system_present);
+
+    system.packages.insert("ripgrep-14.1.0-bin".to_string());
+    let installed_output = crate::core::package_catalog_entries(
+        entries,
+        vec![Some(vec!["ripgrep-14.1.0".to_string(), "ripgrep-14.1.0-bin".to_string()])],
+        &system,
+    )
+    .unwrap();
+    assert!(installed_output[0].system_present);
+}
+
+
 fn test_system_state() -> SystemState {
     SystemState {
         current_generation: PathBuf::from("/nix/store/test-system"),

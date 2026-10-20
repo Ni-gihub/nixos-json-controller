@@ -528,6 +528,7 @@ mod tests {
             vec![
                 None,
                 Some(vec![
+                    "multi-1.0".to_string(),
                     "multi-1.0-bin".to_string(),
                     "multi-1.0-man".to_string(),
                     "multi-1.0-dev".to_string(),

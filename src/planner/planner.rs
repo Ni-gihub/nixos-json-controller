@@ -122,13 +122,12 @@ impl Planner {
                 return Err(error);
             }
         };
-        let provenance =
-            crate::nixos::provenance::evaluate_package_provenance_with_output_names(
-                context.flake_root(),
-                context.configuration_name(),
-                package,
-                Some(&output_names),
-            )?;
+        let provenance = crate::nixos::provenance::evaluate_package_provenance_with_output_names(
+            context.flake_root(),
+            context.configuration_name(),
+            package,
+            Some(&output_names),
+        )?;
         let provenance_paths = provenance.local_files(context.flake_root());
 
         // definitionsWithLocations can report multiple module definitions for

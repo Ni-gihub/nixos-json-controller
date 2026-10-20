@@ -293,7 +293,7 @@ pub fn evaluate_package_provenance(
 }
 
 /// Evaluate package provenance using an already-resolved derivation name when available.
-/// This avoids evaluating the same dotted attribute path more than once per operation.
+/// This avoids evaluating the same package attribute path more than once per operation.
 pub(crate) fn evaluate_package_provenance_with_output_name(
     flake_root: &Path,
     configuration_name: &str,

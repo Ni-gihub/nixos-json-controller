@@ -150,7 +150,11 @@ impl Planner {
             ));
         }
 
-        if system.has_command(package) || system.has_package(package) {
+        if system.has_package_reference(
+            context.flake_root(),
+            context.configuration_name(),
+            package,
+        )? {
             return Ok(PlanDetails {
                 strategy: "system-only".to_string(),
                 affected_files: Vec::new(),

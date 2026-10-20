@@ -193,7 +193,6 @@ impl NxcCore {
     }
 }
 
-
 fn filter_catalog(catalog: AppStoreCatalog, query: &str) -> AppStoreCatalog {
     let query = query.trim();
     if query.is_empty() {

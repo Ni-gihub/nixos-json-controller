@@ -32,25 +32,32 @@ pub struct CatalogSearchPage {
     pub results: Vec<CatalogPackage>,
     pub next_offset: usize,
     pub has_more: bool,
+    pub results_limited: bool,
 }
 
 type RankedCatalogResults = Vec<(u32, CatalogPackage)>;
 
+#[derive(Debug, Default)]
+struct CachedSearchResults {
+    ranked: RankedCatalogResults,
+    truncated: bool,
+}
+
 #[derive(Default)]
 struct SearchCache {
-    entries: HashMap<String, Arc<RankedCatalogResults>>,
+    entries: HashMap<String, Arc<CachedSearchResults>>,
     recency: VecDeque<String>,
 }
 
 impl SearchCache {
-    fn get(&mut self, query: &str) -> Option<Arc<RankedCatalogResults>> {
+    fn get(&mut self, query: &str) -> Option<Arc<CachedSearchResults>> {
         let results = self.entries.get(query)?.clone();
         self.recency.retain(|key| key != query);
         self.recency.push_back(query.to_string());
         Some(results)
     }
 
-    fn insert(&mut self, query: String, results: Arc<RankedCatalogResults>) {
+    fn insert(&mut self, query: String, results: Arc<CachedSearchResults>) {
         self.entries.remove(&query);
         self.recency.retain(|key| key != &query);
 
@@ -91,6 +98,7 @@ pub fn search_page(
             results: Vec::new(),
             next_offset: 0,
             has_more: false,
+            results_limited: false,
         });
     }
 
@@ -100,14 +108,15 @@ pub fn search_page(
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .get(&cache_key);
 
-    let ranked = if let Some(results) = cached {
+    let cached_results = if let Some(results) = cached {
         results
     } else {
         let output = run_nix_search(query)?;
-        let mut results = parse_unlimited_results(&output, query)?;
+        let mut ranked = parse_unlimited_results(&output, query)?;
         // Cap per-query memory use even when a broad search matches a very large catalog.
-        results.truncate(MAX_CACHED_RESULTS);
-        let results = Arc::new(results);
+        let truncated = ranked.len() > MAX_CACHED_RESULTS;
+        ranked.truncate(MAX_CACHED_RESULTS);
+        let results = Arc::new(CachedSearchResults { ranked, truncated });
         search_cache()
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -115,13 +124,19 @@ pub fn search_page(
         results
     };
 
-    Ok(paginate_ranked_results(&ranked, offset, limit))
+    Ok(paginate_ranked_results(
+        &cached_results.ranked,
+        offset,
+        limit,
+        cached_results.truncated,
+    ))
 }
 
 fn paginate_ranked_results(
     ranked: &[(u32, CatalogPackage)],
     offset: usize,
     limit: usize,
+    results_limited: bool,
 ) -> CatalogSearchPage {
     let limit = limit.clamp(1, MAX_PAGE_SIZE);
     let start = offset.min(ranked.len());
@@ -136,6 +151,7 @@ fn paginate_ranked_results(
         results,
         next_offset: end,
         has_more: end < ranked.len(),
+        results_limited,
     }
 }
 
@@ -521,9 +537,9 @@ mod tests {
         let output = nix_search_output(&entries);
         let ranked = parse_unlimited_results(&output, "foo").unwrap();
 
-        let first = paginate_ranked_results(&ranked, 0, 40);
-        let second = paginate_ranked_results(&ranked, first.next_offset, 40);
-        let third = paginate_ranked_results(&ranked, second.next_offset, 40);
+        let first = paginate_ranked_results(&ranked, 0, 40, false);
+        let second = paginate_ranked_results(&ranked, first.next_offset, 40, false);
+        let third = paginate_ranked_results(&ranked, second.next_offset, 40, false);
 
         assert_eq!(first.results.len(), 40);
         assert!(first.has_more);
@@ -549,7 +565,7 @@ mod tests {
     fn search_cache_is_bounded_and_evicts_the_least_recently_used_query() {
         let mut cache = SearchCache::default();
         for index in 0..MAX_CACHED_QUERIES {
-            cache.insert(format!("query-{index}"), Arc::new(Vec::new()));
+            cache.insert(format!("query-{index}"), Arc::new(CachedSearchResults::default()));
         }
         assert!(cache.get("query-0").is_some());
 
@@ -612,7 +628,7 @@ mod tests {
         let output = nix_search_output(&entries);
 
         let ranked = parse_unlimited_results(&output, "foo").unwrap();
-        let limited = paginate_ranked_results(&ranked, 0, MAX_RESULTS).results;
+        let limited = paginate_ranked_results(&ranked, 0, MAX_RESULTS, false).results;
         assert_eq!(limited.len(), MAX_RESULTS);
         assert!(!limited.iter().any(|package| package.id == "foo"));
 

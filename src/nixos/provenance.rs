@@ -237,7 +237,9 @@ pub fn evaluate_package_output_names(
         .args(["eval", "--json", "--apply", &apply_expression, &expression])
         .current_dir(flake_root)
         .output()
-        .map_err(|error| format!("failed to execute nix while resolving package output names: {error}"))?;
+        .map_err(|error| {
+            format!("failed to execute nix while resolving package output names: {error}")
+        })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -248,8 +250,9 @@ pub fn evaluate_package_output_names(
         ));
     }
 
-    let names: Vec<Option<String>> = serde_json::from_slice(&output.stdout)
-        .map_err(|error| format!("failed to parse package output names returned by nix: {error}"))?;
+    let names: Vec<Option<String>> = serde_json::from_slice(&output.stdout).map_err(|error| {
+        format!("failed to parse package output names returned by nix: {error}")
+    })?;
 
     if names.len() != packages.len() {
         return Err(format!(
@@ -284,12 +287,7 @@ pub fn evaluate_package_provenance(
     configuration_name: &str,
     package: &str,
 ) -> Result<EvaluatedProvenance, String> {
-    evaluate_package_provenance_with_output_name(
-        flake_root,
-        configuration_name,
-        package,
-        None,
-    )
+    evaluate_package_provenance_with_output_name(flake_root, configuration_name, package, None)
 }
 
 /// Evaluate package provenance using an already-resolved derivation name when available.

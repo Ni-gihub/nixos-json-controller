@@ -562,6 +562,24 @@ mod tests {
     }
 
     #[test]
+    fn paged_response_reports_when_the_cached_result_cap_was_reached() {
+        let ids = (0..2)
+            .map(|index| format!("foo{index:03}"))
+            .collect::<Vec<_>>();
+        let entries = ids
+            .iter()
+            .map(|id| (id.as_str(), id.as_str()))
+            .collect::<Vec<_>>();
+        let output = nix_search_output(&entries);
+        let ranked = parse_unlimited_results(&output, "foo").unwrap();
+
+        let page = paginate_ranked_results(&ranked, 0, 40, true);
+
+        assert!(!page.has_more);
+        assert!(page.results_limited);
+    }
+
+    #[test]
     fn search_cache_is_bounded_and_evicts_the_least_recently_used_query() {
         let mut cache = SearchCache::default();
         for index in 0..MAX_CACHED_QUERIES {
@@ -571,7 +589,7 @@ mod tests {
 
         cache.insert(
             "query-new".to_string(),
-            Arc::new(Vec::new()),
+            Arc::new(CachedSearchResults::default()),
         );
 
         assert_eq!(cache.entries.len(), MAX_CACHED_QUERIES);

@@ -200,6 +200,20 @@ function Discover() {
   // entering the virtual window so scrolling does not launch one Nix evaluation
   // per card.
   const dispatchQueuedPackageStates = useCallback(() => {
+    const scheduleNextBatch = () => {
+      if (pendingStateIdsRef.current.size === 0) return;
+
+      stateRefreshTimerRef.current = setTimeout(() => {
+        stateRefreshTimerRef.current = null;
+        const batch = Array.from(pendingStateIdsRef.current).slice(0, 40);
+        for (const packageName of batch) {
+          pendingStateIdsRef.current.delete(packageName);
+        }
+        void refreshPackages(batch);
+        scheduleNextBatch();
+      }, 120);
+    };
+
     if (
       pendingStateIdsRef.current.size === 0 ||
       stateRefreshTimerRef.current !== null
@@ -207,15 +221,7 @@ function Discover() {
       return;
     }
 
-    stateRefreshTimerRef.current = setTimeout(() => {
-      stateRefreshTimerRef.current = null;
-      const batch = Array.from(pendingStateIdsRef.current).slice(0, 40);
-      for (const packageName of batch) {
-        pendingStateIdsRef.current.delete(packageName);
-      }
-      void refreshPackages(batch);
-      dispatchQueuedPackageStates();
-    }, 120);
+    scheduleNextBatch();
   }, [refreshPackages]);
 
   const requestVisiblePackageStates = useCallback(

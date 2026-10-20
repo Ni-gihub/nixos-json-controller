@@ -517,7 +517,15 @@ function Discover() {
                         rank={1}
                         featured
                         installed={
-                          states[featuredRecommendation.id]?.active ?? false
+                          states[featuredRecommendation.id]?.active === true
+                        }
+                        statusKnown={
+                          states[featuredRecommendation.id]?.active === true ||
+                          states[featuredRecommendation.id]?.active === false
+                        }
+                        statusLoading={
+                          loading &&
+                          states[featuredRecommendation.id] === undefined
                         }
                       />
                     )}
@@ -587,7 +595,14 @@ function Discover() {
                                       }
                                       featured={false}
                                       installed={
-                                        states[app.id]?.active ?? false
+                                        states[app.id]?.active === true
+                                      }
+                                      statusKnown={
+                                        states[app.id]?.active === true ||
+                                        states[app.id]?.active === false
+                                      }
+                                      statusLoading={
+                                        loading && states[app.id] === undefined
                                       }
                                     />
                                   </div>
@@ -649,7 +664,14 @@ function Discover() {
                           description={app.description}
                           category={app.category}
                           tags={app.tags}
-                          installed={states[app.id]?.active ?? false}
+                          installed={states[app.id]?.active === true}
+                          statusKnown={
+                            states[app.id]?.active === true ||
+                            states[app.id]?.active === false
+                          }
+                          statusLoading={
+                            loading && states[app.id] === undefined
+                          }
                           icon={app.icon}
                           iconCandidates={app.iconCandidates}
                           searchQuery={submittedQuery}

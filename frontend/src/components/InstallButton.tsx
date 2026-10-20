@@ -8,6 +8,9 @@ type InstallButtonProps = {
   appName: string;
   installed: boolean;
   statusKnown?: boolean;
+  statusLoading?: boolean;
+  statusError?: string | null;
+  onRetryStatus?: () => void | Promise<void>;
   onInstalled?: () => void | Promise<void>;
   className?: string;
   size?: "default" | "sm" | "lg";
@@ -18,6 +21,9 @@ function InstallButton({
   appName,
   installed,
   statusKnown = true,
+  statusLoading = false,
+  statusError = null,
+  onRetryStatus,
   onInstalled,
   className,
   size = "default",
@@ -97,10 +103,31 @@ function InstallButton({
             : "インストール"}
       </Button>
 
-      {!statusKnown && !effectiveInstalled && !error && (
-        <p className="mt-2 text-xs text-muted-foreground">
-          インストール状態を確認中...
-        </p>
+      {!statusKnown && !effectiveInstalled && (
+        <div className="mt-2 space-y-1">
+          <p className="text-xs text-muted-foreground">
+            {statusLoading
+              ? "インストール状態を確認中..."
+              : statusError
+                ? "インストール状態の取得に失敗しました。"
+                : "このパッケージのインストール状態を確認できません。"}
+          </p>
+          {statusError && (
+            <p className="break-words text-xs text-destructive">
+              {statusError}
+            </p>
+          )}
+          {!statusLoading && onRetryStatus && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => void onRetryStatus()}
+            >
+              再試行
+            </Button>
+          )}
+        </div>
       )}
 
       {passwordRequired && (

@@ -56,15 +56,6 @@ impl SystemState {
         self.binaries.get(command).map(PathBuf::as_path)
     }
 
-    /// 現在のNixOS system generationに指定したpackageが含まれるか確認する。
-    ///
-    /// 実行ファイル名とpackage名が一致しない場合も、store path名から判定できる。
-    pub fn has_package(&self, package: &str) -> bool {
-        self.packages
-            .iter()
-            .any(|name| name == package || name.starts_with(&format!("{package}-")))
-    }
-
     /// Check an already-resolved derivation output name against active store outputs.
     ///
     /// Unlike unresolved package names, derivation output names already contain
@@ -73,27 +64,30 @@ impl SystemState {
         self.packages.iter().any(|name| name == output_name)
     }
 
-    /// Check a package reference against active store outputs.
+    /// Check whether any selected output for a package is part of the active system.
+    pub fn has_any_package_output(&self, output_names: &[String]) -> bool {
+        output_names
+            .iter()
+            .any(|output_name| self.has_package_output(output_name))
+    }
+
+    /// Check a Nixpkgs package reference against active store outputs.
     ///
-    /// Dotted Nixpkgs attribute paths are not necessarily reflected in store
-    /// output names, so resolve those references through the selected flake
-    /// before comparing them with the active generation.
+    /// Package attributes do not necessarily match store output names; always
+    /// resolve the full derivation name through the selected flake and compare
+    /// it exactly. Binary names are checked separately through `has_command`.
     pub fn has_package_reference(
         &self,
         flake_root: &Path,
         configuration_name: &str,
         package: &str,
     ) -> Result<bool, String> {
-        if package.contains('.') {
-            let output_name = super::provenance::evaluate_package_output_name(
-                flake_root,
-                configuration_name,
-                package,
-            )?;
-            Ok(self.has_package_output(&output_name))
-        } else {
-            Ok(self.has_command(package) || self.has_package(package))
-        }
+        let output_names = super::provenance::evaluate_package_output_names_for_package(
+            flake_root,
+            configuration_name,
+            package,
+        )?;
+        Ok(self.has_any_package_output(&output_names))
     }
 
     /// systemd上で指定したsystem serviceが有効になっているか確認する。
@@ -300,11 +294,25 @@ sshd.service enabled enabled
             Some(Path::new("/run/current-system/sw/bin/firefox"))
         );
         assert!(!state.has_command("chromium"));
-        assert!(state.has_package("firefox"));
-        assert!(!state.has_package("chromium"));
+        assert!(state.has_package_output("firefox-1.0"));
+        assert!(!state.has_package_output("firefox"));
+        assert!(!state.has_package_output("chromium"));
 
         assert!(state.is_service_enabled("sshd"));
         assert!(!state.is_service_enabled("nginx"));
+    }
+
+    #[test]
+    fn different_versions_are_not_exact_package_output_matches() {
+        let state = SystemState {
+            current_generation: PathBuf::from("/nix/store/example-nixos-system"),
+            binaries: BTreeMap::new(),
+            packages: BTreeSet::from(["firefox-123.0".to_string()]),
+            enabled_services: BTreeSet::new(),
+        };
+
+        assert!(state.has_package_output("firefox-123.0"));
+        assert!(!state.has_package_output("firefox-124.0"));
     }
 
     #[test]
@@ -318,6 +326,21 @@ sshd.service enabled enabled
 
         assert!(!state.has_package_output("foo-1.2"));
         assert!(state.has_package_output("foo-1.2-tools"));
+    }
+
+    #[test]
+    fn similar_package_names_do_not_match_without_the_resolved_output_name() {
+        let state = SystemState {
+            current_generation: PathBuf::from("/nix/store/example-nixos-system"),
+            binaries: BTreeMap::new(),
+            packages: BTreeSet::from(["ripgrep-all-1.0".to_string(), "foo-bar-2.0".to_string()]),
+            enabled_services: BTreeSet::new(),
+        };
+
+        assert!(!state.has_package_output("ripgrep"));
+        assert!(!state.has_package_output("foo"));
+        assert!(state.has_package_output("ripgrep-all-1.0"));
+        assert!(state.has_package_output("foo-bar-2.0"));
     }
 
     #[test]

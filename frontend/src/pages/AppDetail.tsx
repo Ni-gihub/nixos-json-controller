@@ -8,6 +8,10 @@ import AppIcon from "@/components/AppIcon";
 import { findApp, type App } from "@/catalog";
 import { useAppState } from "@/lib/app-state";
 
+type PackageStatusLookup =
+  | { packageId: string; status: "loading" | "ready" }
+  | { packageId: string; status: "error"; error: string };
+
 /** Loads and displays details for the selected catalog package. */
 function AppDetail() {
   const { id } = useParams();
@@ -17,10 +21,20 @@ function AppDetail() {
   const [app, setApp] = useState<App | undefined>();
   const [loadingApp, setLoadingApp] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [statusLookup, setStatusLookup] = useState<PackageStatusLookup | null>(
+    null,
+  );
 
   const appState = id ? states[id] : undefined;
+  const currentStatusLookup =
+    statusLookup?.packageId === id ? statusLookup : null;
   const installed = appState?.active === true;
-  const statusKnown = appState !== undefined;
+  const statusKnown = appState !== undefined && appState.active !== null;
+  const statusLoading =
+    appState === undefined &&
+    (currentStatusLookup === null || currentStatusLookup.status === "loading");
+  const statusError =
+    currentStatusLookup?.status === "error" ? currentStatusLookup.error : null;
 
   useEffect(() => {
     if (!id) return;
@@ -47,10 +61,46 @@ function AppDetail() {
 
   useEffect(() => {
     if (!id) return;
+    let cancelled = false;
 
-    // Initial status lookup is non-fatal; InstallButton reports errors for user-initiated actions.
-    void refreshPackage(id).catch(() => undefined);
+    void refreshPackage(id)
+      .then(() => {
+        if (!cancelled) {
+          setStatusLookup({
+            packageId: id,
+            status: "ready",
+          });
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setStatusLookup({
+            packageId: id,
+            status: "error",
+            error: String(err),
+          });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [id, refreshPackage]);
+
+  const retryStatusLookup = async () => {
+    if (!id) return;
+    setStatusLookup({ packageId: id, status: "loading" });
+    try {
+      await refreshPackage(id);
+      setStatusLookup({ packageId: id, status: "ready" });
+    } catch (err) {
+      setStatusLookup({
+        packageId: id,
+        status: "error",
+        error: String(err),
+      });
+    }
+  };
 
   if (loadingApp) {
     return (
@@ -141,6 +191,9 @@ function AppDetail() {
                         appName={app.name}
                         installed={installed}
                         statusKnown={statusKnown}
+                        statusLoading={statusLoading}
+                        statusError={statusError}
+                        onRetryStatus={retryStatusLookup}
                         onInstalled={() => refreshPackage(id)}
                         className="h-10 shrink-0 rounded-full bg-primary px-4 text-sm text-white hover:bg-primary/90"
                         size="sm"

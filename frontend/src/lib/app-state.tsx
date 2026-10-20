@@ -10,8 +10,8 @@ import { invoke } from "@tauri-apps/api/core";
 
 export type AppState = {
   name: string;
-  configured: boolean;
-  active: boolean;
+  configured: boolean | null;
+  active: boolean | null;
 };
 
 type AppStateContextValue = {

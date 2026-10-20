@@ -11,6 +11,8 @@ type AppCardProps = {
   category: string;
   tags: string[];
   installed: boolean;
+  statusKnown: boolean;
+  statusLoading: boolean;
   icon?: string;
   iconCandidates?: string[];
   searchQuery?: string;
@@ -24,6 +26,8 @@ function AppCard({
   category,
   tags,
   installed,
+  statusKnown,
+  statusLoading,
   icon,
   iconCandidates,
   searchQuery,
@@ -73,6 +77,8 @@ function AppCard({
           packageId={id}
           appName={name}
           installed={installed}
+          statusKnown={statusKnown}
+          statusLoading={statusLoading}
           onInstalled={() => refreshPackage(id)}
           className="h-9 min-w-20 shrink-0 rounded-full px-3 text-sm"
           size="sm"

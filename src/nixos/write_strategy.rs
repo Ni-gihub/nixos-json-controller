@@ -6,7 +6,6 @@ use super::system::SystemState;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageInstallStrategy {
     AlreadyDeclared { paths: Vec<PathBuf> },
-    AlreadyPresentInSystem,
     ExistingFile { path: PathBuf },
     Ambiguous { candidates: Vec<PathBuf> },
     Unsupported,
@@ -16,7 +15,6 @@ pub enum PackageInstallStrategy {
 pub enum PackageRemoveStrategy {
     Declared { paths: Vec<PathBuf> },
     NotDeclared,
-    SystemOnly,
     Ambiguous { candidates: Vec<PathBuf> },
 }
 
@@ -39,17 +37,13 @@ pub enum ServiceDisableStrategy {
 
 pub fn install_package_strategy(
     config: &ConfigState,
-    system: &SystemState,
+    _system: &SystemState,
     package: &str,
 ) -> PackageInstallStrategy {
     let declared = paths(config.package_declarations(package));
 
     if !declared.is_empty() {
         return PackageInstallStrategy::AlreadyDeclared { paths: declared };
-    }
-
-    if system.has_command(package) {
-        return PackageInstallStrategy::AlreadyPresentInSystem;
     }
 
     match paths(config.package_write_targets()).as_slice() {
@@ -63,17 +57,13 @@ pub fn install_package_strategy(
 
 pub fn remove_package_strategy(
     config: &ConfigState,
-    system: &SystemState,
+    _system: &SystemState,
     package: &str,
 ) -> PackageRemoveStrategy {
     let declared = paths(config.package_declarations(package));
 
     if !declared.is_empty() {
         return PackageRemoveStrategy::Declared { paths: declared };
-    }
-
-    if system.has_command(package) {
-        return PackageRemoveStrategy::SystemOnly;
     }
 
     PackageRemoveStrategy::NotDeclared
@@ -199,7 +189,7 @@ mod tests {
     }
 
     #[test]
-    fn install_distinguishes_system_only_package() {
+    fn install_does_not_treat_a_command_name_as_package_presence() {
         let mut system = system();
         system.binaries.insert(
             "firefox".to_string(),
@@ -208,7 +198,23 @@ mod tests {
 
         assert_eq!(
             install_package_strategy(&config(), &system, "firefox"),
-            PackageInstallStrategy::AlreadyPresentInSystem
+            PackageInstallStrategy::ExistingFile {
+                path: PathBuf::from("packages.nix"),
+            }
+        );
+    }
+
+    #[test]
+    fn remove_does_not_treat_a_command_name_as_package_presence() {
+        let mut system = system();
+        system.binaries.insert(
+            "firefox".to_string(),
+            PathBuf::from("/run/current-system/sw/bin/firefox"),
+        );
+
+        assert_eq!(
+            remove_package_strategy(&config(), &system, "firefox"),
+            PackageRemoveStrategy::NotDeclared
         );
     }
 

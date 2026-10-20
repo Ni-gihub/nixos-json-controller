@@ -96,8 +96,7 @@ pub fn execute_with_change(plan: ExecutionPlan) -> Result<PackageChange, Executo
                     // pre-rebuild installation check.
                     Ok(change)
                 }
-                PackageInstallStrategy::AlreadyDeclared { .. }
-                | PackageInstallStrategy::AlreadyPresentInSystem => Ok(PackageChange::default()),
+                PackageInstallStrategy::AlreadyDeclared { .. } => Ok(PackageChange::default()),
                 PackageInstallStrategy::Ambiguous { .. } | PackageInstallStrategy::Unsupported => {
                     install_package_in_dedicated_module(
                         context.flake_root(),
@@ -166,9 +165,7 @@ pub fn execute_with_change(plan: ExecutionPlan) -> Result<PackageChange, Executo
                             ..PackageChange::default()
                         })
                     }
-                    PackageRemoveStrategy::NotDeclared | PackageRemoveStrategy::SystemOnly => {
-                        Ok(PackageChange::default())
-                    }
+                    PackageRemoveStrategy::NotDeclared => Ok(PackageChange::default()),
                     PackageRemoveStrategy::Ambiguous { candidates } => {
                         Err(ExecutorError::NixosError(format!(
                             "multiple package configuration files found: {}",

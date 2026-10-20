@@ -42,19 +42,34 @@ impl EvaluatedProvenance {
             .any(|definition| value_contains_package(&definition.value, package))
     }
 
-    /// Match an evaluated derivation name (including its version) against store paths.
-    pub fn contains_local_output_name(&self, flake_root: &Path, output_name: &str) -> bool {
+    /// Match any selected package output against local store-path definitions.
+    pub fn contains_local_output_names(&self, flake_root: &Path, output_names: &[String]) -> bool {
         self.definitions.iter().any(|definition| {
-            resolve_definition_file(flake_root, &definition.file)
-                .is_some_and(|_| value_contains_output_name(&definition.value, output_name))
+            resolve_definition_file(flake_root, &definition.file).is_some_and(|_| {
+                output_names
+                    .iter()
+                    .any(|output_name| value_contains_output_name(&definition.value, output_name))
+            })
         })
     }
 
-    /// Match an evaluated derivation name against all evaluated option definitions.
+    /// Match any selected package output against all evaluated option definitions.
+    pub fn contains_output_names(&self, output_names: &[String]) -> bool {
+        self.definitions.iter().any(|definition| {
+            output_names
+                .iter()
+                .any(|output_name| value_contains_output_name(&definition.value, output_name))
+        })
+    }
+
+    /// Match a single evaluated derivation name against local store-path definitions.
+    pub fn contains_local_output_name(&self, flake_root: &Path, output_name: &str) -> bool {
+        self.contains_local_output_names(flake_root, &[output_name.to_string()])
+    }
+
+    /// Match a single evaluated derivation name against all evaluated option definitions.
     pub fn contains_output_name(&self, output_name: &str) -> bool {
-        self.definitions
-            .iter()
-            .any(|definition| value_contains_output_name(&definition.value, output_name))
+        self.contains_output_names(&[output_name.to_string()])
     }
 
     pub fn contains_local_boolean(&self, flake_root: &Path, expected: bool) -> bool {
@@ -149,44 +164,110 @@ fn parse_boolean_option_value(option: &str, output: &[u8]) -> Result<bool, Strin
     })
 }
 
-/// Resolve a package attribute path to the derivation name used by Nix store paths.
-pub fn evaluate_package_output_name(
+/// Resolve all store output names selected for one package in the NixOS system path.
+pub fn evaluate_package_output_names_for_package(
     flake_root: &Path,
     configuration_name: &str,
     package: &str,
-) -> Result<String, String> {
-    let package = normalize_package_attribute_path(package)?;
+) -> Result<Vec<String>, String> {
+    let names =
+        evaluate_package_output_names(flake_root, configuration_name, &[package.to_string()])?;
 
-    let expression = format!(".#nixosConfigurations.{configuration_name}.pkgs.{package}.name");
+    names.into_iter().next().flatten().ok_or_else(|| {
+        format!(
+            "could not resolve package attribute path '{}' to its selected Nix store outputs",
+            package
+        )
+    })
+}
+
+/// Resolve selected store output names for many package attributes in one Nix evaluation.
+///
+/// Missing attributes and non-derivation values return \`None\` for that entry without
+/// failing the lookup of the other packages in the catalog.
+pub fn evaluate_package_output_names(
+    flake_root: &Path,
+    configuration_name: &str,
+    packages: &[String],
+) -> Result<Vec<Option<Vec<String>>>, String> {
+    if packages.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let package_paths: Vec<Vec<String>> = packages
+        .iter()
+        .map(|package| {
+            normalize_package_attribute_path(package)
+                .map(|path| path.split('.').map(str::to_string).collect())
+        })
+        .collect::<Result<_, _>>()?;
+
+    let paths_expression = package_paths
+        .iter()
+        .map(|path| {
+            format!(
+                "[{}]",
+                path.iter()
+                    .map(|segment| format!("\"{}\"", segment))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    let apply_expression = package_output_names_apply_expression(&paths_expression);
+    let expression = format!(".#nixosConfigurations.{}", configuration_name);
+
     let output = Command::new("nix")
-        .args(["eval", "--raw", &expression])
+        .args(["eval", "--json", "--apply", &apply_expression, &expression])
         .current_dir(flake_root)
         .output()
         .map_err(|error| {
-            format!(
-                "failed to execute nix while resolving package '{}': {}",
-                package, error
-            )
+            format!("failed to execute nix while resolving package output names: {error}")
         })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(format!(
-            "could not resolve package attribute path '{}' to a store output name: {}",
-            package,
+            "could not resolve package output names for NixOS configuration '{}': {}",
+            configuration_name,
             stderr.trim()
         ));
     }
 
-    let name = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if name.is_empty() || name.contains('/') {
+    let names: Vec<Option<Vec<String>>> =
+        serde_json::from_slice(&output.stdout).map_err(|error| {
+            format!("failed to parse package output names returned by nix: {error}")
+        })?;
+
+    if names.len() != packages.len() {
         return Err(format!(
-            "Nix returned an invalid output name for package '{}'",
-            package
+            "Nix returned {} package output entries for {} requested packages",
+            names.len(),
+            packages.len()
         ));
     }
 
-    Ok(name)
+    Ok(names
+        .into_iter()
+        .map(|outputs| {
+            outputs.map(|names| {
+                names
+                    .into_iter()
+                    .filter(|name| !name.is_empty() && !name.contains('/'))
+                    .collect()
+            })
+        })
+        .collect())
+}
+
+/// Build the Nix expression shared by single and batch package output resolution.
+fn package_output_names_apply_expression(paths_expression: &str) -> String {
+    format!(
+        "nixos: let lookup = set: path: if path == [] then set else let head = builtins.head path; in if builtins.isAttrs set && builtins.hasAttr head set then lookup (builtins.getAttr head set) (builtins.tail path) else null; resolve = path: let packageResult = builtins.tryEval (lookup nixos.pkgs path); in if !packageResult.success then null else if !(builtins.isAttrs packageResult.value) then null else if !(builtins.hasAttr \"name\" packageResult.value) then null else let package = packageResult.value; name = builtins.tryEval package.name; outputs = builtins.tryEval (package.outputs or [ \"out\" ]); metaResult = builtins.tryEval (package.meta or {{}}); meta = if metaResult.success && builtins.isAttrs metaResult.value then metaResult.value else {{}}; hasMetaOutputs = builtins.isList (meta.outputsToInstall or null); metaOutputs = if hasMetaOutputs then meta.outputsToInstall else []; defaultOutputName = if hasMetaOutputs then null else if outputs.success && builtins.isList outputs.value && outputs.value != [] then builtins.head outputs.value else \"out\"; defaultOutputCandidate = if builtins.isString defaultOutputName && defaultOutputName != \"out\" then [ (name.value + \"-\" + defaultOutputName) ] else []; extraResult = builtins.tryEval (nixos.config.environment.extraOutputsToInstall or []); extraOutputs = if extraResult.success && builtins.isList extraResult.value then extraResult.value else []; selectedOutputs = metaOutputs ++ extraOutputs; in if !name.success || !builtins.isString name.value || name.value == \"\" || !outputs.success || !builtins.isList outputs.value then null else [ name.value ] ++ defaultOutputCandidate ++ builtins.map (output: if output == \"out\" then name.value else name.value + \"-\" + output) (builtins.filter (output: builtins.isString output && builtins.elem output outputs.value) selectedOutputs); in builtins.map resolve [{}]",
+        paths_expression
+    )
 }
 
 /// Remove one optional `pkgs.` prefix and validate the canonical Nixpkgs path.
@@ -208,37 +289,22 @@ pub fn evaluate_package_provenance(
     configuration_name: &str,
     package: &str,
 ) -> Result<EvaluatedProvenance, String> {
-    let output_name = if package.contains('.') {
-        Some(evaluate_package_output_name(
-            flake_root,
-            configuration_name,
-            package,
-        )?)
-    } else {
-        None
-    };
-
-    evaluate_package_provenance_with_output_name(
-        flake_root,
-        configuration_name,
-        package,
-        output_name.as_deref(),
-    )
+    evaluate_package_provenance_with_output_names(flake_root, configuration_name, package, None)
 }
 
-/// Evaluate package provenance using an already-resolved derivation name when available.
-/// This avoids evaluating the same dotted attribute path more than once per operation.
-pub(crate) fn evaluate_package_provenance_with_output_name(
+/// Evaluate package provenance using already-resolved output names when available.
+pub(crate) fn evaluate_package_provenance_with_output_names(
     flake_root: &Path,
     configuration_name: &str,
     package: &str,
-    output_name: Option<&str>,
+    output_names: Option<&[String]>,
 ) -> Result<EvaluatedProvenance, String> {
     let provenance = evaluate_option(flake_root, configuration_name, "environment.systemPackages")?;
-    let found = match output_name {
-        Some(output_name) => provenance.contains_local_output_name(flake_root, output_name),
-        None => provenance.contains_local_package(flake_root, package),
+    let resolved_names = match output_names {
+        Some(output_names) => output_names.to_vec(),
+        None => evaluate_package_output_names_for_package(flake_root, configuration_name, package)?,
     };
+    let found = provenance.contains_local_output_names(flake_root, &resolved_names);
 
     if found {
         Ok(provenance)
@@ -406,6 +472,68 @@ fn string_matches_package(value: &str, package: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn batch_output_lookup_skips_missing_attributes_and_includes_selected_outputs() {
+        // Keep portable CI independent of Nix, while exercising the generated Nix expression
+        // against an isolated attribute set whenever the Nix CLI is available.
+        if Command::new("nix").arg("--version").output().is_err() {
+            return;
+        }
+
+        let apply_expression = package_output_names_apply_expression(
+            "[\"missing\"] [\"multiOutput\"] [\"multiOutput\" \"missing\"] [\"defaultOutput\"]",
+        );
+        let mock_nixos = r#"{
+            pkgs = {
+                multiOutput = {
+                    name = "multi-1.0";
+                    outputs = [ "out" "bin" "man" "dev" ];
+                    meta.outputsToInstall = [ "bin" "man" ];
+                };
+                defaultOutput = {
+                    name = "default-1.0";
+                    outputs = [ "lib" "doc" ];
+                };
+            };
+            config.environment.extraOutputsToInstall = [ "dev" ];
+        }"#;
+        let output = Command::new("nix")
+            .args([
+                "eval",
+                "--json",
+                "--apply",
+                &apply_expression,
+                "--expr",
+                mock_nixos,
+            ])
+            .output()
+            .unwrap();
+
+        assert!(
+            output.status.success(),
+            "Nix evaluation failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let resolved: Vec<Option<Vec<String>>> = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(
+            resolved,
+            vec![
+                None,
+                Some(vec![
+                    "multi-1.0".to_string(),
+                    "multi-1.0-bin".to_string(),
+                    "multi-1.0-man".to_string(),
+                    "multi-1.0-dev".to_string(),
+                ]),
+                None,
+                Some(vec![
+                    "default-1.0".to_string(),
+                    "default-1.0-lib".to_string(),
+                ]),
+            ]
+        );
+    }
 
     #[test]
     fn parses_effective_boolean_option_values() {

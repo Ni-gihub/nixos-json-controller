@@ -20,8 +20,8 @@ pub struct PackageExplanation {
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct PackageState {
     pub name: String,
-    pub configured: bool,
-    pub active: bool,
+    pub configured: Option<bool>,
+    pub active: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,37 +44,13 @@ pub fn package_states(packages: &[String]) -> Result<Vec<PackageState>, String> 
     )?;
     let system = SystemState::discover()?;
 
-    packages
-        .iter()
-        .map(|package| {
-            let (active, configured) = if package.contains('.') {
-                let output_name = super::provenance::evaluate_package_output_name(
-                    context.flake_root(),
-                    context.configuration_name(),
-                    package,
-                )?;
-                (
-                    system.has_package_output(&output_name),
-                    provenance.contains_output_name(&output_name),
-                )
-            } else {
-                (
-                    system.has_package_reference(
-                        context.flake_root(),
-                        context.configuration_name(),
-                        package,
-                    )?,
-                    provenance.contains_package(package),
-                )
-            };
+    let output_names = super::provenance::evaluate_package_output_names(
+        context.flake_root(),
+        context.configuration_name(),
+        packages,
+    )?;
 
-            Ok(PackageState {
-                name: package.clone(),
-                configured,
-                active,
-            })
-        })
-        .collect()
+    package_states_from_output_names(packages, output_names, &provenance, &system)
 }
 
 pub fn package_state(package: &str) -> Result<PackageState, String> {
@@ -84,28 +60,55 @@ pub fn package_state(package: &str) -> Result<PackageState, String> {
         .ok_or_else(|| "package state was not returned".to_string())
 }
 
+fn package_states_from_output_names(
+    packages: &[String],
+    output_names: Vec<Option<Vec<String>>>,
+    provenance: &super::provenance::EvaluatedProvenance,
+    system: &SystemState,
+) -> Result<Vec<PackageState>, String> {
+    if packages.len() != output_names.len() {
+        return Err(format!(
+            "received {} package names but {} output-name results",
+            packages.len(),
+            output_names.len()
+        ));
+    }
+
+    Ok(packages
+        .iter()
+        .zip(output_names)
+        .map(|(package, output_names)| match output_names {
+            Some(output_names) => PackageState {
+                name: package.clone(),
+                configured: Some(provenance.contains_output_names(&output_names)),
+                active: Some(system.has_any_package_output(&output_names)),
+            },
+            None => PackageState {
+                name: package.clone(),
+                configured: None,
+                active: None,
+            },
+        })
+        .collect())
+}
+
 pub fn explain_package(
     context: &DiscoveryContext,
     system: &SystemState,
     package: &str,
 ) -> Result<PackageExplanation, String> {
-    // Unlike the normal executor fast path, explain intentionally performs
-    // provenance evaluation even when the package is already installed.
-    // Resolve a dotted path only once and reuse the output name for both checks.
-    let output_name = if package.contains('.') {
-        Some(super::provenance::evaluate_package_output_name(
-            context.flake_root(),
-            context.configuration_name(),
-            package,
-        )?)
-    } else {
-        None
-    };
-    let provenance = super::provenance::evaluate_package_provenance_with_output_name(
+    // Resolve the package exactly once and use its full derivation name for
+    // both active-system and provenance checks.
+    let output_names = super::provenance::evaluate_package_output_names_for_package(
         context.flake_root(),
         context.configuration_name(),
         package,
-        output_name.as_deref(),
+    )?;
+    let provenance = super::provenance::evaluate_package_provenance_with_output_names(
+        context.flake_root(),
+        context.configuration_name(),
+        package,
+        Some(&output_names),
     )?;
 
     let declaration_locations = provenance.local_files(context.flake_root());
@@ -125,14 +128,7 @@ pub fn explain_package(
 
     Ok(PackageExplanation {
         name: package.to_string(),
-        system_present: match output_name.as_deref() {
-            Some(output_name) => system.has_package_output(output_name),
-            None => system.has_package_reference(
-                context.flake_root(),
-                context.configuration_name(),
-                package,
-            )?,
-        },
+        system_present: system.has_any_package_output(&output_names),
         declared_in_config: !declaration_locations.is_empty(),
         declaration_locations,
         safe_declaration_locations,
@@ -177,6 +173,35 @@ pub fn explain_service(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::{BTreeMap, BTreeSet};
+
+    #[test]
+    fn unresolved_package_does_not_hide_other_batch_states() {
+        let system = SystemState {
+            current_generation: PathBuf::from("/nix/store/test-system"),
+            binaries: BTreeMap::new(),
+            packages: BTreeSet::from(["valid-1.0".to_string()]),
+            enabled_services: BTreeSet::new(),
+        };
+        let provenance = super::super::provenance::EvaluatedProvenance::default();
+        let states = package_states_from_output_names(
+            &["valid".to_string(), "missing".to_string()],
+            vec![Some(vec!["valid-1.0".to_string()]), None],
+            &provenance,
+            &system,
+        )
+        .unwrap();
+
+        assert_eq!(states.len(), 2);
+        assert_eq!(states[0].active, Some(true));
+        assert_eq!(states[0].configured, Some(false));
+        assert_eq!(states[1].active, None);
+        assert_eq!(states[1].configured, None);
+
+        let unresolved_json = serde_json::to_value(&states[1]).unwrap();
+        assert!(unresolved_json["active"].is_null());
+        assert!(unresolved_json["configured"].is_null());
+    }
 
     #[test]
     fn package_explanation_tracks_system_and_config_state() {

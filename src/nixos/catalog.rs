@@ -67,7 +67,7 @@ struct CatalogCacheEnvelope {
     packages: Vec<CatalogPackage>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct CatalogIndex {
     source: CatalogSourceIdentity,
     system: String,
@@ -569,6 +569,14 @@ fn atomic_write_catalog(path: &Path, envelope: &CatalogCacheEnvelope) -> Result<
         file.sync_all()
             .map_err(|error| format!("unable to sync catalog cache: {error}"))?;
         drop(file);
+        let temporary_size = fs::metadata(&temporary_path)
+            .map_err(|error| format!("unable to inspect temporary catalog cache: {error}"))?
+            .len();
+        if temporary_size > MAX_CATALOG_CACHE_BYTES {
+            return Err(format!(
+                "catalog cache is too large to persist safely ({temporary_size} bytes)"
+            ));
+        }
         fs::rename(&temporary_path, path)
             .map_err(|error| format!("unable to atomically replace catalog cache: {error}"))?;
         if let Ok(directory) = OpenOptions::new().read(true).open(parent) {
@@ -1083,6 +1091,106 @@ mod tests {
 
         assert!(!page.has_more);
         assert!(page.results_limited);
+    }
+
+    #[test]
+    fn local_search_matches_case_insensitive_terms_and_ranks_exact_name_first() {
+        let packages = [
+            CatalogPackage {
+                id: "firefox".to_string(),
+                name: "Firefox".to_string(),
+                description: "Web browser".to_string(),
+                version: "1".to_string(),
+                category: "ブラウザ".to_string(),
+                tags: vec![],
+                homepage: None,
+                icon: None,
+                icon_candidates: vec![],
+            },
+            CatalogPackage {
+                id: "firefox-esr".to_string(),
+                name: "Firefox ESR".to_string(),
+                description: "Extended support browser".to_string(),
+                version: "1".to_string(),
+                category: "ブラウザ".to_string(),
+                tags: vec![],
+                homepage: None,
+                icon: None,
+                icon_candidates: vec![],
+            },
+            CatalogPackage {
+                id: "chromium".to_string(),
+                name: "Chromium".to_string(),
+                description: "Firefox compatibility tests".to_string(),
+                version: "1".to_string(),
+                category: "ブラウザ".to_string(),
+                tags: vec![],
+                homepage: None,
+                icon: None,
+                icon_candidates: vec![],
+            },
+        ];
+        let index = CatalogIndex {
+            source: CatalogSourceIdentity {
+                source: "nixpkgs".to_string(),
+                revision: Some("test-revision".to_string()),
+                nar_hash: "test-hash".to_string(),
+                resolved_url: "nixpkgs".to_string(),
+            },
+            system: "x86_64-linux".to_string(),
+            generated_at: 0,
+            packages: packages
+                .into_iter()
+                .map(|package| (package.id.clone(), package))
+                .collect(),
+            cache_bytes: 0,
+        };
+
+        let ranked = rank_local_matches(&index, "FIREFOX");
+        assert_eq!(ranked.len(), 3);
+        assert_eq!(ranked[0].1.id, "firefox");
+        assert!(ranked.iter().any(|(_, package)| package.id == "firefox-esr"));
+
+        let multiple_terms = rank_local_matches(&index, "browser chromium");
+        assert!(multiple_terms.iter().any(|(_, package)| package.id == "chromium"));
+        assert!(multiple_terms.iter().any(|(_, package)| package.id == "firefox"));
+    }
+
+    #[test]
+    fn cache_envelope_rejects_a_different_source_or_unsafe_id() {
+        let source = CatalogSourceIdentity {
+            source: "nixpkgs".to_string(),
+            revision: Some("rev-a".to_string()),
+            nar_hash: "hash-a".to_string(),
+            resolved_url: "nixpkgs".to_string(),
+        };
+        let package = CatalogPackage {
+            id: "firefox".to_string(),
+            name: "Firefox".to_string(),
+            description: "Web browser".to_string(),
+            version: "1".to_string(),
+            category: "ブラウザ".to_string(),
+            tags: vec![],
+            homepage: None,
+            icon: None,
+            icon_candidates: vec![],
+        };
+        let envelope = CatalogCacheEnvelope {
+            schema_version: CATALOG_SCHEMA_VERSION,
+            source: source.clone(),
+            system: "x86_64-linux".to_string(),
+            generated_at: 1,
+            packages: vec![package.clone()],
+        };
+        let bytes = serde_json::to_vec(&envelope).unwrap();
+        let parsed: CatalogCacheEnvelope = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(parsed.source, source);
+        assert_eq!(parsed.packages[0].id, "firefox");
+
+        let mut invalid = envelope;
+        invalid.packages[0].id = "firefox; builtins.abort".to_string();
+        assert!(!is_safe_attribute_path(&invalid.packages[0].id));
+        assert!(package.id == "firefox");
     }
 
     #[test]

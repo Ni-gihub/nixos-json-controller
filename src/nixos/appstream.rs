@@ -1514,4 +1514,5 @@ mod tests {
         assert!(read_persisted_icon_cache(&root, &key).is_none());
 
         let _ = fs::remove_dir_all(root);
-    }}
+    }
+}

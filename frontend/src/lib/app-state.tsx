@@ -14,6 +14,7 @@ import {
 } from "./install-request-lock";
 import {
   PackageStateRevision,
+  PendingRequestCounter,
   withUnknownPackageState,
   withVerifiedActivePackageState,
   type PackageState,
@@ -60,6 +61,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     packageStateRevisionRef.current = new PackageStateRevision();
   }
   const packageStateRevision = packageStateRevisionRef.current;
+  const pendingStateRequestsRef = useRef<PendingRequestCounter | null>(null);
+  if (pendingStateRequestsRef.current === null) {
+    pendingStateRequestsRef.current = new PendingRequestCounter();
+  }
+  const pendingStateRequests = pendingStateRequestsRef.current;
 
   const beginInstallRequest = useCallback(
     (packageName: string, phase: InstallRequestPhase) => {
@@ -117,13 +123,16 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     async (packageNames: string[]) => {
       if (packageNames.length === 0) return;
 
-      // Capture each package's revision before issuing the request. Any package
-      // installed while this request is pending advances its revision and makes
-      // that part of the older response stale.
+      // Each request gets a new revision per package. Only the newest request
+      // for a given ID may update that ID; unrelated IDs in the same batch remain valid.
       const requestRevisions = new Map(
-        packageNames.map((name) => [name, packageStateRevision.current(name)]),
+        packageNames.map((name) => [name, packageStateRevision.advance(name)]),
       );
 
+      const requestStartedAt = performance.now();
+      const shouldLogPerf =
+        import.meta.env.DEV && import.meta.env.VITE_PERF_DEBUG === "1";
+      pendingStateRequests.begin();
       setLoading(true);
       setError(null);
       try {
@@ -146,16 +155,22 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       } catch (err) {
         setError(String(err));
       } finally {
-        setLoading(false);
+        setLoading(pendingStateRequests.finish());
+        if (shouldLogPerf) {
+          console.info("[nxc-perf] package_state_refresh", {
+            elapsed_ms: Math.round(performance.now() - requestStartedAt),
+            package_count: packageNames.length,
+          });
+        }
       }
     },
-    [packageStateRevision],
+    [packageStateRevision, pendingStateRequests],
   );
 
   const refreshPackage = useCallback(
     async (packageName: string) => {
       setError(null);
-      const revision = packageStateRevision.current(packageName);
+      const revision = packageStateRevision.advance(packageName);
       const state = await invoke<AppState>("get_app_state", {
         package: packageName,
       });

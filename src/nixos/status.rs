@@ -1,10 +1,11 @@
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 
 use super::{
     config::ConfigState, discovery::DiscoveryContext, provenance::evaluate_service_provenance,
-    system::SystemState,
+    system::{PackageSystemSnapshot, SystemState},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,22 +36,54 @@ pub struct ServiceExplanation {
     pub unsafe_declaration_locations: Vec<PathBuf>,
 }
 
+fn log_perf_duration(stage: &str, elapsed: Duration) {
+    if matches!(std::env::var("NXC_PERF_DEBUG").as_deref(), Ok("1")) {
+        eprintln!("[nxc-perf] {stage} elapsed_ms={}", elapsed.as_millis());
+    }
+}
+
 pub fn package_states(packages: &[String]) -> Result<Vec<PackageState>, String> {
+    let total_started = Instant::now();
+
+    let stage_started = Instant::now();
     let context = DiscoveryContext::load()?;
+    log_perf_duration("package_states.discovery_context", stage_started.elapsed());
+
+    let stage_started = Instant::now();
     let provenance = super::provenance::evaluate_option(
         context.flake_root(),
         context.configuration_name(),
         "environment.systemPackages",
     )?;
-    let system = SystemState::discover()?;
+    log_perf_duration(
+        "package_states.environment_system_packages_eval",
+        stage_started.elapsed(),
+    );
 
+    // Package status does not need binary discovery or systemd service enumeration.
+    // This snapshot also reuses nix-store results while the active generation is unchanged.
+    let stage_started = Instant::now();
+    let system = PackageSystemSnapshot::discover()?;
+    log_perf_duration(
+        "package_states.active_system_snapshot",
+        stage_started.elapsed(),
+    );
+
+    let stage_started = Instant::now();
     let output_names = super::provenance::evaluate_package_output_names(
         context.flake_root(),
         context.configuration_name(),
         packages,
     )?;
+    log_perf_duration(
+        "package_states.package_output_names_eval",
+        stage_started.elapsed(),
+    );
 
-    package_states_from_output_names(packages, output_names, &provenance, &system)
+    let states =
+        package_states_from_output_names(packages, output_names, &provenance, &system)?;
+    log_perf_duration("package_states.total", total_started.elapsed());
+    states
 }
 
 pub fn package_state(package: &str) -> Result<PackageState, String> {
@@ -64,7 +97,7 @@ fn package_states_from_output_names(
     packages: &[String],
     output_names: Vec<Option<Vec<String>>>,
     provenance: &super::provenance::EvaluatedProvenance,
-    system: &SystemState,
+    system: &PackageSystemSnapshot,
 ) -> Result<Vec<PackageState>, String> {
     if packages.len() != output_names.len() {
         return Err(format!(
@@ -173,15 +206,12 @@ pub fn explain_service(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::{BTreeMap, BTreeSet};
+    use std::collections::BTreeSet;
 
     #[test]
     fn unresolved_package_does_not_hide_other_batch_states() {
-        let system = SystemState {
-            current_generation: PathBuf::from("/nix/store/test-system"),
-            binaries: BTreeMap::new(),
+        let system = PackageSystemSnapshot {
             packages: BTreeSet::from(["valid-1.0".to_string()]),
-            enabled_services: BTreeSet::new(),
         };
         let provenance = super::super::provenance::EvaluatedProvenance::default();
         let states = package_states_from_output_names(

@@ -262,7 +262,15 @@ fn prepare_catalog_internal(force_refresh: bool) -> Result<CatalogPreparationSta
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         runtime.preparing = true;
-        runtime.index.clone()
+        let previous_index = if force_refresh {
+            None
+        } else {
+            runtime.index.clone()
+        };
+        // Hide the old index while source validation runs. A matching Arc is returned
+        // from preparation, while a mismatch releases stale memory before a rebuild.
+        runtime.index = None;
+        previous_index
     };
 
     let prepared = prepare_catalog_inner(force_refresh, previous_index);

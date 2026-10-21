@@ -759,7 +759,9 @@ function Discover() {
                         <p className="mt-1 break-words text-xs text-muted-foreground">
                           {catalogStatus.action === "generated"
                             ? "カタログを生成"
-                            : "検証済みキャッシュを再利用"}{" "}
+                            : catalogStatus.action === "reused-memory"
+                              ? "メモリ上のカタログを再利用"
+                              : "検証済みキャッシュを再利用"}{" "}
                           ·{" " + catalogStatus.system + " · "}
                           {catalogStatus.sourceRevision
                             ? "rev " +
@@ -769,7 +771,9 @@ function Discover() {
                           {"照合 " + catalogStatus.sourceCheckMs + " ms · "}
                           {catalogStatus.action === "generated"
                             ? "生成 " + catalogStatus.generationMs + " ms"
-                            : "読込 " + catalogStatus.cacheLoadMs + " ms"}
+                            : catalogStatus.action === "reused-memory"
+                              ? "メモリ再利用"
+                              : "読込 " + catalogStatus.cacheLoadMs + " ms"}
                           {" · " +
                             (catalogStatus.cacheBytes / (1024 * 1024)).toFixed(
                               1,

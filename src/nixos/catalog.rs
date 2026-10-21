@@ -1873,11 +1873,10 @@ mod tests {
             .collect::<Vec<_>>();
         let mut calls = 0;
 
-        let (selected, next_offset) =
-            select_installable_candidates(&ranked, 0, 1, |_batch| {
-                calls += 1;
-                Vec::new()
-            });
+        let (selected, next_offset) = select_installable_candidates(&ranked, 0, 1, |_batch| {
+            calls += 1;
+            Vec::new()
+        });
 
         assert!(selected.is_empty());
         assert_eq!(calls, MAX_FILTER_BATCHES_PER_PAGE);

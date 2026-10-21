@@ -1453,7 +1453,7 @@ mod tests {
         fs::create_dir_all(icon_path.parent().unwrap()).unwrap();
         fs::write(
             &icon_path,
-            "<svg xmlns=\\"http://www.w3.org/2000/svg\\"><circle cx=\\"1\\" cy=\\"1\\" r=\\"1\\"/></svg>",
+            "<svg xmlns=\"http://www.w3.org/2000/svg\"><circle cx=\"1\" cy=\"1\" r=\"1\"/></svg>",
         )
         .unwrap();
 

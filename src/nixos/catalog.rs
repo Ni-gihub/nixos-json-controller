@@ -282,7 +282,8 @@ fn prepare_catalog_internal(
         runtime.last_error = None;
     }
 
-    let prepared = prepare_catalog_inner(force_refresh);
+    let prepared =
+        prepare_catalog_inner(force_refresh).map(|(index, status)| (Arc::new(index), status));
 
     {
         let (runtime_lock, ready) = catalog_runtime();
@@ -291,7 +292,7 @@ fn prepare_catalog_internal(
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         match &prepared {
             Ok((index, status)) => {
-                runtime.index = Some(Arc::new(index.clone()));
+                runtime.index = Some(Arc::clone(index));
                 runtime.last_status = Some(status.clone());
                 runtime.last_error = None;
             }
@@ -316,15 +317,12 @@ fn prepare_catalog_internal(
 }
 
 fn catalog_index_for_lookup() -> Option<Arc<CatalogIndex>> {
-    let _ = prepare_catalog_internal(false, true);
-    let (runtime_lock, ready) = catalog_runtime();
-    let mut runtime = runtime_lock
+    let (runtime_lock, _) = catalog_runtime();
+    let runtime = runtime_lock
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
-    while runtime.preparing {
-        runtime = ready
-            .wait(runtime)
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if runtime.preparing {
+        return None;
     }
     runtime.index.clone()
 }
@@ -498,6 +496,7 @@ fn catalog_cache_path() -> Result<PathBuf, String> {
         .or_else(|| {
             env::var_os("HOME")
                 .map(PathBuf::from)
+                .filter(|home| home.is_absolute())
                 .map(|home| home.join(".cache"))
         })
         .ok_or_else(|| {
@@ -666,12 +665,11 @@ pub fn find(id: &str) -> Result<Option<CatalogPackage>, String> {
     }
 
     if let Some(index) = catalog_index_for_lookup() {
-        return Ok(index.packages.get(id).cloned().map(|package| {
+        return Ok(index.packages.get(id).cloned().and_then(|package| {
             attach_icon_candidates(vec![(0, package)])
                 .into_iter()
                 .next()
-                .expect("one package was supplied")
-                .1
+                .map(|(_, package)| package)
         }));
     }
 
@@ -1506,6 +1504,12 @@ mod tests {
                     .map(|package| package.id.clone())
                     .collect::<Vec<_>>(),
                 "cached local search must preserve its first result page"
+            );
+
+            assert_eq!(
+                local_ids.as_slice(),
+                legacy_ids.as_slice(),
+                "local search first page must match legacy nix search for query {query:?}"
             );
 
             println!(

@@ -957,7 +957,9 @@ function Discover() {
                         {searchError}
                       </p>
                     </div>
-                  ) : results.length === 0 && !searching ? (
+                  ) : results.length === 0 &&
+                    !searching &&
+                    !hasMoreResults ? (
                     <div className="w-full rounded-xl border border-dashed border-border bg-card p-8 text-center">
                       <p className="font-medium">
                         該当するパッケージが見つかりませんでした。
@@ -968,14 +970,23 @@ function Discover() {
                     </div>
                   ) : (
                     <div className="max-w-5xl space-y-2">
-                      <VirtualizedAppList
-                        key={`${submittedQuery}:${searching ? "loading" : "ready"}`}
-                        apps={results}
-                        states={states}
-                        loading={loading}
-                        searchQuery={submittedQuery}
-                        onVisiblePackages={requestVisiblePackageStates}
-                      />
+                      {results.length > 0 ? (
+                        <VirtualizedAppList
+                          key={`${submittedQuery}:${searching ? "loading" : "ready"}`}
+                          apps={results}
+                          states={states}
+                          loading={loading}
+                          searchQuery={submittedQuery}
+                          onVisiblePackages={requestVisiblePackageStates}
+                        />
+                      ) : (
+                        <p
+                          className="py-4 text-center text-sm text-muted-foreground"
+                          role="status"
+                        >
+                          表示できる候補を確認しています...
+                        </p>
+                      )}
                       <div
                         ref={loadMoreSentinelRef}
                         className="h-px"

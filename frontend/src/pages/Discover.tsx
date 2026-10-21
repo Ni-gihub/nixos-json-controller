@@ -48,6 +48,7 @@ import {
 } from "@/catalog/recommendation-fallback";
 import { useAppState } from "@/lib/app-state";
 import {
+  advanceEmptyPageAutoLoadState,
   classifySearchUrlTransition,
   isCurrentSearchRequest,
 } from "./discover-search-state";
@@ -144,6 +145,7 @@ function Discover() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [nextOffset, setNextOffset] = useState(0);
   const [hasMoreResults, setHasMoreResults] = useState(false);
+  const [autoLoadPaused, setAutoLoadPaused] = useState(false);
   const [resultsLimited, setResultsLimited] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
@@ -158,6 +160,7 @@ function Discover() {
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
   const loadingMoreRef = useRef(false);
   const loadingMoreRequestIdRef = useRef<number | null>(null);
+  const consecutiveEmptyPagesRef = useRef(0);
   const requestedStateIdsRef = useRef(new Set<string>());
   const pendingStateIdsRef = useRef(new Set<string>());
   const stateRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -187,6 +190,8 @@ function Discover() {
       setResults([]);
       setNextOffset(0);
       setHasMoreResults(false);
+      setAutoLoadPaused(false);
+      consecutiveEmptyPagesRef.current = 0;
       setResultsLimited(false);
       setLoadingMore(false);
       setLoadMoreError(null);
@@ -210,6 +215,8 @@ function Discover() {
           }
           setNextOffset(page.nextOffset);
           setHasMoreResults(page.hasMore);
+          setAutoLoadPaused(false);
+          consecutiveEmptyPagesRef.current = 0;
           setResultsLimited(page.resultsLimited);
         })
         .catch((err: unknown) => {
@@ -334,6 +341,13 @@ function Discover() {
           });
           setNextOffset(page.nextOffset);
           setHasMoreResults(page.hasMore);
+          const autoLoadState = advanceEmptyPageAutoLoadState(
+            consecutiveEmptyPagesRef.current,
+            page.results.length,
+          );
+          consecutiveEmptyPagesRef.current =
+            autoLoadState.consecutiveEmptyPages;
+          setAutoLoadPaused(autoLoadState.paused);
           setResultsLimited(page.resultsLimited);
         })
         .catch((err: unknown) => {
@@ -378,6 +392,7 @@ function Discover() {
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [
+    autoLoadPaused,
     hasMoreResults,
     loadMoreError,
     loadMoreResults,
@@ -992,6 +1007,26 @@ function Discover() {
                         className="h-px"
                         aria-hidden="true"
                       />
+                      {autoLoadPaused && hasMoreResults && (
+                        <div className="flex flex-col items-center gap-2 py-4 text-center">
+                          <p className="text-sm text-muted-foreground">
+                            候補の確認が続いているため、自動読み込みを一時停止しました。
+                          </p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={loadingMore || searching}
+                            onClick={() => {
+                              consecutiveEmptyPagesRef.current = 0;
+                              setAutoLoadPaused(false);
+                              loadMoreResults();
+                            }}
+                          >
+                            さらに候補を確認
+                          </Button>
+                        </div>
+                      )}
                       {loadingMore && (
                         <p
                           className="py-4 text-center text-sm text-muted-foreground"

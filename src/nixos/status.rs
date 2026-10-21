@@ -43,6 +43,10 @@ fn log_perf_duration(stage: &str, elapsed: Duration) {
 }
 
 pub fn package_states(packages: &[String]) -> Result<Vec<PackageState>, String> {
+    if packages.is_empty() {
+        return Ok(Vec::new());
+    }
+
     let total_started = Instant::now();
 
     let stage_started = Instant::now();

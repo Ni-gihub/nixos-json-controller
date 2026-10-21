@@ -186,10 +186,16 @@ function AppIcon({
         });
     };
 
-    window.addEventListener("nxc:package-installed", handlePackageInstalled);
+    window.addEventListener(
+      "nxc:package-installed",
+      handlePackageInstalled,
+    );
     return () => {
       cancelled = true;
-      window.removeEventListener("nxc:package-installed", handlePackageInstalled);
+      window.removeEventListener(
+        "nxc:package-installed",
+        handlePackageInstalled,
+      );
     };
   }, [packageId]);
 

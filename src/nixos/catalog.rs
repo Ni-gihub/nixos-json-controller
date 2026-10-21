@@ -13,6 +13,8 @@ use super::{appstream, flake, provenance};
 
 const MAX_RESULTS: usize = 40;
 const MAX_PAGE_SIZE: usize = 40;
+// Bound synchronous Nix evaluations per page so a sparse result set cannot stall one request.
+const MAX_FILTER_BATCHES_PER_PAGE: usize = 3;
 const MAX_CACHED_RESULTS: usize = 5_000;
 const MAX_CACHED_QUERIES: usize = 4;
 const CATALOG_SCHEMA_VERSION: u32 = 1;
@@ -299,12 +301,17 @@ where
 {
     let mut cursor = offset.min(ranked.len());
     let mut selected = Vec::with_capacity(limit);
+    let mut batches_processed = 0;
 
-    while cursor < ranked.len() && selected.len() < limit {
+    while cursor < ranked.len()
+        && selected.len() < limit
+        && batches_processed < MAX_FILTER_BATCHES_PER_PAGE
+    {
         let remaining = limit - selected.len();
         let end = cursor.saturating_add(remaining).min(ranked.len());
         let batch = ranked[cursor..end].to_vec();
         cursor = end;
+        batches_processed += 1;
         selected.extend(filter(batch));
     }
 

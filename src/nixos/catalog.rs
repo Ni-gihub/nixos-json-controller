@@ -9,7 +9,7 @@ use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-use super::appstream;
+use super::{appstream, flake, provenance};
 
 const MAX_RESULTS: usize = 40;
 const MAX_PAGE_SIZE: usize = 40;
@@ -221,6 +221,51 @@ pub fn search_page(query: &str, offset: usize, limit: usize) -> Result<CatalogSe
     ))
 }
 
+/// Filter visible candidates against the package set of the selected NixOS configuration.
+/// A single batched Nix evaluation avoids launching one process per search result. If the
+/// selected configuration cannot be evaluated, preserve the catalog results rather than
+/// incorrectly hiding every package during a transient Nix/discovery failure.
+fn filter_installable_results(results: RankedCatalogResults) -> RankedCatalogResults {
+    if results.is_empty() {
+        return results;
+    }
+
+    let (Ok(flake_root), Ok(configuration_name)) =
+        (flake::repository_path(), flake::configuration_name())
+    else {
+        return results;
+    };
+
+    let ids = results
+        .iter()
+        .map(|(_, package)| package.id.clone())
+        .collect::<Vec<_>>();
+    match provenance::evaluate_package_output_names(&flake_root, &configuration_name, &ids) {
+        Ok(output_names) if output_names.len() == results.len() => {
+            retain_resolved_packages(results, output_names)
+        }
+        // A failed batch evaluation is not proof that individual packages are unavailable.
+        // Keep the results visible and let the existing install path report its actual error.
+        _ => results,
+    }
+}
+
+/// Keep only attributes that resolve to at least one selected NixOS package output.
+fn retain_resolved_packages(
+    results: RankedCatalogResults,
+    output_names: Vec<Option<Vec<String>>>,
+) -> RankedCatalogResults {
+    results
+        .into_iter()
+        .zip(output_names)
+        .filter_map(|(result, outputs)| {
+            outputs
+                .filter(|names| !names.is_empty())
+                .map(|_| result)
+        })
+        .collect()
+}
+
 /// Select one bounded page and resolve icons only for packages in that page.
 fn paginate_ranked_results(
     ranked: &[(u32, CatalogPackage)],
@@ -232,6 +277,7 @@ fn paginate_ranked_results(
     let start = offset.min(ranked.len());
     let end = start.saturating_add(limit).min(ranked.len());
     let selected = ranked[start..end].to_vec();
+    let selected = filter_installable_results(selected);
     let results = attach_icon_candidates(selected)
         .into_iter()
         .map(|(_, package)| package)
@@ -1718,6 +1764,35 @@ mod tests {
         let description = relevance_score("rust", "foo", "foo", "Rust development tool");
 
         assert!(exact > description);
+    }
+
+    #[test]
+    fn installability_filter_keeps_only_packages_resolved_by_selected_configuration() {
+        let package = |id: &str| CatalogPackage {
+            id: id.to_string(),
+            name: id.to_string(),
+            description: String::new(),
+            version: "1".to_string(),
+            category: "その他".to_string(),
+            tags: Vec::new(),
+            homepage: None,
+            icon: None,
+            icon_candidates: Vec::new(),
+        };
+        let results = vec![
+            (100, package("firefox")),
+            (90, package("firefox-beta")),
+            (80, package("chromium")),
+        ];
+
+        let filtered = retain_resolved_packages(
+            results,
+            vec![Some(vec!["firefox-1".to_string()]), None, Some(vec![])],
+        );
+
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].0, 100);
+        assert_eq!(filtered[0].1.id, "firefox");
     }
 
     #[test]

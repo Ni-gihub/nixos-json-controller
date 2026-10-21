@@ -218,9 +218,13 @@ function Discover() {
           }
           setNextOffset(page.nextOffset);
           setHasMoreResults(page.hasMore);
-          const autoLoadState = advanceEmptyPageAutoLoadState(0, page.results.length);
+          const autoLoadState = advanceEmptyPageAutoLoadState(
+            0,
+            page.results.length,
+          );
           setAutoLoadPaused(autoLoadState.paused);
-          consecutiveEmptyPagesRef.current = autoLoadState.consecutiveEmptyPages;
+          consecutiveEmptyPagesRef.current =
+            autoLoadState.consecutiveEmptyPages;
           setResultsLimited(page.resultsLimited);
         })
         .catch((err: unknown) => {

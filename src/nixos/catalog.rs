@@ -1,11 +1,15 @@
 use serde::Serialize;
 use serde_json::Value;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::process::Command;
+use std::sync::{Arc, Mutex, OnceLock};
 
 use super::appstream;
 
 const MAX_RESULTS: usize = 40;
+const MAX_PAGE_SIZE: usize = 40;
+const MAX_CACHED_RESULTS: usize = 5_000;
+const MAX_CACHED_QUERIES: usize = 4;
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct CatalogPackage {
@@ -21,15 +25,133 @@ pub struct CatalogPackage {
     pub icon_candidates: Vec<String>,
 }
 
-/// Search the catalog and return at most `MAX_RESULTS` ranked matches.
-pub fn search(query: &str) -> Result<Vec<CatalogPackage>, String> {
-    let query = query.trim();
-    if query.is_empty() {
-        return Ok(Vec::new());
+/// One slice of a stable, ranked catalog search result set.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogSearchPage {
+    pub results: Vec<CatalogPackage>,
+    pub next_offset: usize,
+    pub has_more: bool,
+    pub results_limited: bool,
+}
+
+type RankedCatalogResults = Vec<(u32, CatalogPackage)>;
+
+#[derive(Debug, Default)]
+struct CachedSearchResults {
+    ranked: RankedCatalogResults,
+    truncated: bool,
+}
+
+#[derive(Default)]
+struct SearchCache {
+    entries: HashMap<String, Arc<CachedSearchResults>>,
+    recency: VecDeque<String>,
+}
+
+impl SearchCache {
+    /// Return cached ranked results and mark the query as recently used.
+    fn get(&mut self, query: &str) -> Option<Arc<CachedSearchResults>> {
+        let results = self.entries.get(query)?.clone();
+        self.recency.retain(|key| key != query);
+        self.recency.push_back(query.to_string());
+        Some(results)
     }
 
-    let output = run_nix_search(query)?;
-    parse_results(&output, query, Some(MAX_RESULTS))
+    /// Store a query result and evict least-recently-used entries over the cap.
+    fn insert(&mut self, query: String, results: Arc<CachedSearchResults>) {
+        self.entries.remove(&query);
+        self.recency.retain(|key| key != &query);
+
+        while self.entries.len() >= MAX_CACHED_QUERIES {
+            let Some(oldest) = self.recency.pop_front() else {
+                break;
+            };
+            self.entries.remove(&oldest);
+        }
+
+        self.recency.push_back(query.clone());
+        self.entries.insert(query, results);
+    }
+}
+
+fn search_cache() -> &'static Mutex<SearchCache> {
+    static CACHE: OnceLock<Mutex<SearchCache>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(SearchCache::default()))
+}
+
+/// Search the catalog and return the first page of ranked matches.
+pub fn search(query: &str) -> Result<Vec<CatalogPackage>, String> {
+    Ok(search_page(query, 0, MAX_RESULTS)?.results)
+}
+
+/// Search a ranked result set by offset while reusing a bounded, process-local cache.
+///
+/// Nix search and ranking happen only on a cache miss. Icon candidates are resolved
+/// only for the selected page to keep each scroll-triggered request lightweight.
+pub fn search_page(query: &str, offset: usize, limit: usize) -> Result<CatalogSearchPage, String> {
+    let query = query.trim();
+    if query.is_empty() {
+        return Ok(CatalogSearchPage {
+            results: Vec::new(),
+            next_offset: 0,
+            has_more: false,
+            results_limited: false,
+        });
+    }
+
+    let cache_key = query.to_lowercase();
+    let cached = search_cache()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .get(&cache_key);
+
+    let cached_results = if let Some(results) = cached {
+        results
+    } else {
+        let output = run_nix_search(query)?;
+        let mut ranked = parse_unlimited_results(&output, query)?;
+        // Cap per-query memory use even when a broad search matches a very large catalog.
+        let truncated = ranked.len() > MAX_CACHED_RESULTS;
+        ranked.truncate(MAX_CACHED_RESULTS);
+        let results = Arc::new(CachedSearchResults { ranked, truncated });
+        search_cache()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .insert(cache_key, results.clone());
+        results
+    };
+
+    Ok(paginate_ranked_results(
+        &cached_results.ranked,
+        offset,
+        limit,
+        cached_results.truncated,
+    ))
+}
+
+/// Select one bounded page and resolve icons only for packages in that page.
+fn paginate_ranked_results(
+    ranked: &[(u32, CatalogPackage)],
+    offset: usize,
+    limit: usize,
+    results_limited: bool,
+) -> CatalogSearchPage {
+    let limit = limit.clamp(1, MAX_PAGE_SIZE);
+    let start = offset.min(ranked.len());
+    let end = start.saturating_add(limit).min(ranked.len());
+    let selected = ranked[start..end].to_vec();
+    let results = attach_icon_candidates(selected)
+        .into_iter()
+        .map(|(_, package)| package)
+        .collect();
+
+    CatalogSearchPage {
+        results,
+        next_offset: end,
+        has_more: end < ranked.len(),
+        results_limited,
+    }
 }
 
 /// Find a package by exact attribute ID without truncating the ranked result set first.
@@ -121,23 +243,6 @@ fn parse_find_results(output: &[u8], ids: &[String]) -> Result<Vec<CatalogPackag
         .into_iter()
         .filter(|(_, package)| requested.contains(package.id.as_str()))
         .collect::<Vec<_>>();
-
-    Ok(attach_icon_candidates(results)
-        .into_iter()
-        .map(|(_, package)| package)
-        .collect())
-}
-
-/// Parse, rank, limit, and enrich search results for the discover page.
-fn parse_results(
-    output: &[u8],
-    query: &str,
-    limit: Option<usize>,
-) -> Result<Vec<CatalogPackage>, String> {
-    let mut results = parse_unlimited_results(output, query)?;
-    if let Some(limit) = limit {
-        results.truncate(limit);
-    }
 
     Ok(attach_icon_candidates(results)
         .into_iter()
@@ -420,6 +525,88 @@ mod tests {
     use super::*;
 
     #[test]
+    fn pagination_preserves_order_and_has_no_gaps_or_duplicates() {
+        let ids = (0..90)
+            .map(|index| format!("foo{index:03}"))
+            .collect::<Vec<_>>();
+        let entries = ids
+            .iter()
+            .map(|id| (id.as_str(), id.as_str()))
+            .collect::<Vec<_>>();
+        let output = nix_search_output(&entries);
+        let ranked = parse_unlimited_results(&output, "foo").unwrap();
+
+        let first = paginate_ranked_results(&ranked, 0, 40, false);
+        let second = paginate_ranked_results(&ranked, first.next_offset, 40, false);
+        let third = paginate_ranked_results(&ranked, second.next_offset, 40, false);
+
+        assert_eq!(first.results.len(), 40);
+        assert!(first.has_more);
+        assert_eq!(second.results.len(), 40);
+        assert!(second.has_more);
+        assert_eq!(third.results.len(), 10);
+        assert!(!third.has_more);
+        assert_eq!(third.next_offset, 90);
+
+        let ids = first
+            .results
+            .iter()
+            .chain(second.results.iter())
+            .chain(third.results.iter())
+            .map(|package| package.id.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(ids.len(), 90);
+        assert_eq!(ids.iter().collect::<HashSet<_>>().len(), 90);
+        assert_eq!(
+            ids,
+            ranked
+                .iter()
+                .map(|(_, package)| package.id.as_str())
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn paged_response_reports_when_the_cached_result_cap_was_reached() {
+        let ids = (0..2)
+            .map(|index| format!("foo{index:03}"))
+            .collect::<Vec<_>>();
+        let entries = ids
+            .iter()
+            .map(|id| (id.as_str(), id.as_str()))
+            .collect::<Vec<_>>();
+        let output = nix_search_output(&entries);
+        let ranked = parse_unlimited_results(&output, "foo").unwrap();
+
+        let page = paginate_ranked_results(&ranked, 0, 40, true);
+
+        assert!(!page.has_more);
+        assert!(page.results_limited);
+    }
+
+    #[test]
+    fn search_cache_is_bounded_and_evicts_the_least_recently_used_query() {
+        let mut cache = SearchCache::default();
+        for index in 0..MAX_CACHED_QUERIES {
+            cache.insert(
+                format!("query-{index}"),
+                Arc::new(CachedSearchResults::default()),
+            );
+        }
+        assert!(cache.get("query-0").is_some());
+
+        cache.insert(
+            "query-new".to_string(),
+            Arc::new(CachedSearchResults::default()),
+        );
+
+        assert_eq!(cache.entries.len(), MAX_CACHED_QUERIES);
+        assert!(cache.entries.contains_key("query-0"));
+        assert!(!cache.entries.contains_key("query-1"));
+        assert!(cache.entries.contains_key("query-new"));
+    }
+
+    #[test]
     fn escape_regex_leaves_hyphens_unescaped_for_nix() {
         assert_eq!(escape_regex("obs-studio"), "obs-studio");
         assert_eq!(escape_regex("telegram-desktop"), "telegram-desktop");
@@ -466,7 +653,8 @@ mod tests {
             .collect::<Vec<_>>();
         let output = nix_search_output(&entries);
 
-        let limited = parse_results(&output, "foo", Some(MAX_RESULTS)).unwrap();
+        let ranked = parse_unlimited_results(&output, "foo").unwrap();
+        let limited = paginate_ranked_results(&ranked, 0, MAX_RESULTS, false).results;
         assert_eq!(limited.len(), MAX_RESULTS);
         assert!(!limited.iter().any(|package| package.id == "foo"));
 

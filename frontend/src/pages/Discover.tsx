@@ -20,8 +20,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import AppCard from "@/components/AppCard";
 import RecommendationAppCard from "@/components/RecommendationAppCard";
+import VirtualizedAppList from "@/components/VirtualizedAppList";
 import RecommendationCarousel from "@/components/RecommendationCarousel";
 import DiscoverPreSearch, {
   type RecommendationStatus,
@@ -136,25 +136,59 @@ function Discover() {
   const [results, setResults] = useState<App[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [nextOffset, setNextOffset] = useState(0);
+  const [hasMoreResults, setHasMoreResults] = useState(false);
+  const [resultsLimited, setResultsLimited] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const { states, loading, error, refreshPackages } = useAppState();
   const searchRequestIdRef = useRef(0);
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+  const loadingMoreRef = useRef(false);
+  const loadingMoreRequestIdRef = useRef<number | null>(null);
+  const requestedStateIdsRef = useRef(new Set<string>());
+  const pendingStateIdsRef = useRef(new Set<string>());
+  const stateRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const stateRefreshInFlightRef = useRef(false);
   const pendingUrlQueryRef = useRef<string | null>(null);
   const lastHandledLocationKeyRef = useRef<string | null>(null);
+
+  const resetQueuedPackageStates = useCallback(() => {
+    requestedStateIdsRef.current.clear();
+    pendingStateIdsRef.current.clear();
+    if (stateRefreshTimerRef.current !== null) {
+      clearTimeout(stateRefreshTimerRef.current);
+      stateRefreshTimerRef.current = null;
+    }
+  }, []);
 
   const runSearch = useCallback(
     (searchQuery: string) => {
       const requestId = ++searchRequestIdRef.current;
+      resetQueuedPackageStates();
       setSearching(true);
       setSearchError(null);
+      setResults([]);
+      setNextOffset(0);
+      setHasMoreResults(false);
+      setResultsLimited(false);
+      setLoadingMore(false);
+      setLoadMoreError(null);
+      loadingMoreRef.current = false;
+      loadingMoreRequestIdRef.current = null;
 
-      void searchApps(searchQuery)
-        .then((nextResults) => {
+      void searchApps(searchQuery, 0, 40)
+        .then((page) => {
           if (!isCurrentSearchRequest(requestId, searchRequestIdRef.current)) {
             return;
           }
 
-          setResults(nextResults);
-          void refreshPackages(nextResults.map((app) => app.id));
+          setResults(page.results);
+          setNextOffset(page.nextOffset);
+          setHasMoreResults(page.hasMore);
+          setResultsLimited(page.resultsLimited);
         })
         .catch((err: unknown) => {
           if (!isCurrentSearchRequest(requestId, searchRequestIdRef.current)) {
@@ -170,8 +204,166 @@ function Discover() {
           }
         });
     },
-    [refreshPackages],
+    [resetQueuedPackageStates],
   );
+
+  // Status checks run only for rendered/near-visible cards. Briefly batch rows
+  // entering the virtual window so scrolling does not launch one Nix evaluation
+  // per card.
+  /** Dispatch queued package status checks one batch at a time. */
+  const dispatchQueuedPackageStates = useCallback(() => {
+    const scheduleNextBatch = () => {
+      if (
+        pendingStateIdsRef.current.size === 0 ||
+        stateRefreshTimerRef.current !== null ||
+        stateRefreshInFlightRef.current
+      ) {
+        return;
+      }
+
+      stateRefreshTimerRef.current = setTimeout(() => {
+        stateRefreshTimerRef.current = null;
+        const batch = Array.from(pendingStateIdsRef.current).slice(0, 40);
+        for (const packageName of batch) {
+          pendingStateIdsRef.current.delete(packageName);
+        }
+        stateRefreshInFlightRef.current = true;
+        void refreshPackages(batch).finally(() => {
+          for (const packageName of batch) {
+            // Preserve the marker when a newer viewport has already queued the same ID.
+            if (!pendingStateIdsRef.current.has(packageName)) {
+              requestedStateIdsRef.current.delete(packageName);
+            }
+          }
+          stateRefreshInFlightRef.current = false;
+          scheduleNextBatch();
+        });
+      }, 120);
+    };
+
+    scheduleNextBatch();
+  }, [refreshPackages]);
+
+  /** Queue state checks for packages in the current virtual viewport. */
+  const requestVisiblePackageStates = useCallback(
+    (packageNames: string[]) => {
+      for (const packageName of packageNames) {
+        if (
+          states[packageName] !== undefined ||
+          requestedStateIdsRef.current.has(packageName)
+        ) {
+          continue;
+        }
+        requestedStateIdsRef.current.add(packageName);
+        pendingStateIdsRef.current.add(packageName);
+      }
+      dispatchQueuedPackageStates();
+    },
+    [dispatchQueuedPackageStates, states],
+  );
+
+  useEffect(
+    () => () => {
+      if (stateRefreshTimerRef.current !== null) {
+        clearTimeout(stateRefreshTimerRef.current);
+        stateRefreshTimerRef.current = null;
+      }
+      pendingStateIdsRef.current.clear();
+    },
+    [],
+  );
+
+  const loadMoreResults = useCallback(
+    (retry = false) => {
+      const searchQuery = submittedQuery.trim();
+      if (
+        !searchQuery ||
+        searching ||
+        !hasMoreResults ||
+        loadingMoreRef.current ||
+        (loadMoreError !== null && !retry)
+      ) {
+        return;
+      }
+
+      const requestId = searchRequestIdRef.current;
+      const offset = nextOffset;
+      loadingMoreRef.current = true;
+      loadingMoreRequestIdRef.current = requestId;
+      setLoadingMore(true);
+      setLoadMoreError(null);
+
+      void searchApps(searchQuery, offset, 40)
+        .then((page) => {
+          if (!isCurrentSearchRequest(requestId, searchRequestIdRef.current)) {
+            return;
+          }
+
+          setResults((current) => {
+            const knownIds = new Set(current.map((app) => app.id));
+            return [
+              ...current,
+              ...page.results.filter((app) => {
+                if (knownIds.has(app.id)) return false;
+                knownIds.add(app.id);
+                return true;
+              }),
+            ];
+          });
+          setNextOffset(page.nextOffset);
+          setHasMoreResults(page.hasMore);
+          setResultsLimited(page.resultsLimited);
+        })
+        .catch((err: unknown) => {
+          if (isCurrentSearchRequest(requestId, searchRequestIdRef.current)) {
+            setLoadMoreError(String(err));
+          }
+        })
+        .finally(() => {
+          if (loadingMoreRequestIdRef.current !== requestId) return;
+          loadingMoreRequestIdRef.current = null;
+          loadingMoreRef.current = false;
+          if (isCurrentSearchRequest(requestId, searchRequestIdRef.current)) {
+            setLoadingMore(false);
+          }
+        });
+    },
+    [hasMoreResults, loadMoreError, nextOffset, searching, submittedQuery],
+  );
+
+  useEffect(() => {
+    const sentinel = loadMoreSentinelRef.current;
+    if (
+      !sentinel ||
+      typeof IntersectionObserver === "undefined" ||
+      !hasMoreResults ||
+      searching ||
+      loadingMore ||
+      loadMoreError !== null ||
+      searchError !== null
+    ) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          loadMoreResults();
+        }
+      },
+      { rootMargin: "600px 0px" },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [
+    hasMoreResults,
+    loadMoreError,
+    loadMoreResults,
+    loadingMore,
+    searchError,
+    searching,
+  ]);
+
   const [recommendationData, setRecommendationData] =
     useState<RecommendationData | null>(null);
   const recommendationDataRef = useRef<RecommendationData | null>(null);
@@ -237,6 +429,13 @@ function Discover() {
       searchRequestIdRef.current += 1;
       setSearching(false);
       setResults([]);
+      setNextOffset(0);
+      setHasMoreResults(false);
+      setResultsLimited(false);
+      setLoadingMore(false);
+      setLoadMoreError(null);
+      loadingMoreRef.current = false;
+      loadingMoreRequestIdRef.current = null;
       setSearchError(null);
       setQuery(transition.query);
       setSubmittedQuery(transition.query);
@@ -317,7 +516,6 @@ function Discover() {
 
     let cancelled = false;
     // Nixpkgs evaluation may take time on a cold cache; avoid showing the empty state as success.
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reflect the pending catalog request
     setRecommendationStatus("loading");
     setRecommendationMessage(null);
 
@@ -471,9 +669,17 @@ function Discover() {
                           if (!value.trim()) {
                             // Cancel any older request so it cannot repopulate cleared results.
                             searchRequestIdRef.current += 1;
+                            resetQueuedPackageStates();
                             setSearching(false);
                             setSubmittedQuery("");
                             setResults([]);
+                            setNextOffset(0);
+                            setHasMoreResults(false);
+                            setResultsLimited(false);
+                            setLoadingMore(false);
+                            setLoadMoreError(null);
+                            loadingMoreRef.current = false;
+                            loadingMoreRequestIdRef.current = null;
                             setSearchError(null);
                             pendingUrlQueryRef.current = "";
                             setSearchParams({});
@@ -627,7 +833,7 @@ function Discover() {
                       </h2>
                       {!searching && (
                         <p className="mt-1 text-sm text-muted-foreground">
-                          {results.length}件
+                          {results.length}件表示中
                         </p>
                       )}
                     </div>
@@ -656,27 +862,56 @@ function Discover() {
                     </div>
                   ) : (
                     <div className="max-w-5xl space-y-2">
-                      {results.map((app) => (
-                        <AppCard
-                          key={app.id}
-                          id={app.id}
-                          name={app.name}
-                          description={app.description}
-                          category={app.category}
-                          tags={app.tags}
-                          installed={states[app.id]?.active === true}
-                          statusKnown={
-                            states[app.id]?.active === true ||
-                            states[app.id]?.active === false
-                          }
-                          statusLoading={
-                            loading && states[app.id] === undefined
-                          }
-                          icon={app.icon}
-                          iconCandidates={app.iconCandidates}
-                          searchQuery={submittedQuery}
-                        />
-                      ))}
+                      <VirtualizedAppList
+                        key={`${submittedQuery}:${searching ? "loading" : "ready"}`}
+                        apps={results}
+                        states={states}
+                        loading={loading}
+                        searchQuery={submittedQuery}
+                        onVisiblePackages={requestVisiblePackageStates}
+                      />
+                      <div
+                        ref={loadMoreSentinelRef}
+                        className="h-px"
+                        aria-hidden="true"
+                      />
+                      {loadingMore && (
+                        <p
+                          className="py-4 text-center text-sm text-muted-foreground"
+                          role="status"
+                        >
+                          追加の検索結果を読み込み中...
+                        </p>
+                      )}
+                      {loadMoreError && (
+                        <div
+                          className="mt-4 space-y-2 rounded-xl border border-dashed border-border p-4 text-sm"
+                          role="alert"
+                        >
+                          <p>続きの取得に失敗しました。</p>
+                          <p className="break-words text-muted-foreground">
+                            {loadMoreError}
+                          </p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => loadMoreResults(true)}
+                          >
+                            再試行
+                          </Button>
+                        </div>
+                      )}
+                      {!hasMoreResults && results.length > 0 && !searching && (
+                        <p
+                          className="py-4 text-center text-sm text-muted-foreground"
+                          role="status"
+                        >
+                          {resultsLimited
+                            ? "検索結果が多いため、先頭5,000件まで表示しました。"
+                            : "すべての検索結果を表示しました。"}
+                        </p>
+                      )}
                     </div>
                   )}
 

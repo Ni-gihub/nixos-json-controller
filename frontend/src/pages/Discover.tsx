@@ -411,6 +411,7 @@ function Discover() {
     searchRequestIdRef.current += 1;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- discard results from the previous source before async validation
     setResults([]);
+    resultIdsRef.current.clear();
     setSearchElapsedMs(null);
     setNextOffset(0);
     setHasMoreResults(false);
@@ -782,6 +783,7 @@ function Discover() {
                             setSearching(false);
                             setSubmittedQuery("");
                             setResults([]);
+                            resultIdsRef.current.clear();
                             setNextOffset(0);
                             setHasMoreResults(false);
                             setResultsLimited(false);

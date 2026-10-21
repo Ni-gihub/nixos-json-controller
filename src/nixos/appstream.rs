@@ -1121,7 +1121,10 @@ mod tests {
 
         let empty_index = HashMap::new();
         let cache = Mutex::new(HashMap::new());
-        assert!(resolve_direct_stock_icon(&["firefox"], &empty_index, &cache).is_none());
+        assert!(
+            resolve_direct_stock_icon_with_cache_root(&["firefox"], &empty_index, &cache, None)
+                .is_none()
+        );
 
         // Repeated searches reuse a cached miss instead of scanning the index again.
         let icon_path = temp.join("hicolor/scalable/apps/firefox.svg");
@@ -1132,7 +1135,15 @@ mod tests {
         )
         .unwrap();
         let populated_index = build_stock_icon_index_from_roots(std::slice::from_ref(&temp));
-        assert!(resolve_direct_stock_icon(&["firefox"], &populated_index, &cache).is_none());
+        assert!(
+            resolve_direct_stock_icon_with_cache_root(
+                &["firefox"],
+                &populated_index,
+                &cache,
+                None,
+            )
+            .is_none()
+        );
 
         let cached_key = direct_stock_cache_key(&["firefox"]);
         assert!(

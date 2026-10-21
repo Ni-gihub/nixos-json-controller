@@ -3,9 +3,9 @@ use serde_json::Value;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::env;
 use std::fs::{self, OpenOptions};
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
@@ -18,6 +18,8 @@ const MAX_CACHED_QUERIES: usize = 4;
 const CATALOG_SCHEMA_VERSION: u32 = 1;
 const FULL_CATALOG_PATTERN: &str = ".*";
 const MAX_CATALOG_CACHE_BYTES: u64 = 512 * 1024 * 1024;
+const MAX_NIX_STDOUT_BYTES: usize = 128 * 1024 * 1024;
+const MAX_NIX_STDERR_BYTES: usize = 1024 * 1024;
 const MAX_CATALOG_PACKAGES: usize = 1_000_000;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -255,16 +257,15 @@ fn prepare_catalog_internal(force_refresh: bool) -> Result<CatalogPreparationSta
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
 
-    {
+    let previous_index = {
         let mut runtime = catalog_runtime()
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         runtime.preparing = true;
-        runtime.index = None;
-    }
+        runtime.index.clone()
+    };
 
-    let prepared =
-        prepare_catalog_inner(force_refresh).map(|(index, status)| (Arc::new(index), status));
+    let prepared = prepare_catalog_inner(force_refresh, previous_index);
 
     {
         let mut runtime = catalog_runtime()
@@ -305,7 +306,8 @@ fn catalog_index_for_lookup() -> Option<Arc<CatalogIndex>> {
 /// Load a matching disk cache or build, validate, and atomically persist the full catalog.
 fn prepare_catalog_inner(
     force_refresh: bool,
-) -> Result<(CatalogIndex, CatalogPreparationStatus), String> {
+    previous_index: Option<Arc<CatalogIndex>>,
+) -> Result<(Arc<CatalogIndex>, CatalogPreparationStatus), String> {
     let cache_path = catalog_cache_path()?;
     let source_check_start = Instant::now();
     let (source, system) = current_nixpkgs_identity()?;
@@ -313,6 +315,20 @@ fn prepare_catalog_inner(
 
     let load_start = Instant::now();
     if !force_refresh {
+        if let Some(index) = previous_index
+            .filter(|index| index.source == source && index.system == system)
+        {
+            let status = preparation_status(
+                "reused-memory",
+                &index,
+                &cache_path,
+                source_check_ms,
+                0,
+                0,
+            );
+            return Ok((index, status));
+        }
+
         if let Some(index) = load_matching_catalog(&cache_path, &source, &system) {
             let cache_load_ms = elapsed_ms(load_start);
             let status = preparation_status(
@@ -323,7 +339,7 @@ fn prepare_catalog_inner(
                 cache_load_ms,
                 0,
             );
-            return Ok((index, status));
+            return Ok((Arc::new(index), status));
         }
     }
     let cache_load_ms = elapsed_ms(load_start);
@@ -373,13 +389,13 @@ fn prepare_catalog_inner(
         .len();
     let generation_ms = elapsed_ms(generation_start);
 
-    let index = CatalogIndex {
+    let index = Arc::new(CatalogIndex {
         source,
         system,
         generated_at,
         packages,
         cache_bytes,
-    };
+    });
     let status = preparation_status(
         "generated",
         &index,
@@ -712,25 +728,113 @@ fn run_nix_search_pattern(pattern: &str) -> Result<Vec<u8>, String> {
     run_nix_command(&["search", "nixpkgs", "--json", "--no-pretty", pattern])
 }
 
-/// Invoke Nix with the features required by this application, preserving stderr on failure.
+/// Invoke Nix with bounded stdout and stderr capture, preserving failure diagnostics.
 fn run_nix_command(arguments: &[&str]) -> Result<Vec<u8>, String> {
-    let output = Command::new("nix")
+    let mut child = Command::new("nix")
         .arg("--extra-experimental-features")
         .arg("nix-command flakes")
         .args(arguments)
-        .output()
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
         .map_err(|error| format!("failed to start nix {}: {error}", arguments.join(" ")))?;
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| format!("failed to capture stdout from nix {}", arguments.join(" ")))?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| format!("failed to capture stderr from nix {}", arguments.join(" ")))?;
+    // Drain stderr concurrently so a full pipe cannot block the child. Keep only a
+    // bounded prefix because error output is diagnostic, not application data.
+    let stderr_reader = std::thread::spawn(move || {
+        read_bounded_pipe(stderr, MAX_NIX_STDERR_BYTES, false)
+    });
+
+    let (stdout, stdout_exceeded) =
+        match read_bounded_pipe(stdout, MAX_NIX_STDOUT_BYTES, true) {
+            Ok(result) => result,
+            Err(error) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                let _ = stderr_reader.join();
+                return Err(format!(
+                    "failed to read stdout from nix {}: {error}",
+                    arguments.join(" ")
+                ));
+            }
+        };
+
+    if stdout_exceeded {
+        // The bounded reader closes the pipe as soon as output exceeds the cap.
+        // Terminate Nix rather than allowing an unbounded result to consume memory.
+        let _ = child.kill();
+    }
+    let status = child
+        .wait()
+        .map_err(|error| format!("failed to wait for nix {}: {error}", arguments.join(" ")))?;
+    let stderr_result = stderr_reader
+        .join()
+        .map_err(|_| format!("stderr reader panicked for nix {}", arguments.join(" ")))?;
+    let (stderr, stderr_truncated) = stderr_result
+        .map_err(|error| format!("failed to read stderr from nix {}: {error}", arguments.join(" ")))?;
+
+    if stdout_exceeded {
+        return Err(format!(
+            "nix {} exceeded the {}-byte stdout safety limit",
+            arguments.join(" "),
+            MAX_NIX_STDOUT_BYTES
+        ));
+    }
+
+    if !status.success() {
+        let mut stderr = String::from_utf8_lossy(&stderr).trim().to_string();
+        if stderr_truncated {
+            stderr.push_str("\n[stderr truncated after the configured safety limit]");
+        }
         return Err(if stderr.is_empty() {
-            format!("nix {} exited with {}", arguments.join(" "), output.status)
+            format!("nix {} exited with {status}", arguments.join(" "))
         } else {
             format!("nix {} failed: {stderr}", arguments.join(" "))
         });
     }
 
-    Ok(output.stdout)
+    Ok(stdout)
+}
+
+/// Read a child pipe without retaining more than the supplied byte limit.
+/// When stop_when_exceeded is true, stop reading as soon as the limit is crossed;
+/// callers can then terminate a child producing oversized stdout. Otherwise, continue
+/// draining the pipe while discarding bytes beyond the retained prefix.
+fn read_bounded_pipe<R: Read>(
+    mut reader: R,
+    max_bytes: usize,
+    stop_when_exceeded: bool,
+) -> std::io::Result<(Vec<u8>, bool)> {
+    let mut output = Vec::new();
+    let mut buffer = [0_u8; 8192];
+    let mut exceeded = false;
+
+    loop {
+        let count = reader.read(&mut buffer)?;
+        if count == 0 {
+            break;
+        }
+
+        let remaining = max_bytes.saturating_sub(output.len());
+        let copied = remaining.min(count);
+        output.extend_from_slice(&buffer[..copied]);
+        if copied < count {
+            exceeded = true;
+            if stop_when_exceeded {
+                break;
+            }
+        }
+    }
+
+    Ok((output, exceeded))
 }
 
 /// Select the exact ID from the full ranked matches, before attaching icons or applying limits.
@@ -1514,6 +1618,21 @@ mod tests {
                 local_ids.iter().take(3).collect::<Vec<_>>()
             );
         }
+    }
+
+    #[test]
+    fn bounded_nix_output_stops_retaining_data_after_the_limit() {
+        let oversized = vec![b'x'; 1024];
+        let (captured, exceeded) =
+            read_bounded_pipe(std::io::Cursor::new(oversized), 32, true).unwrap();
+        assert_eq!(captured.len(), 32);
+        assert!(exceeded);
+
+        let exact = vec![b'x'; 32];
+        let (captured, exceeded) =
+            read_bounded_pipe(std::io::Cursor::new(exact), 32, true).unwrap();
+        assert_eq!(captured.len(), 32);
+        assert!(!exceeded);
     }
 
     fn nix_search_output(entries: &[(&str, &str)]) -> Vec<u8> {

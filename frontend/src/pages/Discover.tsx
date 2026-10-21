@@ -155,8 +155,18 @@ function Discover() {
   const pendingUrlQueryRef = useRef<string | null>(null);
   const lastHandledLocationKeyRef = useRef<string | null>(null);
 
+  const resetQueuedPackageStates = useCallback(() => {
+    requestedStateIdsRef.current.clear();
+    pendingStateIdsRef.current.clear();
+    if (stateRefreshTimerRef.current !== null) {
+      clearTimeout(stateRefreshTimerRef.current);
+      stateRefreshTimerRef.current = null;
+    }
+  }, []);
+
   const runSearch = useCallback((searchQuery: string) => {
     const requestId = ++searchRequestIdRef.current;
+    resetQueuedPackageStates();
     setSearching(true);
     setSearchError(null);
     setResults([]);
@@ -192,7 +202,7 @@ function Discover() {
           setSearching(false);
         }
       });
-  }, []);
+  }, [resetQueuedPackageStates]);
 
   // Status checks run only for rendered/near-visible cards. Briefly batch rows
   // entering the virtual window so scrolling does not launch one Nix evaluation
@@ -216,6 +226,12 @@ function Discover() {
         }
         stateRefreshInFlightRef.current = true;
         void refreshPackages(batch).finally(() => {
+          for (const packageName of batch) {
+            // Preserve the marker when a newer viewport has already queued the same ID.
+            if (!pendingStateIdsRef.current.has(packageName)) {
+              requestedStateIdsRef.current.delete(packageName);
+            }
+          }
           stateRefreshInFlightRef.current = false;
           scheduleNextBatch();
         });
@@ -650,6 +666,7 @@ function Discover() {
                           if (!value.trim()) {
                             // Cancel any older request so it cannot repopulate cleared results.
                             searchRequestIdRef.current += 1;
+                            resetQueuedPackageStates();
                             setSearching(false);
                             setSubmittedQuery("");
                             setResults([]);

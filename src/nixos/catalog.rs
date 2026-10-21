@@ -9,10 +9,12 @@ use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-use super::appstream;
+use super::{appstream, flake, provenance};
 
 const MAX_RESULTS: usize = 40;
 const MAX_PAGE_SIZE: usize = 40;
+// Bound synchronous Nix evaluations per page so a sparse result set cannot stall one request.
+const MAX_FILTER_BATCHES_PER_PAGE: usize = 3;
 const MAX_CACHED_RESULTS: usize = 5_000;
 const MAX_CACHED_QUERIES: usize = 4;
 const CATALOG_SCHEMA_VERSION: u32 = 1;
@@ -213,25 +215,99 @@ pub fn search_page(query: &str, offset: usize, limit: usize) -> Result<CatalogSe
         results
     };
 
-    Ok(paginate_ranked_results(
+    Ok(paginate_ranked_results_with_filter(
         &cached_results.ranked,
         offset,
         limit,
         cached_results.truncated,
+        filter_installable_results,
     ))
 }
 
-/// Select one bounded page and resolve icons only for packages in that page.
+/// Filter visible candidates against the package set of the selected NixOS configuration.
+/// A single batched Nix evaluation avoids launching one process per search result. If the
+/// selected configuration cannot be evaluated, preserve the catalog results rather than
+/// incorrectly hiding every package during a transient Nix/discovery failure.
+fn filter_installable_results(results: RankedCatalogResults) -> RankedCatalogResults {
+    if results.is_empty() {
+        return results;
+    }
+
+    let (flake_root, configuration_name) = match (
+        flake::repository_path(),
+        flake::configuration_name(),
+    ) {
+        (Ok(root), Ok(name)) => (root, name),
+        (root, name) => {
+            eprintln!(
+                "[nxc-catalog] installability filter skipped: repository_path={:?}, configuration_name={:?}",
+                root.err(),
+                name.err()
+            );
+            return results;
+        }
+    };
+
+    let ids = results
+        .iter()
+        .map(|(_, package)| package.id.clone())
+        .collect::<Vec<_>>();
+    match provenance::evaluate_package_output_names(&flake_root, &configuration_name, &ids) {
+        Ok(output_names) if output_names.len() == results.len() => {
+            retain_resolved_packages(results, output_names)
+        }
+        Ok(output_names) => {
+            eprintln!(
+                "[nxc-catalog] installability filter skipped: expected {} entries, got {}",
+                results.len(),
+                output_names.len()
+            );
+            results
+        }
+        // A failed batch evaluation is not proof that individual packages are unavailable.
+        // Keep the results visible and let the existing install path report its actual error.
+        Err(error) => {
+            eprintln!("[nxc-catalog] installability filter skipped: {error}");
+            results
+        }
+    }
+}
+
+/// Keep only attributes that resolve to at least one selected NixOS package output.
+fn retain_resolved_packages(
+    results: RankedCatalogResults,
+    output_names: Vec<Option<Vec<String>>>,
+) -> RankedCatalogResults {
+    results
+        .into_iter()
+        .zip(output_names)
+        .filter_map(|(result, outputs)| outputs.filter(|names| !names.is_empty()).map(|_| result))
+        .collect()
+}
+
+/// Select a bounded page of installable candidates and resolve icons only for that page.
 fn paginate_ranked_results(
     ranked: &[(u32, CatalogPackage)],
     offset: usize,
     limit: usize,
     results_limited: bool,
 ) -> CatalogSearchPage {
+    paginate_ranked_results_with_filter(ranked, offset, limit, results_limited, |results| results)
+}
+
+/// Paginate with an injectable filter so tests and fallback paths need not evaluate Nix.
+fn paginate_ranked_results_with_filter<F>(
+    ranked: &[(u32, CatalogPackage)],
+    offset: usize,
+    limit: usize,
+    results_limited: bool,
+    filter: F,
+) -> CatalogSearchPage
+where
+    F: FnMut(RankedCatalogResults) -> RankedCatalogResults,
+{
     let limit = limit.clamp(1, MAX_PAGE_SIZE);
-    let start = offset.min(ranked.len());
-    let end = start.saturating_add(limit).min(ranked.len());
-    let selected = ranked[start..end].to_vec();
+    let (selected, next_offset) = select_installable_candidates(ranked, offset, limit, filter);
     let results = attach_icon_candidates(selected)
         .into_iter()
         .map(|(_, package)| package)
@@ -239,10 +315,42 @@ fn paginate_ranked_results(
 
     CatalogSearchPage {
         results,
-        next_offset: end,
-        has_more: end < ranked.len(),
+        next_offset,
+        has_more: next_offset < ranked.len(),
         results_limited,
     }
+}
+
+/// Continue through bounded candidate batches until the page is full or the ranking is exhausted.
+/// Advancing the offset past filtered candidates prevents an all-filtered page from trapping the UI
+/// in its empty state while later candidates remain available.
+fn select_installable_candidates<F>(
+    ranked: &[(u32, CatalogPackage)],
+    offset: usize,
+    limit: usize,
+    mut filter: F,
+) -> (RankedCatalogResults, usize)
+where
+    F: FnMut(RankedCatalogResults) -> RankedCatalogResults,
+{
+    let mut cursor = offset.min(ranked.len());
+    let mut selected = Vec::with_capacity(limit);
+    let mut batches_processed = 0;
+
+    while cursor < ranked.len()
+        && selected.len() < limit
+        && batches_processed < MAX_FILTER_BATCHES_PER_PAGE
+    {
+        let remaining = limit - selected.len();
+        let end = cursor.saturating_add(remaining).min(ranked.len());
+        let batch = ranked[cursor..end].to_vec();
+        cursor = end;
+        batches_processed += 1;
+        selected.extend(filter(batch));
+    }
+
+    selected.truncate(limit);
+    (selected, cursor)
 }
 
 /// Check the current Nixpkgs reference, load a matching cache, or atomically generate a new one.
@@ -1718,6 +1826,95 @@ mod tests {
         let description = relevance_score("rust", "foo", "foo", "Rust development tool");
 
         assert!(exact > description);
+    }
+
+    #[test]
+    fn installability_filter_keeps_only_packages_resolved_by_selected_configuration() {
+        let package = |id: &str| CatalogPackage {
+            id: id.to_string(),
+            name: id.to_string(),
+            description: String::new(),
+            version: "1".to_string(),
+            category: "その他".to_string(),
+            tags: Vec::new(),
+            homepage: None,
+            icon: None,
+            icon_candidates: Vec::new(),
+        };
+        let results = vec![
+            (100, package("firefox")),
+            (90, package("firefox-beta")),
+            (80, package("chromium")),
+        ];
+
+        let filtered = retain_resolved_packages(
+            results,
+            vec![Some(vec!["firefox-1".to_string()]), None, Some(vec![])],
+        );
+
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].0, 100);
+        assert_eq!(filtered[0].1.id, "firefox");
+    }
+
+    #[test]
+    fn pagination_skips_fully_filtered_batches_and_finds_later_candidates() {
+        let package = |id: &str| CatalogPackage {
+            id: id.to_string(),
+            name: id.to_string(),
+            description: String::new(),
+            version: "1".to_string(),
+            category: "その他".to_string(),
+            tags: Vec::new(),
+            homepage: None,
+            icon: None,
+            icon_candidates: Vec::new(),
+        };
+        let ranked = vec![
+            (100, package("missing-a")),
+            (90, package("missing-b")),
+            (80, package("available")),
+            (70, package("later")),
+        ];
+
+        let (selected, next_offset) = select_installable_candidates(&ranked, 0, 1, |batch| {
+            batch
+                .into_iter()
+                .filter(|(_, package)| package.id == "available" || package.id == "later")
+                .collect()
+        });
+
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].1.id, "available");
+        assert_eq!(next_offset, 3);
+    }
+
+    #[test]
+    fn pagination_bounds_filter_batches_per_request() {
+        let package = |id: &str| CatalogPackage {
+            id: id.to_string(),
+            name: id.to_string(),
+            description: String::new(),
+            version: "1".to_string(),
+            category: "その他".to_string(),
+            tags: Vec::new(),
+            homepage: None,
+            icon: None,
+            icon_candidates: Vec::new(),
+        };
+        let ranked = (0..10)
+            .map(|index| (100 - index, package(&format!("missing-{index}"))))
+            .collect::<Vec<_>>();
+        let mut calls = 0;
+
+        let (selected, next_offset) = select_installable_candidates(&ranked, 0, 1, |_batch| {
+            calls += 1;
+            Vec::new()
+        });
+
+        assert!(selected.is_empty());
+        assert_eq!(calls, MAX_FILTER_BATCHES_PER_PAGE);
+        assert_eq!(next_offset, MAX_FILTER_BATCHES_PER_PAGE);
     }
 
     #[test]

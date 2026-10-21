@@ -33,3 +33,18 @@ export function isCurrentSearchRequest(
 ): boolean {
   return requestId === latestRequestId;
 }
+
+/**
+ * Pause automatic pagination after several consecutive pages with no visible results.
+ */
+export function advanceEmptyPageAutoLoadState(
+  consecutiveEmptyPages: number,
+  resultCount: number,
+  maxConsecutiveEmptyPages = 3,
+): { consecutiveEmptyPages: number; paused: boolean } {
+  const nextCount = resultCount > 0 ? 0 : consecutiveEmptyPages + 1;
+  return {
+    consecutiveEmptyPages: nextCount,
+    paused: nextCount >= maxConsecutiveEmptyPages,
+  };
+}

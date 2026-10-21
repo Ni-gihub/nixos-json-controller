@@ -48,6 +48,7 @@ import {
 } from "@/catalog/recommendation-fallback";
 import { useAppState } from "@/lib/app-state";
 import {
+  advanceEmptyPageAutoLoadState,
   classifySearchUrlTransition,
   isCurrentSearchRequest,
 } from "./discover-search-state";
@@ -144,6 +145,7 @@ function Discover() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [nextOffset, setNextOffset] = useState(0);
   const [hasMoreResults, setHasMoreResults] = useState(false);
+  const [autoLoadPaused, setAutoLoadPaused] = useState(false);
   const [resultsLimited, setResultsLimited] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
@@ -158,6 +160,8 @@ function Discover() {
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
   const loadingMoreRef = useRef(false);
   const loadingMoreRequestIdRef = useRef<number | null>(null);
+  const consecutiveEmptyPagesRef = useRef(0);
+  const resultIdsRef = useRef(new Set<string>());
   const requestedStateIdsRef = useRef(new Set<string>());
   const pendingStateIdsRef = useRef(new Set<string>());
   const stateRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -185,8 +189,11 @@ function Discover() {
       setSearchElapsedMs(null);
       setSearchError(null);
       setResults([]);
+      resultIdsRef.current.clear();
       setNextOffset(0);
       setHasMoreResults(false);
+      setAutoLoadPaused(false);
+      consecutiveEmptyPagesRef.current = 0;
       setResultsLimited(false);
       setLoadingMore(false);
       setLoadMoreError(null);
@@ -200,6 +207,7 @@ function Discover() {
           }
 
           setResults(page.results);
+          resultIdsRef.current = new Set(page.results.map((app) => app.id));
           const elapsedMs = Math.round(performance.now() - startedAt);
           setSearchElapsedMs(elapsedMs);
           if (import.meta.env.DEV && import.meta.env.VITE_PERF_DEBUG === "1") {
@@ -210,6 +218,13 @@ function Discover() {
           }
           setNextOffset(page.nextOffset);
           setHasMoreResults(page.hasMore);
+          const autoLoadState = advanceEmptyPageAutoLoadState(
+            0,
+            page.results.length,
+          );
+          setAutoLoadPaused(autoLoadState.paused);
+          consecutiveEmptyPagesRef.current =
+            autoLoadState.consecutiveEmptyPages;
           setResultsLimited(page.resultsLimited);
         })
         .catch((err: unknown) => {
@@ -218,6 +233,7 @@ function Discover() {
           }
 
           setResults([]);
+          resultIdsRef.current.clear();
           setSearchError(String(err));
         })
         .finally(() => {
@@ -321,19 +337,22 @@ function Discover() {
             return;
           }
 
-          setResults((current) => {
-            const knownIds = new Set(current.map((app) => app.id));
-            return [
-              ...current,
-              ...page.results.filter((app) => {
-                if (knownIds.has(app.id)) return false;
-                knownIds.add(app.id);
-                return true;
-              }),
-            ];
+          const knownIds = resultIdsRef.current;
+          const addedResults = page.results.filter((app) => {
+            if (knownIds.has(app.id)) return false;
+            knownIds.add(app.id);
+            return true;
           });
+          setResults((current) => [...current, ...addedResults]);
           setNextOffset(page.nextOffset);
           setHasMoreResults(page.hasMore);
+          const autoLoadState = advanceEmptyPageAutoLoadState(
+            consecutiveEmptyPagesRef.current,
+            addedResults.length,
+          );
+          consecutiveEmptyPagesRef.current =
+            autoLoadState.consecutiveEmptyPages;
+          setAutoLoadPaused(autoLoadState.paused);
           setResultsLimited(page.resultsLimited);
         })
         .catch((err: unknown) => {
@@ -359,6 +378,7 @@ function Discover() {
       !sentinel ||
       typeof IntersectionObserver === "undefined" ||
       !hasMoreResults ||
+      autoLoadPaused ||
       searching ||
       loadingMore ||
       loadMoreError !== null ||
@@ -378,6 +398,7 @@ function Discover() {
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [
+    autoLoadPaused,
     hasMoreResults,
     loadMoreError,
     loadMoreResults,
@@ -395,6 +416,7 @@ function Discover() {
     searchRequestIdRef.current += 1;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- discard results from the previous source before async validation
     setResults([]);
+    resultIdsRef.current.clear();
     setSearchElapsedMs(null);
     setNextOffset(0);
     setHasMoreResults(false);
@@ -509,6 +531,7 @@ function Discover() {
       searchRequestIdRef.current += 1;
       setSearching(false);
       setResults([]);
+      resultIdsRef.current.clear();
       setNextOffset(0);
       setHasMoreResults(false);
       setResultsLimited(false);
@@ -701,6 +724,8 @@ function Discover() {
   };
 
   const hasResults = submittedQuery.length > 0;
+  const noResultsAfterSearch =
+    results.length === 0 && !searching && !hasMoreResults;
 
   return (
     <div className="min-h-[calc(100vh-2.5rem)] bg-background text-foreground">
@@ -763,6 +788,7 @@ function Discover() {
                             setSearching(false);
                             setSubmittedQuery("");
                             setResults([]);
+                            resultIdsRef.current.clear();
                             setNextOffset(0);
                             setHasMoreResults(false);
                             setResultsLimited(false);
@@ -957,7 +983,7 @@ function Discover() {
                         {searchError}
                       </p>
                     </div>
-                  ) : results.length === 0 && !searching ? (
+                  ) : noResultsAfterSearch ? (
                     <div className="w-full rounded-xl border border-dashed border-border bg-card p-8 text-center">
                       <p className="font-medium">
                         該当するパッケージが見つかりませんでした。
@@ -968,19 +994,48 @@ function Discover() {
                     </div>
                   ) : (
                     <div className="max-w-5xl space-y-2">
-                      <VirtualizedAppList
-                        key={`${submittedQuery}:${searching ? "loading" : "ready"}`}
-                        apps={results}
-                        states={states}
-                        loading={loading}
-                        searchQuery={submittedQuery}
-                        onVisiblePackages={requestVisiblePackageStates}
-                      />
+                      {results.length > 0 ? (
+                        <VirtualizedAppList
+                          key={`${submittedQuery}:${searching ? "loading" : "ready"}`}
+                          apps={results}
+                          states={states}
+                          loading={loading}
+                          searchQuery={submittedQuery}
+                          onVisiblePackages={requestVisiblePackageStates}
+                        />
+                      ) : (
+                        <p
+                          className="py-4 text-center text-sm text-muted-foreground"
+                          role="status"
+                        >
+                          表示できる候補を確認しています...
+                        </p>
+                      )}
                       <div
                         ref={loadMoreSentinelRef}
                         className="h-px"
                         aria-hidden="true"
                       />
+                      {autoLoadPaused && hasMoreResults && (
+                        <div className="flex flex-col items-center gap-2 py-4 text-center">
+                          <p className="text-sm text-muted-foreground">
+                            候補の確認が続いているため、自動読み込みを一時停止しました。
+                          </p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={loadingMore || searching}
+                            onClick={() => {
+                              consecutiveEmptyPagesRef.current = 0;
+                              setAutoLoadPaused(false);
+                              loadMoreResults();
+                            }}
+                          >
+                            さらに候補を確認
+                          </Button>
+                        </div>
+                      )}
                       {loadingMore && (
                         <p
                           className="py-4 text-center text-sm text-muted-foreground"

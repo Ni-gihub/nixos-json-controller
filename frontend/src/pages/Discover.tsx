@@ -373,6 +373,7 @@ function Discover() {
       !sentinel ||
       typeof IntersectionObserver === "undefined" ||
       !hasMoreResults ||
+      autoLoadPaused ||
       searching ||
       loadingMore ||
       loadMoreError !== null ||

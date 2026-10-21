@@ -27,6 +27,11 @@ import DiscoverPreSearch, {
   type RecommendationStatus,
 } from "./DiscoverPreSearch";
 import { searchApps, type App } from "@/catalog";
+import { clearSearchCache } from "@/catalog";
+import {
+  prepareCatalog,
+  type CatalogPreparationStatus,
+} from "@/catalog/preparation";
 import {
   isRecommendationCacheFresh,
   loadBundledRecommendations,
@@ -141,6 +146,12 @@ function Discover() {
   const [resultsLimited, setResultsLimited] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
+  const [catalogPreparing, setCatalogPreparing] = useState(true);
+  const [catalogRefreshKey, setCatalogRefreshKey] = useState(0);
+  const [catalogAttemptId, setCatalogAttemptId] = useState(0);
+  const [catalogStatus, setCatalogStatus] =
+    useState<CatalogPreparationStatus | null>(null);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
   const { states, loading, error, refreshPackages } = useAppState();
   const searchRequestIdRef = useRef(0);
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
@@ -363,6 +374,47 @@ function Discover() {
     searchError,
     searching,
   ]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    // Clear WebView pages before validating the source so results from a previous
+    // catalog cannot survive a source change or failed refresh.
+    clearSearchCache();
+    searchRequestIdRef.current += 1;
+    setResults([]);
+    setSearching(false);
+    setCatalogPreparing(true);
+    setCatalogError(null);
+
+    void prepareCatalog(catalogRefreshKey > 0)
+      .then((status) => {
+        if (cancelled) return;
+        setCatalogStatus(status);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setCatalogStatus(null);
+        setCatalogError(String(err));
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setCatalogPreparing(false);
+        setCatalogAttemptId((current) => current + 1);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [catalogRefreshKey]);
+
+  useEffect(() => {
+    if (catalogPreparing || catalogAttemptId === 0 || !submittedQuery.trim()) {
+      return;
+    }
+    clearSearchCache();
+    runSearch(submittedQuery);
+  }, [catalogAttemptId, catalogPreparing, runSearch, submittedQuery]);
 
   const [recommendationData, setRecommendationData] =
     useState<RecommendationData | null>(null);
@@ -655,6 +707,58 @@ function Discover() {
                   Nixpkgsにあるアプリ、言語、ライブラリ、開発ツールを検索できます。
                 </p>
 
+                <div className="mt-4 flex flex-wrap items-start justify-between gap-3 rounded-xl border border-border bg-card/70 px-4 py-3">
+                  <div className="min-w-0 flex-1 text-sm" aria-live="polite">
+                    {catalogPreparing ? (
+                      <>
+                        <p className="font-medium">Nixpkgsカタログを確認・準備中...</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          初回は全パッケージ情報を取得してローカルカタログを作成するため、時間がかかる場合があります。
+                        </p>
+                      </>
+                    ) : catalogStatus ? (
+                      <>
+                        <p className="font-medium">
+                          ローカルカタログ準備完了 · {catalogStatus.packageCount.toLocaleString("ja-JP")} 件
+                        </p>
+                        <p className="mt-1 break-words text-xs text-muted-foreground">
+                          {catalogStatus.action === "generated" ? "カタログを生成" : "検証済みキャッシュを再利用"} ·
+                          {" " + catalogStatus.system + " · "}
+                          {catalogStatus.sourceRevision
+                            ? "rev " + catalogStatus.sourceRevision.slice(0, 12) + " · "
+                            : ""}
+                          {"照合 " + catalogStatus.sourceCheckMs + " ms · "}
+                          {catalogStatus.action === "generated"
+                            ? "生成 " + catalogStatus.generationMs + " ms"
+                            : "読込 " + catalogStatus.cacheLoadMs + " ms"}
+                          {" · " + (catalogStatus.cacheBytes / (1024 * 1024)).toFixed(1) + " MiB"}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-medium">ローカルカタログを利用できません</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          ソースを検証できないため、検索は従来のNix検索にフォールバックします。古いカタログは使用しません。
+                        </p>
+                        {catalogError && (
+                          <p className="mt-1 break-words text-xs text-muted-foreground">
+                            {catalogError}
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={catalogPreparing}
+                    onClick={() => setCatalogRefreshKey((current) => current + 1)}
+                  >
+                    {catalogPreparing ? "準備中..." : "カタログを更新"}
+                  </Button>
+                </div>
+
                 <form onSubmit={handleSearch} className="mt-5 max-w-4xl">
                   <div className="flex w-full gap-2">
                     <div className="relative min-w-0 flex-1">
@@ -691,7 +795,7 @@ function Discover() {
                     <Button
                       type="submit"
                       className="h-11 rounded-full bg-primary px-5 font-semibold text-primary-foreground shadow-sm shadow-blue-500/20 hover:bg-primary/90"
-                      disabled={!query.trim() || searching}
+                      disabled={!query.trim() || searching || catalogPreparing}
                     >
                       <Search className="mr-2 size-4" />
                       検索

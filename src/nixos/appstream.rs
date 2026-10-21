@@ -74,11 +74,22 @@ fn resolve_icon_candidates(candidates: &[&str], limit: usize) -> Vec<String> {
 /// this after a rebuild has been verified.
 pub fn refresh_local_icon_cache() {
     let stock_index = STOCK_ICON_INDEX.get_or_init(|| Mutex::new(build_stock_icon_index()));
-    if let Ok(mut stock_index) = stock_index.lock() {
-        *stock_index = build_stock_icon_index();
-    }
+    let Ok(mut stock_index) = stock_index.lock() else {
+        return;
+    };
+    let new_index = build_stock_icon_index();
+    let cache = ICON_CACHE.get();
+    refresh_icon_index_and_cache(&mut stock_index, cache, new_index);
+}
 
-    if let Some(cache) = ICON_CACHE.get() {
+/// Replace the local icon index and invalidate cached hits and misses as one refresh operation.
+fn refresh_icon_index_and_cache(
+    stock_index: &mut HashMap<String, Vec<PathBuf>>,
+    cache: Option<&Mutex<HashMap<String, Option<String>>>>,
+    new_index: HashMap<String, Vec<PathBuf>>,
+) {
+    *stock_index = new_index;
+    if let Some(cache) = cache {
         if let Ok(mut cache) = cache.lock() {
             cache.clear();
         }
@@ -1470,6 +1481,49 @@ mod tests {
         assert!(icon.is_some());
 
         let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn refreshes_negative_icon_lookup_after_package_install() {
+        let root = std::env::temp_dir().join(format!(
+            "nxc-refresh-icon-index-test-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        let icon_path = root.join("hicolor/scalable/apps/firefox.svg");
+        let empty_index = HashMap::new();
+        let cache = Mutex::new(HashMap::new());
+
+        assert!(
+            resolve_direct_stock_icon_with_cache_root(&["firefox"], &empty_index, &cache, None)
+                .is_none()
+        );
+
+        fs::create_dir_all(icon_path.parent().unwrap()).unwrap();
+        fs::write(
+            &icon_path,
+            "<svg xmlns=\\"http://www.w3.org/2000/svg\\"><circle cx=\\"1\\" cy=\\"1\\" r=\\"1\\"/></svg>",
+        )
+        .unwrap();
+        let installed_index = build_stock_icon_index_from_roots(std::slice::from_ref(&root));
+        let mut active_index = empty_index;
+        refresh_icon_index_and_cache(&mut active_index, Some(&cache), installed_index);
+
+        assert!(
+            resolve_direct_stock_icon_with_cache_root(
+                &["firefox"],
+                &active_index,
+                &cache,
+                None,
+            )
+            .is_some(),
+            "refresh must invalidate the cached miss and discover the newly installed icon"
+        );
+
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]

@@ -37,7 +37,7 @@ function AppCard({
 
   return (
     <div className="group py-3">
-      <div className="grid grid-cols-[4.5rem_minmax(0,1fr)_auto] gap-x-4">
+      <div className="grid grid-cols-[4rem_minmax(0,1fr)] gap-x-4 sm:grid-cols-[4.5rem_minmax(0,1fr)_9rem]">
         <Link
           to={detailPath}
           className="row-span-3 flex size-16 shrink-0 items-center justify-center self-start rounded-2xl border border-primary/10 bg-primary/5 text-xl font-bold text-primary shadow-sm transition-transform duration-200 motion-reduce:transition-none group-hover:scale-[1.03] motion-reduce:group-hover:scale-100"
@@ -71,19 +71,21 @@ function AppCard({
           </p>
         </Link>
 
-        <InstallButton
-          packageId={id}
-          appName={name}
-          installed={installed}
-          statusKnown={statusKnown}
-          statusLoading={statusLoading}
-          className="h-9 min-w-20 shrink-0 rounded-full px-3 text-sm"
-          size="sm"
-        />
+        <div className="col-start-2 mt-2 w-full text-right sm:col-start-3 sm:mt-0">
+          <InstallButton
+            packageId={id}
+            appName={name}
+            installed={installed}
+            statusKnown={statusKnown}
+            statusLoading={statusLoading}
+            className="ml-auto h-9 w-36 rounded-full px-3 text-sm whitespace-nowrap"
+            size="sm"
+          />
+        </div>
 
         <Link
           to={detailPath}
-          className="col-start-2 col-span-2 mt-3 flex min-w-0 items-center gap-2 overflow-hidden"
+          className="col-start-2 col-span-1 mt-3 flex min-w-0 items-center gap-2 overflow-hidden sm:col-span-2"
         >
           <Badge
             variant="outline"

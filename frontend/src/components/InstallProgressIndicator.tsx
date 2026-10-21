@@ -1,13 +1,17 @@
 type InstallProgressIndicatorProps = {
   label: string;
+  ariaLabel?: string;
 };
 
-function InstallProgressIndicator({ label }: InstallProgressIndicatorProps) {
+function InstallProgressIndicator({
+  label,
+  ariaLabel = label,
+}: InstallProgressIndicatorProps) {
   return (
     <span
       role="status"
       aria-live="polite"
-      aria-label={label}
+      aria-label={ariaLabel}
       className="inline-flex items-center justify-center gap-2 whitespace-nowrap"
     >
       <svg

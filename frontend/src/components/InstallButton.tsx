@@ -181,7 +181,12 @@ function InstallButtonInstance({
 
     switch (installPhase) {
       case "installing":
-        return <InstallProgressIndicator label="インストール中..." />;
+        return (
+          <InstallProgressIndicator
+            label="処理中..."
+            ariaLabel="インストール中..."
+          />
+        );
       case "checking":
         return <InstallProgressIndicator label="確認中..." />;
       case "password":

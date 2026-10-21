@@ -55,7 +55,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import React from "react";
 import { createServer } from "vite";
 
-test("renders an accessible circular indicator while an install is pending", async () => {
+test("renders a compact visible progress label with an accessible full label", async () => {
   const vite = await createServer({
     configFile: "./vite.config.ts",
     logLevel: "silent",
@@ -69,13 +69,15 @@ test("renders an accessible circular indicator while an install is pending", asy
     );
     const markup = renderToStaticMarkup(
       React.createElement(InstallProgressIndicator, {
-        label: "インストール中...",
+        label: "処理中...",
+        ariaLabel: "インストール中...",
       }),
     );
 
     assert.match(markup, /role="status"/);
     assert.match(markup, /aria-live="polite"/);
-    assert.match(markup, /インストール中\.\.\./);
+    assert.match(markup, /aria-label="インストール中\.\.\."/);
+    assert.match(markup, /処理中\.\.\./);
     assert.match(markup, /<svg/);
     assert.match(markup, /<circle/);
   } finally {

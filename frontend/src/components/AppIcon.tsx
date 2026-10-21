@@ -186,10 +186,7 @@ function AppIcon({
         });
     };
 
-    window.addEventListener(
-      "nxc:package-installed",
-      handlePackageInstalled,
-    );
+    window.addEventListener("nxc:package-installed", handlePackageInstalled);
     return () => {
       cancelled = true;
       window.removeEventListener(

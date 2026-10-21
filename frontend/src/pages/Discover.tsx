@@ -1008,16 +1008,6 @@ function Discover() {
                   )}
                 </>
               )}
-            </section>
-          </main>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export default Discover;
-
             <div className="mt-10 border-t border-border/60 pt-3">
               <div
                 className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2"
@@ -1089,3 +1079,13 @@ export default Discover;
                 </Button>
               </div>
             </div>
+
+            </section>
+          </main>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default Discover;

@@ -39,17 +39,14 @@ impl PackageSystemSnapshot {
         let started = Instant::now();
         let current_generation = resolve_current_generation()?;
         let cache = PACKAGE_SNAPSHOT_CACHE.get_or_init(|| Mutex::new(None));
-        let (packages, cache_hit) = cached_packages_for_generation(
-            cache,
-            &current_generation,
-            || {
+        let (packages, cache_hit) =
+            cached_packages_for_generation(cache, &current_generation, || {
                 let query_started = Instant::now();
                 let result = resolve_system_sw(&current_generation)
                     .and_then(|system_sw| discover_system_packages(&system_sw));
                 log_perf_duration("nix_store_references", query_started.elapsed());
                 result
-            },
-        )?;
+            })?;
 
         if perf_debug_enabled() {
             eprintln!(

@@ -1580,6 +1580,37 @@ mod tests {
     }
 
     #[test]
+    fn resolves_stock_icon_by_display_name_alias() {
+        let root = std::env::temp_dir().join(format!(
+            "nxc-display-name-icon-test-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let icon_path = root.join("display-name.svg");
+        fs::write(
+            &icon_path,
+            "<svg xmlns="http://www.w3.org/2000/svg"><circle cx="1" cy="1" r="1"/></svg>",
+        )
+        .unwrap();
+        let index = HashMap::from([("editor pro".to_string(), vec![icon_path])]);
+
+        assert!(
+            direct_stock_icon_from_index(&["com.example.editor"], &index).is_none(),
+            "the package ID alone does not match this icon"
+        );
+        assert!(
+            direct_stock_icon_from_index(&["com.example.editor", "Editor Pro"], &index).is_some(),
+            "the display-name alias should resolve the icon"
+        );
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn keeps_a_local_app_icon_after_its_source_file_is_removed() {
         let root = std::env::temp_dir().join(format!(
             "nxc-persisted-icon-test-{}-{}",

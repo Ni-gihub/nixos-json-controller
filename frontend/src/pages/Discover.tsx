@@ -701,6 +701,8 @@ function Discover() {
   };
 
   const hasResults = submittedQuery.length > 0;
+  const noResultsAfterSearch =
+    results.length === 0 && !searching && !hasMoreResults;
 
   return (
     <div className="min-h-[calc(100vh-2.5rem)] bg-background text-foreground">
@@ -957,9 +959,7 @@ function Discover() {
                         {searchError}
                       </p>
                     </div>
-                  ) : results.length === 0 &&
-                    !searching &&
-                    !hasMoreResults ? (
+                  ) : noResultsAfterSearch ? (
                     <div className="w-full rounded-xl border border-dashed border-border bg-card p-8 text-center">
                       <p className="font-medium">
                         該当するパッケージが見つかりませんでした。

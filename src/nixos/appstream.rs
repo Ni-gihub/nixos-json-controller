@@ -1527,7 +1527,7 @@ mod tests {
         fs::create_dir_all(&root).unwrap();
         fs::write(
             &icon_path,
-            r#r#"<svg xmlns="http://www.w3.org/2000/svg"><circle cx="1" cy="1" r="1"/></svg>"##,
+            r#"<svg xmlns="http://www.w3.org/2000/svg"><circle cx="1" cy="1" r="1"/></svg>"#,
         )
         .unwrap();
 
@@ -1593,7 +1593,7 @@ mod tests {
         let icon_path = root.join("display-name.svg");
         fs::write(
             &icon_path,
-            "<svg xmlns="http://www.w3.org/2000/svg"><circle cx="1" cy="1" r="1"/></svg>",
+            r#"<svg xmlns="http://www.w3.org/2000/svg"><circle cx="1" cy="1" r="1"/></svg>"#,
         )
         .unwrap();
         let index = HashMap::from([("editor pro".to_string(), vec![icon_path])]);

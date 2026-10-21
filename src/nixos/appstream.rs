@@ -222,7 +222,13 @@ fn resolve_direct_stock_icon(
     index: &HashMap<String, Vec<PathBuf>>,
     cache: &Mutex<HashMap<String, Option<String>>>,
 ) -> Option<String> {
+    static CACHE_PRUNED: OnceLock<()> = OnceLock::new();
+
     let cache_root = persistent_icon_cache_dir();
+    if let Some(root) = cache_root.as_deref().filter(|root| root.is_dir()) {
+        // Bound the cache from previous application sessions without scanning it per icon.
+        CACHE_PRUNED.get_or_init(|| prune_persisted_icon_cache(root));
+    }
     resolve_direct_stock_icon_with_cache_root(candidates, index, cache, cache_root.as_deref())
 }
 
@@ -1508,6 +1514,4 @@ mod tests {
         assert!(read_persisted_icon_cache(&root, &key).is_none());
 
         let _ = fs::remove_dir_all(root);
-    }
-
-}
+    }}

@@ -20,6 +20,11 @@ export class SearchPageCache<T extends { id: string }> {
     this.maxQueries = maxQueries;
   }
 
+  /** Drop page results after the catalog source changes or a rebuild completes. */
+  clear(): void {
+    this.entries.clear();
+  }
+
   /** Return a cached page or fetch and deduplicate a single in-flight request. */
   async load(
     query: string,

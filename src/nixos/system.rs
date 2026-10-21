@@ -31,8 +31,7 @@ struct CachedPackageSnapshot {
     packages: BTreeSet<String>,
 }
 
-static PACKAGE_SNAPSHOT_CACHE: OnceLock<Mutex<Option<CachedPackageSnapshot>>> =
-    OnceLock::new();
+static PACKAGE_SNAPSHOT_CACHE: OnceLock<Mutex<Option<CachedPackageSnapshot>>> = OnceLock::new();
 
 impl PackageSystemSnapshot {
     pub(crate) fn discover() -> Result<Self, String> {

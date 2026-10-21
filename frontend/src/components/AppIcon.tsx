@@ -175,7 +175,7 @@ function AppIcon({
       const detail = (event as CustomEvent<{ packageId?: string }>).detail;
       if (detail?.packageId !== packageId) return;
 
-      void invoke<string[]>("get_icon_candidates", { package: packageId })
+      void invoke<string[]>("get_icon_candidates", { package: packageId, name })
         .then((nextCandidates) => {
           if (!cancelled) {
             setRefreshedCandidates({ packageId, candidates: nextCandidates });

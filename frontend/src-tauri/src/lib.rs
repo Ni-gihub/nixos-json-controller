@@ -48,10 +48,12 @@ async fn install_app(package: String, password: Option<String>) -> Result<Instal
 #[tauri::command]
 async fn get_icon_candidates(package: String, name: String) -> Result<Vec<String>, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        Ok(nixos_json_controller::nixos::appstream::icon_candidates_for_package(&[
-            package.as_str(),
-            name.as_str(),
-        ]))
+        Ok(
+            nixos_json_controller::nixos::appstream::icon_candidates_for_package(&[
+                package.as_str(),
+                name.as_str(),
+            ]),
+        )
     })
     .await
     .map_err(|error| format!("icon candidate lookup task failed: {error}"))?

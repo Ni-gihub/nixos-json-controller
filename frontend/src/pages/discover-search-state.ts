@@ -34,8 +34,9 @@ export function isCurrentSearchRequest(
   return requestId === latestRequestId;
 }
 
-
-/** Pause automatic pagination after several consecutive pages with no visible results. */
+/**
+ * Pause automatic pagination after several consecutive pages with no visible results.
+ */
 export function advanceEmptyPageAutoLoadState(
   consecutiveEmptyPages: number,
   resultCount: number,

@@ -315,7 +315,7 @@ fn read_persisted_icon_cache(root: &Path, key: &str) -> Option<String> {
     }
 
     let contents = fs::read_to_string(path).ok()?;
-    let (stored_key, icon) = contents.split_once('\\n')?;
+    let (stored_key, icon) = contents.split_once('\n')?;
     if stored_key != key || !is_persistable_icon(icon) {
         return None;
     }
@@ -339,7 +339,7 @@ fn write_persisted_icon_cache(root: &Path, key: &str, icon: &str) {
         std::process::id(),
         nonce
     ));
-    let contents = format!("{key}\\n{icon}");
+    let contents = format!("{key}\n{icon}");
 
     let write_result = (|| {
         let mut file = OpenOptions::new()
@@ -1497,12 +1497,12 @@ mod tests {
         fs::create_dir_all(&root).unwrap();
         let key = direct_stock_cache_key(&["firefox"]);
         let path = root.join(persisted_icon_cache_filename(&key));
-        fs::write(&path, format!("{key}\\ndata:text/html;base64,PHNjcmlwdD4=")).unwrap();
+        fs::write(&path, format!("{key}\ndata:text/html;base64,PHNjcmlwdD4=")).unwrap();
         assert!(read_persisted_icon_cache(&root, &key).is_none());
 
         fs::write(
             &path,
-            "direct|6:chrome|\\ndata:image/png;base64,aGVsbG8=",
+            "direct|6:chrome|\ndata:image/png;base64,aGVsbG8=",
         )
         .unwrap();
         assert!(read_persisted_icon_cache(&root, &key).is_none());

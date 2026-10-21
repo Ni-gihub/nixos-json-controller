@@ -73,11 +73,11 @@ fn resolve_icon_candidates(candidates: &[&str], limit: usize) -> Vec<String> {
 /// scans. A package install/removal changes the available icon files, so the GUI should call
 /// this after a rebuild has been verified.
 pub fn refresh_local_icon_cache() {
-    let stock_index = STOCK_ICON_INDEX.get_or_init(|| Mutex::new(build_stock_icon_index()));
-    let Ok(mut stock_index) = stock_index.lock() else {
-        return;
-    };
+    // Scan outside the lock so concurrent icon lookups are not blocked during the scan.
     let new_index = build_stock_icon_index();
+    let stock_index = STOCK_ICON_INDEX.get_or_init(|| Mutex::new(HashMap::new()));
+    // The whole map is replaced, so recovering from a poisoned lock is safe here.
+    let mut stock_index = stock_index.lock().unwrap_or_else(|error| error.into_inner());
     let cache = ICON_CACHE.get();
     refresh_icon_index_and_cache(&mut stock_index, cache, new_index);
 }

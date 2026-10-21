@@ -279,17 +279,20 @@ fn resolve_direct_stock_icon_with_cache_root(
         return icon;
     }
 
+    // The in-memory lookup key includes every alias, but persisted entries must survive callers
+    // supplying different alias lists for the same package (e.g. the post-install GUI refresh).
+    let persisted_key = persisted_icon_cache_key(candidates);
     // Prefer the currently installed theme asset (which may have been updated). Only use the
     // persisted copy when this alias no longer resolves, e.g. after uninstall or garbage collection.
     let local_icon = direct_stock_icon_from_index(candidates, index);
     let icon = match local_icon {
         Some(icon) => {
             if let Some(root) = cache_root {
-                write_persisted_icon_cache(root, &key, &icon);
+                write_persisted_icon_cache(root, &persisted_key, &icon);
             }
             Some(icon)
         }
-        None => cache_root.and_then(|root| read_persisted_icon_cache(root, &key)),
+        None => cache_root.and_then(|root| read_persisted_icon_cache(root, &persisted_key)),
     };
 
     if let Ok(mut icons) = cache.lock() {
@@ -436,6 +439,14 @@ fn prune_persisted_icon_cache(root: &Path) {
             total_bytes = total_bytes.saturating_sub(size);
         }
     }
+}
+
+/// Build a stable on-disk key from the primary package identifier.
+/// Additional aliases may be supplied by AppStream on normal searches, while the install event
+/// only has the package identifier. The primary identifier is shared by both paths.
+fn persisted_icon_cache_key(candidates: &[&str]) -> String {
+    let primary = candidates.first().map(|candidate| candidate.trim().to_lowercase()).unwrap_or_default();
+    format!("persisted|{}:{primary}", primary.len())
 }
 
 /// Build a collision-resistant key for the original candidate sequence.
@@ -1613,6 +1624,14 @@ mod tests {
     }
 
     #[test]
+    fn persisted_icon_cache_key_is_stable_when_extra_aliases_are_added() {
+        assert_eq!(
+            persisted_icon_cache_key(&["firefox"]),
+            persisted_icon_cache_key(&["firefox", "firefox", "Firefox"]),
+        );
+    }
+
+    #[test]
     fn persisted_icon_cache_rejects_invalid_data_and_key_mismatches() {
         let root = std::env::temp_dir().join(format!(
             "nxc-persisted-icon-validation-{}-{}",
@@ -1623,7 +1642,7 @@ mod tests {
                 .as_nanos()
         ));
         fs::create_dir_all(&root).unwrap();
-        let key = direct_stock_cache_key(&["firefox"]);
+        let key = persisted_icon_cache_key(&["firefox"]);
         let path = root.join(persisted_icon_cache_filename(&key));
         fs::write(&path, format!("{key}\ndata:text/html;base64,PHNjcmlwdD4=")).unwrap();
         assert!(read_persisted_icon_cache(&root, &key).is_none());

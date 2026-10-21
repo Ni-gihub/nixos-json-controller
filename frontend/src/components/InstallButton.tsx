@@ -87,6 +87,11 @@ function InstallButtonInstance({
         // running another Nix evaluation for the same package.
         markPackageActiveVerified(result.package);
         setInstallSucceeded(true);
+        window.dispatchEvent(
+          new CustomEvent("nxc:package-installed", {
+            detail: { packageId: result.package },
+          }),
+        );
       } else {
         // A successful no-op path does not prove that the package is active.
         // Invalidate older lookups and refresh the actual state in the background.

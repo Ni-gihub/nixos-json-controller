@@ -286,6 +286,7 @@ fn retain_resolved_packages(
 }
 
 /// Select a bounded page of installable candidates and resolve icons only for that page.
+#[cfg(test)]
 fn paginate_ranked_results(
     ranked: &[(u32, CatalogPackage)],
     offset: usize,

@@ -161,6 +161,7 @@ function Discover() {
   const loadingMoreRef = useRef(false);
   const loadingMoreRequestIdRef = useRef<number | null>(null);
   const consecutiveEmptyPagesRef = useRef(0);
+  const resultIdsRef = useRef(new Set<string>());
   const requestedStateIdsRef = useRef(new Set<string>());
   const pendingStateIdsRef = useRef(new Set<string>());
   const stateRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -188,6 +189,7 @@ function Discover() {
       setSearchElapsedMs(null);
       setSearchError(null);
       setResults([]);
+      resultIdsRef.current.clear();
       setNextOffset(0);
       setHasMoreResults(false);
       setAutoLoadPaused(false);
@@ -205,6 +207,7 @@ function Discover() {
           }
 
           setResults(page.results);
+          resultIdsRef.current = new Set(page.results.map((app) => app.id));
           const elapsedMs = Math.round(performance.now() - startedAt);
           setSearchElapsedMs(elapsedMs);
           if (import.meta.env.DEV && import.meta.env.VITE_PERF_DEBUG === "1") {
@@ -225,6 +228,7 @@ function Discover() {
           }
 
           setResults([]);
+          resultIdsRef.current.clear();
           setSearchError(String(err));
         })
         .finally(() => {
@@ -328,22 +332,18 @@ function Discover() {
             return;
           }
 
-          setResults((current) => {
-            const knownIds = new Set(current.map((app) => app.id));
-            return [
-              ...current,
-              ...page.results.filter((app) => {
-                if (knownIds.has(app.id)) return false;
-                knownIds.add(app.id);
-                return true;
-              }),
-            ];
+          const knownIds = resultIdsRef.current;
+          const addedResults = page.results.filter((app) => {
+            if (knownIds.has(app.id)) return false;
+            knownIds.add(app.id);
+            return true;
           });
+          setResults((current) => [...current, ...addedResults]);
           setNextOffset(page.nextOffset);
           setHasMoreResults(page.hasMore);
           const autoLoadState = advanceEmptyPageAutoLoadState(
             consecutiveEmptyPagesRef.current,
-            page.results.length,
+            addedResults.length,
           );
           consecutiveEmptyPagesRef.current =
             autoLoadState.consecutiveEmptyPages;
@@ -525,6 +525,7 @@ function Discover() {
       searchRequestIdRef.current += 1;
       setSearching(false);
       setResults([]);
+      resultIdsRef.current.clear();
       setNextOffset(0);
       setHasMoreResults(false);
       setResultsLimited(false);

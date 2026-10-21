@@ -515,9 +515,19 @@ fn load_matching_catalog(
     }
     let contents = fs::read(path).ok()?;
     let envelope: CatalogCacheEnvelope = serde_json::from_slice(&contents).ok()?;
+    catalog_index_from_envelope(envelope, source, system, metadata.len())
+}
+
+fn catalog_index_from_envelope(
+    envelope: CatalogCacheEnvelope,
+    source: &CatalogSourceIdentity,
+    system: &str,
+    cache_bytes: u64,
+) -> Option<CatalogIndex> {
     if envelope.schema_version != CATALOG_SCHEMA_VERSION
-        || envelope.source != *source
+        || &envelope.source != source
         || envelope.system != system
+        || envelope.packages.is_empty()
         || envelope.packages.len() > MAX_CATALOG_PACKAGES
     {
         return None;
@@ -539,7 +549,7 @@ fn load_matching_catalog(
         system: envelope.system,
         generated_at: envelope.generated_at,
         packages,
-        cache_bytes: metadata.len(),
+        cache_bytes,
     })
 }
 
@@ -1157,7 +1167,7 @@ mod tests {
     }
 
     #[test]
-    fn cache_envelope_rejects_a_different_source_or_unsafe_id() {
+    fn cached_catalog_requires_matching_source_system_schema_and_safe_ids() {
         let source = CatalogSourceIdentity {
             source: "nixpkgs".to_string(),
             revision: Some("rev-a".to_string()),
@@ -1180,17 +1190,40 @@ mod tests {
             source: source.clone(),
             system: "x86_64-linux".to_string(),
             generated_at: 1,
-            packages: vec![package.clone()],
+            packages: vec![package],
         };
         let bytes = serde_json::to_vec(&envelope).unwrap();
         let parsed: CatalogCacheEnvelope = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(parsed.source, source);
-        assert_eq!(parsed.packages[0].id, "firefox");
+        assert!(catalog_index_from_envelope(
+            parsed.clone(),
+            &source,
+            "x86_64-linux",
+            bytes.len() as u64,
+        ).is_some());
 
-        let mut invalid = envelope;
+        let mut different_source = source.clone();
+        different_source.nar_hash = "hash-b".to_string();
+        assert!(catalog_index_from_envelope(
+            parsed.clone(),
+            &different_source,
+            "x86_64-linux",
+            bytes.len() as u64,
+        ).is_none());
+        assert!(catalog_index_from_envelope(
+            parsed.clone(),
+            &source,
+            "aarch64-linux",
+            bytes.len() as u64,
+        ).is_none());
+
+        let mut invalid = parsed;
         invalid.packages[0].id = "firefox; builtins.abort".to_string();
-        assert!(!is_safe_attribute_path(&invalid.packages[0].id));
-        assert!(package.id == "firefox");
+        assert!(catalog_index_from_envelope(
+            invalid,
+            &source,
+            "x86_64-linux",
+            bytes.len() as u64,
+        ).is_none());
     }
 
     #[test]

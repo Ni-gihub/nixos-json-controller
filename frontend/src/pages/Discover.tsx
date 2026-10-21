@@ -784,6 +784,19 @@ function Discover() {
                     Enterキーで検索
                   </p>
                 </form>
+
+                {catalogPreparing && (
+                  <p
+                    className="mt-2 flex items-center gap-2 px-1 text-xs text-muted-foreground"
+                    role="status"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="size-1.5 shrink-0 animate-pulse rounded-full bg-primary"
+                    />
+                    カタログを準備中です。完了すると検索できます。
+                  </p>
+                )}
               </div>
             </section>
 

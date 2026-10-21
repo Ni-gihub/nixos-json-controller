@@ -422,14 +422,20 @@ function Discover() {
     };
   }, [catalogRefreshKey]);
 
+  const submittedQueryRef = useRef(submittedQuery);
   useEffect(() => {
-    if (catalogPreparing || catalogAttemptId === 0 || !submittedQuery.trim()) {
+    submittedQueryRef.current = submittedQuery;
+  }, [submittedQuery]);
+
+  useEffect(() => {
+    const currentQuery = submittedQueryRef.current.trim();
+    if (catalogPreparing || catalogAttemptId === 0 || !currentQuery) {
       return;
     }
     clearSearchCache();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- restart the current query only after catalog verification finishes
-    runSearch(submittedQuery);
-  }, [catalogAttemptId, catalogPreparing, runSearch, submittedQuery]);
+    runSearch(currentQuery);
+  }, [catalogAttemptId, catalogPreparing, runSearch]);
 
   const [recommendationData, setRecommendationData] =
     useState<RecommendationData | null>(null);

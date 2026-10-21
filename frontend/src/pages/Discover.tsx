@@ -738,78 +738,6 @@ function Discover() {
                   Nixpkgsにあるアプリ、言語、ライブラリ、開発ツールを検索できます。
                 </p>
 
-                <div className="mt-4 flex flex-wrap items-start justify-between gap-3 rounded-xl border border-border bg-card/70 px-4 py-3">
-                  <div className="min-w-0 flex-1 text-sm" aria-live="polite">
-                    {catalogPreparing ? (
-                      <>
-                        <p className="font-medium">
-                          Nixpkgsカタログを確認・準備中...
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          初回は全パッケージ情報を取得してローカルカタログを作成するため、時間がかかる場合があります。
-                        </p>
-                      </>
-                    ) : catalogStatus ? (
-                      <>
-                        <p className="font-medium">
-                          ローカルカタログ準備完了 ·{" "}
-                          {catalogStatus.packageCount.toLocaleString("ja-JP")}{" "}
-                          件
-                        </p>
-                        <p className="mt-1 break-words text-xs text-muted-foreground">
-                          {catalogStatus.action === "generated"
-                            ? "カタログを生成"
-                            : catalogStatus.action === "reused-memory"
-                              ? "メモリ上のカタログを再利用"
-                              : "検証済みキャッシュを再利用"}{" "}
-                          ·{" " + catalogStatus.system + " · "}
-                          {catalogStatus.sourceRevision
-                            ? "rev " +
-                              catalogStatus.sourceRevision.slice(0, 12) +
-                              " · "
-                            : ""}
-                          {"照合 " + catalogStatus.sourceCheckMs + " ms · "}
-                          {catalogStatus.action === "generated"
-                            ? "生成 " + catalogStatus.generationMs + " ms"
-                            : catalogStatus.action === "reused-memory"
-                              ? "メモリ再利用"
-                              : "読込 " + catalogStatus.cacheLoadMs + " ms"}
-                          {" · " +
-                            (catalogStatus.cacheBytes / (1024 * 1024)).toFixed(
-                              1,
-                            ) +
-                            " MiB"}
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <p className="font-medium">
-                          ローカルカタログを利用できません
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          ソースを検証できないため、検索は従来のNix検索にフォールバックします。古いカタログは使用しません。
-                        </p>
-                        {catalogError && (
-                          <p className="mt-1 break-words text-xs text-muted-foreground">
-                            {catalogError}
-                          </p>
-                        )}
-                      </>
-                    )}
-                  </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={catalogPreparing}
-                    onClick={() =>
-                      setCatalogRefreshKey((current) => current + 1)
-                    }
-                  >
-                    {catalogPreparing ? "準備中..." : "カタログを更新"}
-                  </Button>
-                </div>
-
                 <form onSubmit={handleSearch} className="mt-5 max-w-4xl">
                   <div className="flex w-full gap-2">
                     <div className="relative min-w-0 flex-1">
@@ -1089,3 +1017,75 @@ function Discover() {
 }
 
 export default Discover;
+
+            <div className="mt-10 border-t border-border/60 pt-3">
+              <div
+                className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2"
+                aria-live="polite"
+              >
+                <div className="min-w-0 flex-1 space-y-0.5 text-xs text-muted-foreground">
+                  {catalogPreparing ? (
+                    <>
+                      <p>Nixpkgsカタログを確認・準備中...</p>
+                      <p className="break-words">
+                        初回は全パッケージ情報を取得してローカルカタログを作成するため、時間がかかる場合があります。
+                      </p>
+                    </>
+                  ) : catalogStatus ? (
+                    <>
+                      <p>
+                        ローカルカタログ準備完了 ·{" "}
+                        {catalogStatus.packageCount.toLocaleString("ja-JP")}{" "}
+                        件
+                      </p>
+                      <p className="break-words">
+                        {catalogStatus.action === "generated"
+                          ? "カタログを生成"
+                          : catalogStatus.action === "reused-memory"
+                            ? "メモリ上のカタログを再利用"
+                            : "検証済みキャッシュを再利用"}{" "}
+                        ·{" " + catalogStatus.system + " · "}
+                        {catalogStatus.sourceRevision
+                          ? "rev " +
+                            catalogStatus.sourceRevision.slice(0, 12) +
+                            " · "
+                          : ""}
+                        {"照合 " + catalogStatus.sourceCheckMs + " ms · "}
+                        {catalogStatus.action === "generated"
+                          ? "生成 " + catalogStatus.generationMs + " ms"
+                          : catalogStatus.action === "reused-memory"
+                            ? "メモリ再利用"
+                            : "読込 " + catalogStatus.cacheLoadMs + " ms"}
+                        {" · " +
+                          (catalogStatus.cacheBytes / (1024 * 1024)).toFixed(
+                            1,
+                          ) +
+                          " MiB"}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p>ローカルカタログを利用できません</p>
+                      <p className="break-words">
+                        ソースを検証できないため、検索は従来のNix検索にフォールバックします。古いカタログは使用しません。
+                      </p>
+                      {catalogError && (
+                        <p className="break-words">{catalogError}</p>
+                      )}
+                    </>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="ml-auto h-7 shrink-0 px-2 text-xs text-muted-foreground"
+                  disabled={catalogPreparing}
+                  onClick={() =>
+                    setCatalogRefreshKey((current) => current + 1)
+                  }
+                >
+                  {catalogPreparing ? "準備中..." : "カタログを更新"}
+                </Button>
+              </div>
+            </div>

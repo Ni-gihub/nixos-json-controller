@@ -1856,6 +1856,35 @@ mod tests {
     }
 
     #[test]
+    fn pagination_bounds_filter_batches_per_request() {
+        let package = |id: &str| CatalogPackage {
+            id: id.to_string(),
+            name: id.to_string(),
+            description: String::new(),
+            version: "1".to_string(),
+            category: "その他".to_string(),
+            tags: Vec::new(),
+            homepage: None,
+            icon: None,
+            icon_candidates: Vec::new(),
+        };
+        let ranked = (0..10)
+            .map(|index| (100 - index, package(&format!("missing-{index}"))))
+            .collect::<Vec<_>>();
+        let mut calls = 0;
+
+        let (selected, next_offset) =
+            select_installable_candidates(&ranked, 0, 1, |_batch| {
+                calls += 1;
+                Vec::new()
+            });
+
+        assert!(selected.is_empty());
+        assert_eq!(calls, MAX_FILTER_BATCHES_PER_PAGE);
+        assert_eq!(next_offset, MAX_FILTER_BATCHES_PER_PAGE);
+    }
+
+    #[test]
     fn accepts_nested_nix_attribute_paths() {
         assert!(is_safe_attribute_path("python3Packages.requests"));
         assert!(is_safe_attribute_path("llvmPackages_20.clang"));

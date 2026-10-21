@@ -155,7 +155,8 @@ fn resolve_icon_candidates_from_index(
     // AppStream-declared stock icons take precedence over guessed aliases.
     let mut appstream_stock_count = 0;
     for entry in &entries_by_priority[1] {
-        if let Some(icon) = load_icon(entry) {
+        // Use the already-held index snapshot to avoid re-locking STOCK_ICON_INDEX.
+        if let Some(icon) = load_icon_with_stock_index(entry, Some(stock_index)) {
             if push_icon_candidate(&mut resolved, icon, limit) {
                 appstream_stock_count += 1;
             }
@@ -826,11 +827,25 @@ fn element_attribute(input: &str, element: &str, attribute: &str) -> Option<Stri
 
 /// Load an AppStream icon from cached data, the system icon theme, or a remote URL.
 fn load_icon(entry: &str) -> Option<String> {
+    load_icon_with_stock_index(entry, None)
+}
+
+/// Resolve using a supplied stock-index snapshot when the caller already holds one.
+/// This avoids re-locking the global index while resolving AppStream stock candidates.
+fn load_icon_with_stock_index(
+    entry: &str,
+    stock_index: Option<&HashMap<String, Vec<PathBuf>>>,
+) -> Option<String> {
     if let Some(url) = entry.strip_prefix("remote|") {
         return Some(url.to_string());
     }
 
     if let Some(icon_name) = entry.strip_prefix("stock|") {
+        if let Some(index) = stock_index {
+            return index
+                .get(&icon_name.to_lowercase())
+                .and_then(|paths| paths.iter().find_map(|path| read_icon(path)));
+        }
         return load_stock_icon(icon_name);
     }
 
@@ -1482,6 +1497,34 @@ mod tests {
         assert!(icon.is_some());
 
         let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn loads_appstream_stock_icon_from_the_existing_index_snapshot() {
+        let root = std::env::temp_dir().join(format!(
+            "nxc-appstream-stock-icon-test-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        let icon_path = root.join("applications-internet.svg");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(
+            &icon_path,
+            r#"<svg xmlns="http://www.w3.org/2000/svg"><circle cx="1" cy="1" r="1"/></svg>"#,
+        )
+        .unwrap();
+
+        let index = HashMap::from([(
+            "applications-internet".to_string(),
+            vec![icon_path],
+        )]);
+        let icon = load_icon_with_stock_index("stock|applications-internet", Some(&index));
+
+        assert!(icon.is_some(), "stock icon should resolve from the supplied snapshot");
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]

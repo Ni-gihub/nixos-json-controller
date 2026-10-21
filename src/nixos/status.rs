@@ -87,7 +87,7 @@ pub fn package_states(packages: &[String]) -> Result<Vec<PackageState>, String> 
     let states =
         package_states_from_output_names(packages, output_names, &provenance, &system)?;
     log_perf_duration("package_states.total", total_started.elapsed());
-    states
+    Ok(states)
 }
 
 pub fn package_state(package: &str) -> Result<PackageState, String> {

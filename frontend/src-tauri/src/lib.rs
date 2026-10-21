@@ -31,10 +31,6 @@ async fn install_app(package: String, password: Option<String>) -> Result<Instal
             password.as_deref(),
         )?;
 
-        if outcome.active_state_verified {
-            nixos_json_controller::nixos::appstream::refresh_local_icon_cache();
-        }
-
         Ok(InstallResult {
             package: outcome.package,
             installed: true,
@@ -43,6 +39,15 @@ async fn install_app(package: String, password: Option<String>) -> Result<Instal
     })
     .await
     .map_err(|error| format!("installation task failed: {error}"))?
+}
+
+#[tauri::command]
+async fn refresh_local_icon_cache() -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        nixos_json_controller::nixos::appstream::refresh_local_icon_cache();
+    })
+    .await
+    .map_err(|error| format!("icon cache refresh task failed: {error}"))
 }
 
 #[tauri::command]
@@ -136,6 +141,7 @@ pub fn run() {
             log_icon_debug,
             sudo_available,
             install_app,
+            refresh_local_icon_cache,
             get_icon_candidates,
             prepare_catalog,
             search_catalog,

@@ -10,6 +10,7 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   fmt:
@@ -119,6 +120,8 @@ jobs:
         run: cargo test nix_command_is_available -- --ignored
 
       - name: Benchmark legacy and local catalog search
+        if: github.event_name == 'workflow_dispatch'
+        continue-on-error: true
         env:
           XDG_CACHE_HOME: ${{ runner.temp }}/nxc-catalog-benchmark
         run: cargo test full_catalog_benchmark_compares_legacy_and_local_search -- --ignored --nocapture

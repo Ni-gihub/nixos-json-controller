@@ -153,7 +153,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
           return next;
         });
       } catch (err) {
-        setError(String(err));
+        // A stale request must not replace the error state of newer requests.
+        const hasCurrentPackage = [...requestRevisions].some(([name, revision]) =>
+          packageStateRevision.isCurrent(name, revision),
+        );
+        if (hasCurrentPackage) setError(String(err));
       } finally {
         setLoading(pendingStateRequests.finish());
         if (shouldLogPerf) {

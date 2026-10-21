@@ -90,8 +90,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check frontend formatting (diagnostic)
-        run: pnpm exec prettier --write src/pages/Discover.tsx && git diff -- src/pages/Discover.tsx
+      - name: Check frontend formatting
+        run: pnpm format:check
 
       - name: Test frontend
         run: pnpm test

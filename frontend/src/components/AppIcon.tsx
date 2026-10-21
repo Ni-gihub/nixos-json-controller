@@ -141,10 +141,18 @@ function AppIcon({
   imageClassName,
   fallbackClassName,
 }: AppIconProps) {
+  const [refreshedCandidates, setRefreshedCandidates] = useState<{
+    packageId: string;
+    candidates: string[];
+  } | null>(null);
   // This opt-in mode isolates Lucide/WebView rendering from package and external image sources.
+  const currentIconCandidates =
+    refreshedCandidates?.packageId === packageId
+      ? refreshedCandidates.candidates
+      : iconCandidates;
   const candidates = DEBUG_FALLBACK_ONLY
     ? []
-    : collectIconCandidates(icon, iconCandidates);
+    : collectIconCandidates(icon, currentIconCandidates);
   const candidateKey = JSON.stringify(candidates);
   const [failedCandidate, setFailedCandidate] = useState<{
     key: string;
@@ -158,6 +166,32 @@ function AppIcon({
   const containerRef = useRef<HTMLSpanElement>(null);
   const packageIconRef = useRef<SVGSVGElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+
+  // A verified install can make a previously missing local icon available.
+  // Ask Rust for fresh candidates so the current card/detail can render and persist it.
+  useEffect(() => {
+    let cancelled = false;
+    const handlePackageInstalled = (event: Event) => {
+      const detail = (event as CustomEvent<{ packageId?: string }>).detail;
+      if (detail?.packageId !== packageId) return;
+
+      void invoke<string[]>("get_icon_candidates", { package: packageId })
+        .then((nextCandidates) => {
+          if (!cancelled) {
+            setRefreshedCandidates({ packageId, candidates: nextCandidates });
+          }
+        })
+        .catch(() => {
+          // Icon refresh is best-effort; keep the existing fallback on failure.
+        });
+    };
+
+    window.addEventListener("nxc:package-installed", handlePackageInstalled);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("nxc:package-installed", handlePackageInstalled);
+    };
+  }, [packageId]);
 
   // Reset the effective index when the package/candidate list changes.
   const candidateIndex =

@@ -318,17 +318,11 @@ fn prepare_catalog_inner(
 
     let load_start = Instant::now();
     if !force_refresh {
-        if let Some(index) = previous_index
-            .filter(|index| index.source == source && index.system == system)
+        if let Some(index) =
+            previous_index.filter(|index| index.source == source && index.system == system)
         {
-            let status = preparation_status(
-                "reused-memory",
-                &index,
-                &cache_path,
-                source_check_ms,
-                0,
-                0,
-            );
+            let status =
+                preparation_status("reused-memory", &index, &cache_path, source_check_ms, 0, 0);
             return Ok((index, status));
         }
 
@@ -752,23 +746,21 @@ fn run_nix_command(arguments: &[&str]) -> Result<Vec<u8>, String> {
         .ok_or_else(|| format!("failed to capture stderr from nix {}", arguments.join(" ")))?;
     // Drain stderr concurrently so a full pipe cannot block the child. Keep only a
     // bounded prefix because error output is diagnostic, not application data.
-    let stderr_reader = std::thread::spawn(move || {
-        read_bounded_pipe(stderr, MAX_NIX_STDERR_BYTES, false)
-    });
+    let stderr_reader =
+        std::thread::spawn(move || read_bounded_pipe(stderr, MAX_NIX_STDERR_BYTES, false));
 
-    let (stdout, stdout_exceeded) =
-        match read_bounded_pipe(stdout, MAX_NIX_STDOUT_BYTES, true) {
-            Ok(result) => result,
-            Err(error) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                let _ = stderr_reader.join();
-                return Err(format!(
-                    "failed to read stdout from nix {}: {error}",
-                    arguments.join(" ")
-                ));
-            }
-        };
+    let (stdout, stdout_exceeded) = match read_bounded_pipe(stdout, MAX_NIX_STDOUT_BYTES, true) {
+        Ok(result) => result,
+        Err(error) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            let _ = stderr_reader.join();
+            return Err(format!(
+                "failed to read stdout from nix {}: {error}",
+                arguments.join(" ")
+            ));
+        }
+    };
 
     if stdout_exceeded {
         // The bounded reader closes the pipe as soon as output exceeds the cap.
@@ -781,8 +773,12 @@ fn run_nix_command(arguments: &[&str]) -> Result<Vec<u8>, String> {
     let stderr_result = stderr_reader
         .join()
         .map_err(|_| format!("stderr reader panicked for nix {}", arguments.join(" ")))?;
-    let (stderr, stderr_truncated) = stderr_result
-        .map_err(|error| format!("failed to read stderr from nix {}: {error}", arguments.join(" ")))?;
+    let (stderr, stderr_truncated) = stderr_result.map_err(|error| {
+        format!(
+            "failed to read stderr from nix {}: {error}",
+            arguments.join(" ")
+        )
+    })?;
 
     if stdout_exceeded {
         return Err(format!(

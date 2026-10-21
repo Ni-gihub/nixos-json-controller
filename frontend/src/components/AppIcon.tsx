@@ -144,15 +144,17 @@ function AppIcon({
   const [refreshedCandidates, setRefreshedCandidates] = useState<{
     packageId: string;
     name: string;
-    sourceIconCandidates: string[] | undefined;
+    sourceIconCandidatesKey: string;
     candidates: string[];
   } | null>(null);
+  const sourceIconCandidatesKey = JSON.stringify(iconCandidates ?? []);
   // A refresh only supersedes the props used to request it. New catalog props must win.
+  // Compare candidate contents rather than array identity: parents may recreate an equivalent array.
   // This opt-in mode isolates Lucide/WebView rendering from package and external image sources.
   const currentIconCandidates =
     refreshedCandidates?.packageId === packageId &&
     refreshedCandidates.name === name &&
-    refreshedCandidates.sourceIconCandidates === iconCandidates
+    refreshedCandidates.sourceIconCandidatesKey === sourceIconCandidatesKey
       ? refreshedCandidates.candidates
       : iconCandidates;
   const candidates = DEBUG_FALLBACK_ONLY
@@ -186,7 +188,7 @@ function AppIcon({
             setRefreshedCandidates({
               packageId,
               name,
-              sourceIconCandidates: iconCandidates,
+              sourceIconCandidatesKey: JSON.stringify(iconCandidates ?? []),
               candidates: nextCandidates,
             });
           }

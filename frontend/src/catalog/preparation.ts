@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 export type CatalogPreparationStatus = {
-  action: "reused-cache" | "generated" | string;
+  action: "reused-cache" | "reused-memory" | "generated" | string;
   sourceRevision?: string;
   sourceNarHash: string;
   system: string;

@@ -1,4 +1,10 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use std::env;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::sync::Condvar;
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::process::Command;
@@ -10,8 +16,12 @@ const MAX_RESULTS: usize = 40;
 const MAX_PAGE_SIZE: usize = 40;
 const MAX_CACHED_RESULTS: usize = 5_000;
 const MAX_CACHED_QUERIES: usize = 4;
+const CATALOG_SCHEMA_VERSION: u32 = 1;
+const FULL_CATALOG_PATTERN: &str = ".*";
+const MAX_CATALOG_CACHE_BYTES: u64 = 512 * 1024 * 1024;
+const MAX_CATALOG_PACKAGES: usize = 1_000_000;
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CatalogPackage {
     pub id: String,
     pub name: String,
@@ -35,6 +45,73 @@ pub struct CatalogSearchPage {
     pub results_limited: bool,
 }
 
+
+/// Identifies the exact Nixpkgs source resolved by the user's Nix registry.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct CatalogSourceIdentity {
+    source: String,
+    revision: Option<String>,
+    nar_hash: String,
+    resolved_url: String,
+}
+
+/// Versioned disk cache. Icons are deliberately resolved only for selected results.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CatalogCacheEnvelope {
+    schema_version: u32,
+    source: CatalogSourceIdentity,
+    system: String,
+    generated_at: u64,
+    packages: Vec<CatalogPackage>,
+}
+
+#[derive(Debug)]
+struct CatalogIndex {
+    source: CatalogSourceIdentity,
+    system: String,
+    generated_at: u64,
+    packages: BTreeMap<String, CatalogPackage>,
+    cache_bytes: u64,
+}
+
+/// Diagnostics from the most recent freshness check or catalog generation.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogPreparationStatus {
+    pub action: String,
+    pub source_revision: Option<String>,
+    pub source_nar_hash: String,
+    pub system: String,
+    pub package_count: usize,
+    pub generated_at: u64,
+    pub cache_path: String,
+    pub cache_bytes: u64,
+    pub source_check_ms: u64,
+    pub cache_load_ms: u64,
+    pub generation_ms: u64,
+}
+
+#[derive(Default)]
+struct CatalogRuntime {
+    index: Option<Arc<CatalogIndex>>,
+    preparing: bool,
+    preparation_attempted: bool,
+    last_status: Option<CatalogPreparationStatus>,
+    last_error: Option<String>,
+}
+
+fn catalog_runtime() -> &'static (Mutex<CatalogRuntime>, Condvar) {
+    static RUNTIME: OnceLock<(Mutex<CatalogRuntime>, Condvar)> = OnceLock::new();
+    RUNTIME.get_or_init(|| (Mutex::new(CatalogRuntime::default()), Condvar::new()))
+}
+
+fn catalog_preparation_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+}
+
 type RankedCatalogResults = Vec<(u32, CatalogPackage)>;
 
 #[derive(Debug, Default)]
@@ -50,6 +127,11 @@ struct SearchCache {
 }
 
 impl SearchCache {
+    fn clear(&mut self) {
+        self.entries.clear();
+        self.recency.clear();
+    }
+
     /// Return cached ranked results and mark the query as recently used.
     fn get(&mut self, query: &str) -> Option<Arc<CachedSearchResults>> {
         let results = self.entries.get(query)?.clone();
@@ -100,7 +182,15 @@ pub fn search_page(query: &str, offset: usize, limit: usize) -> Result<CatalogSe
         });
     }
 
-    let cache_key = query.to_lowercase();
+    let active_index = catalog_index_for_lookup();
+    let cache_key = match &active_index {
+        Some(index) => format!(
+            "catalog:{}:{}",
+            index.source.nar_hash,
+            query.to_lowercase()
+        ),
+        None => format!("nix:{}", query.to_lowercase()),
+    };
     let cached = search_cache()
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -109,9 +199,13 @@ pub fn search_page(query: &str, offset: usize, limit: usize) -> Result<CatalogSe
     let cached_results = if let Some(results) = cached {
         results
     } else {
-        let output = run_nix_search(query)?;
-        let mut ranked = parse_unlimited_results(&output, query)?;
-        // Cap per-query memory use even when a broad search matches a very large catalog.
+        let mut ranked = if let Some(index) = active_index {
+            rank_local_matches(&index, query)
+        } else {
+            let output = run_nix_search(query)?;
+            parse_unlimited_results(&output, query)?
+        };
+        // Keep the existing result bound for broad searches while indexing the full source.
         let truncated = ranked.len() > MAX_CACHED_RESULTS;
         ranked.truncate(MAX_CACHED_RESULTS);
         let results = Arc::new(CachedSearchResults { ranked, truncated });
@@ -154,10 +248,395 @@ fn paginate_ranked_results(
     }
 }
 
+
+/// Check the current Nixpkgs reference, load a matching cache, or atomically generate a new one.
+/// This is called on App Store entry and can also be forced by the explicit refresh action.
+pub fn prepare_catalog(force_refresh: bool) -> Result<CatalogPreparationStatus, String> {
+    prepare_catalog_internal(force_refresh, false)
+}
+
+fn prepare_catalog_internal(
+    force_refresh: bool,
+    only_if_needed: bool,
+) -> Result<CatalogPreparationStatus, String> {
+    let _serial = catalog_preparation_lock()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+    {
+        let (runtime_lock, ready) = catalog_runtime();
+        let mut runtime = runtime_lock
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        while runtime.preparing {
+            runtime = ready
+                .wait(runtime)
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+        }
+        if only_if_needed && runtime.preparation_attempted {
+            return runtime
+                .last_status
+                .clone()
+                .ok_or_else(|| runtime.last_error.clone().unwrap_or_else(|| {
+                    "Nixpkgs catalog preparation previously failed".to_string()
+                }));
+        }
+        runtime.preparing = true;
+        runtime.preparation_attempted = true;
+        runtime.index = None;
+        runtime.last_status = None;
+        runtime.last_error = None;
+    }
+
+    let prepared = prepare_catalog_inner(force_refresh);
+
+    {
+        let (runtime_lock, ready) = catalog_runtime();
+        let mut runtime = runtime_lock
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        match &prepared {
+            Ok((index, status)) => {
+                runtime.index = Some(Arc::new(index.clone()));
+                runtime.last_status = Some(status.clone());
+                runtime.last_error = None;
+            }
+            Err(error) => {
+                runtime.index = None;
+                runtime.last_status = None;
+                runtime.last_error = Some(error.clone());
+            }
+        }
+        runtime.preparing = false;
+        ready.notify_all();
+    }
+
+    if prepared.is_ok() {
+        search_cache()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clear();
+    }
+
+    prepared.map(|(_, status)| status)
+}
+
+fn catalog_index_for_lookup() -> Option<Arc<CatalogIndex>> {
+    let _ = prepare_catalog_internal(false, true);
+    let (runtime_lock, ready) = catalog_runtime();
+    let mut runtime = runtime_lock
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    while runtime.preparing {
+        runtime = ready
+            .wait(runtime)
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+    }
+    runtime.index.clone()
+}
+
+fn prepare_catalog_inner(
+    force_refresh: bool,
+) -> Result<(CatalogIndex, CatalogPreparationStatus), String> {
+    let cache_path = catalog_cache_path()?;
+    let source_check_start = Instant::now();
+    let (source, system) = current_nixpkgs_identity()?;
+    let source_check_ms = elapsed_ms(source_check_start);
+
+    let load_start = Instant::now();
+    if !force_refresh {
+        if let Some(index) = load_matching_catalog(&cache_path, &source, &system) {
+            let cache_load_ms = elapsed_ms(load_start);
+            let status = preparation_status(
+                "reused-cache",
+                &index,
+                &cache_path,
+                source_check_ms,
+                cache_load_ms,
+                0,
+            );
+            return Ok((index, status));
+        }
+    }
+    let cache_load_ms = elapsed_ms(load_start);
+
+    let generation_start = Instant::now();
+    let output = run_nix_search_pattern(FULL_CATALOG_PATTERN)?;
+    let parsed = parse_unlimited_results(&output, "")?;
+    let mut packages = BTreeMap::new();
+    for (_, mut package) in parsed {
+        package.icon = None;
+        package.icon_candidates.clear();
+        packages.entry(package.id.clone()).or_insert(package);
+    }
+    if packages.is_empty() {
+        return Err("full Nixpkgs search returned no packages; keeping the previous cache".to_string());
+    }
+    if packages.len() > MAX_CATALOG_PACKAGES {
+        return Err(format!(
+            "full Nixpkgs search returned too many packages ({})",
+            packages.len()
+        ));
+    }
+
+    // Nix's registry can change while a full enumeration is running. Never label results
+    // with an identity different from the source that was actually evaluated.
+    let (verified_source, verified_system) = current_nixpkgs_identity()?;
+    if source != verified_source || system != verified_system {
+        return Err(
+            "Nixpkgs source changed while the catalog was being generated; retry the update"
+                .to_string(),
+        );
+    }
+
+    let generated_at = unix_timestamp();
+    let envelope = CatalogCacheEnvelope {
+        schema_version: CATALOG_SCHEMA_VERSION,
+        source: source.clone(),
+        system: system.clone(),
+        generated_at,
+        packages: packages.values().cloned().collect(),
+    };
+    atomic_write_catalog(&cache_path, &envelope)?;
+    let cache_bytes = fs::metadata(&cache_path)
+        .map_err(|error| format!("unable to inspect catalog cache: {error}"))?
+        .len();
+    let generation_ms = elapsed_ms(generation_start);
+
+    let index = CatalogIndex {
+        source,
+        system,
+        generated_at,
+        packages,
+        cache_bytes,
+    };
+    let status = preparation_status(
+        "generated",
+        &index,
+        &cache_path,
+        source_check_ms,
+        cache_load_ms,
+        generation_ms,
+    );
+    Ok((index, status))
+}
+
+fn preparation_status(
+    action: &str,
+    index: &CatalogIndex,
+    cache_path: &Path,
+    source_check_ms: u64,
+    cache_load_ms: u64,
+    generation_ms: u64,
+) -> CatalogPreparationStatus {
+    CatalogPreparationStatus {
+        action: action.to_string(),
+        source_revision: index.source.revision.clone(),
+        source_nar_hash: index.source.nar_hash.clone(),
+        system: index.system.clone(),
+        package_count: index.packages.len(),
+        generated_at: index.generated_at,
+        cache_path: cache_path.display().to_string(),
+        cache_bytes: index.cache_bytes,
+        source_check_ms,
+        cache_load_ms,
+        generation_ms,
+    }
+}
+
+fn current_nixpkgs_identity() -> Result<(CatalogSourceIdentity, String), String> {
+    let metadata = run_nix_command(&["flake", "metadata", "nixpkgs", "--json"])?;
+    let metadata: Value = serde_json::from_slice(&metadata)
+        .map_err(|error| format!("failed to parse nixpkgs flake metadata: {error}"))?;
+    let locked = metadata.get("locked").and_then(Value::as_object);
+    let revision = locked
+        .and_then(|value| value.get("rev"))
+        .and_then(Value::as_str)
+        .or_else(|| metadata.get("revision").and_then(Value::as_str))
+        .map(str::to_string);
+    let nar_hash = locked
+        .and_then(|value| value.get("narHash"))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            "cannot verify the Nixpkgs source: nix flake metadata returned no narHash".to_string()
+        })?;
+    let resolved_url = metadata
+        .get("resolvedUrl")
+        .and_then(Value::as_str)
+        .or_else(|| metadata.get("url").and_then(Value::as_str))
+        .unwrap_or("nixpkgs")
+        .to_string();
+
+    let system = run_nix_command(&[
+        "eval",
+        "--impure",
+        "--raw",
+        "--expr",
+        "builtins.currentSystem",
+    ])?;
+    let system = String::from_utf8(system)
+        .map_err(|error| format!("Nix returned a non-UTF-8 system identifier: {error}"))?
+        .trim()
+        .to_string();
+    if system.is_empty() {
+        return Err("Nix returned an empty current system identifier".to_string());
+    }
+
+    Ok((
+        CatalogSourceIdentity {
+            source: "nixpkgs".to_string(),
+            revision,
+            nar_hash,
+            resolved_url,
+        },
+        system,
+    ))
+}
+
+fn catalog_cache_path() -> Result<PathBuf, String> {
+    let root = env::var_os("XDG_CACHE_HOME")
+        .map(PathBuf::from)
+        .filter(|path| path.is_absolute())
+        .or_else(|| env::var_os("HOME").map(PathBuf::from).map(|home| home.join(".cache")))
+        .ok_or_else(|| "cannot determine a user cache directory (XDG_CACHE_HOME/HOME)".to_string())?;
+    Ok(root.join("nxc").join("nixpkgs-catalog-v1.json"))
+}
+
+fn load_matching_catalog(
+    path: &Path,
+    source: &CatalogSourceIdentity,
+    system: &str,
+) -> Option<CatalogIndex> {
+    let metadata = fs::metadata(path).ok()?;
+    if metadata.len() > MAX_CATALOG_CACHE_BYTES {
+        return None;
+    }
+    let contents = fs::read(path).ok()?;
+    let envelope: CatalogCacheEnvelope = serde_json::from_slice(&contents).ok()?;
+    if envelope.schema_version != CATALOG_SCHEMA_VERSION
+        || envelope.source != *source
+        || envelope.system != system
+        || envelope.packages.len() > MAX_CATALOG_PACKAGES
+    {
+        return None;
+    }
+
+    let mut packages = BTreeMap::new();
+    for mut package in envelope.packages {
+        if !is_safe_attribute_path(&package.id) || packages.contains_key(&package.id) {
+            return None;
+        }
+        // Cached icons are neither needed nor trusted: resolve them only for visible results.
+        package.icon = None;
+        package.icon_candidates.clear();
+        packages.insert(package.id.clone(), package);
+    }
+
+    Some(CatalogIndex {
+        source: envelope.source,
+        system: envelope.system,
+        generated_at: envelope.generated_at,
+        packages,
+        cache_bytes: metadata.len(),
+    })
+}
+
+fn atomic_write_catalog(path: &Path, envelope: &CatalogCacheEnvelope) -> Result<(), String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| "catalog cache path has no parent directory".to_string())?;
+    fs::create_dir_all(parent)
+        .map_err(|error| format!("unable to create catalog cache directory: {error}"))?;
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let file_name = path.file_name().and_then(|name| name.to_str()).unwrap_or("catalog.json");
+    let temporary_path = parent.join(format!(".{file_name}.{}.{}.tmp", std::process::id(), nonce));
+
+    let write_result = (|| {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary_path)
+            .map_err(|error| format!("unable to create temporary catalog cache: {error}"))?;
+        serde_json::to_writer(&mut file, envelope)
+            .map_err(|error| format!("unable to serialize catalog cache: {error}"))?;
+        file.flush()
+            .map_err(|error| format!("unable to flush catalog cache: {error}"))?;
+        file.sync_all()
+            .map_err(|error| format!("unable to sync catalog cache: {error}"))?;
+        drop(file);
+        fs::rename(&temporary_path, path)
+            .map_err(|error| format!("unable to atomically replace catalog cache: {error}"))?;
+        if let Ok(directory) = OpenOptions::new().read(true).open(parent) {
+            let _ = directory.sync_all();
+        }
+        Ok(())
+    })();
+
+    if write_result.is_err() {
+        let _ = fs::remove_file(&temporary_path);
+    }
+    write_result
+}
+
+fn rank_local_matches(index: &CatalogIndex, query: &str) -> RankedCatalogResults {
+    let query_lower = query.to_lowercase();
+    let terms = query_lower.split_whitespace().collect::<Vec<_>>();
+    let mut results = index
+        .packages
+        .values()
+        .filter(|package| {
+            terms.iter().any(|term| {
+                package.id.to_lowercase().contains(term)
+                    || package.name.to_lowercase().contains(term)
+                    || package.description.to_lowercase().contains(term)
+            })
+        })
+        .map(|package| {
+            (
+                relevance_score(query, &package.id, &package.name, &package.description),
+                package.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    results.sort_by(|(score_a, package_a), (score_b, package_b)| {
+        score_b
+            .cmp(score_a)
+            .then_with(|| package_a.name.to_lowercase().cmp(&package_b.name.to_lowercase()))
+            .then_with(|| package_a.id.cmp(&package_b.id))
+    });
+    results
+}
+
+fn elapsed_ms(start: Instant) -> u64 {
+    start.elapsed().as_millis().min(u64::MAX as u128) as u64
+}
+
+fn unix_timestamp() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
 /// Find a package by exact attribute ID without truncating the ranked result set first.
 pub fn find(id: &str) -> Result<Option<CatalogPackage>, String> {
     if !is_safe_attribute_path(id) {
         return Err(format!("invalid catalog package id: {id}"));
+    }
+
+    if let Some(index) = catalog_index_for_lookup() {
+        return Ok(index.packages.get(id).cloned().map(|package| {
+            attach_icon_candidates(vec![(0, package)])
+                .into_iter()
+                .next()
+                .expect("one package was supplied")
+                .1
+        }));
     }
 
     let output = run_nix_search(id)?;
@@ -180,6 +659,20 @@ pub fn find_many(ids: &[String]) -> Result<Vec<CatalogPackage>, String> {
         return Ok(Vec::new());
     }
 
+    if let Some(index) = catalog_index_for_lookup() {
+        let requested_set = requested.iter().map(String::as_str).collect::<HashSet<_>>();
+        let packages = index
+            .packages
+            .iter()
+            .filter(|(id, _)| requested_set.contains(id.as_str()))
+            .map(|(_, package)| (0, package.clone()))
+            .collect::<Vec<_>>();
+        return Ok(attach_icon_candidates(packages)
+            .into_iter()
+            .map(|(_, package)| package)
+            .collect());
+    }
+
     let output = run_nix_search(&requested.join(" "))?;
     parse_find_results(&output, &requested)
 }
@@ -190,28 +683,36 @@ fn run_nix_search(query: &str) -> Result<Vec<u8>, String> {
         .split_whitespace()
         .map(escape_regex)
         .collect::<Vec<_>>();
+    run_nix_search_pattern(&terms.join("|"))
+}
 
-    let pattern = terms.join("|");
-    // Do not rely on the user's global nix.conf to enable the CLI features this command needs.
+/// Run nix search with an already-formed regex. The `.*` pattern enumerates the complete
+/// search result space from the same `nixpkgs` registry reference used by normal searches.
+fn run_nix_search_pattern(pattern: &str) -> Result<Vec<u8>, String> {
+    run_nix_command(&[
+        "search",
+        "nixpkgs",
+        "--json",
+        "--no-pretty",
+        pattern,
+    ])
+}
+
+/// Invoke Nix with the features required by this application, preserving stderr on failure.
+fn run_nix_command(arguments: &[&str]) -> Result<Vec<u8>, String> {
     let output = Command::new("nix")
-        .args([
-            "--extra-experimental-features",
-            "nix-command flakes",
-            "search",
-            "nixpkgs",
-            "--json",
-            "--no-pretty",
-            &pattern,
-        ])
+        .arg("--extra-experimental-features")
+        .arg("nix-command flakes")
+        .args(arguments)
         .output()
-        .map_err(|error| format!("failed to start nix search: {error}"))?;
+        .map_err(|error| format!("failed to start nix {}: {error}", arguments.join(" ")))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         return Err(if stderr.is_empty() {
-            format!("nix search exited with {}", output.status)
+            format!("nix {} exited with {}", arguments.join(" "), output.status)
         } else {
-            format!("nix search failed: {stderr}")
+            format!("nix {} failed: {stderr}", arguments.join(" "))
         });
     }
 

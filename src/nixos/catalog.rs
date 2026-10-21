@@ -233,18 +233,20 @@ fn filter_installable_results(results: RankedCatalogResults) -> RankedCatalogRes
         return results;
     }
 
-    let (flake_root, configuration_name) =
-        match (flake::repository_path(), flake::configuration_name()) {
-            (Ok(root), Ok(name)) => (root, name),
-            (root, name) => {
-                eprintln!(
-                    "[nxc-catalog] installability filter skipped: repository_path={:?}, configuration_name={:?}",
-                    root.err(),
-                    name.err()
-                );
-                return results;
-            }
-        };
+    let (flake_root, configuration_name) = match (
+        flake::repository_path(),
+        flake::configuration_name(),
+    ) {
+        (Ok(root), Ok(name)) => (root, name),
+        (root, name) => {
+            eprintln!(
+                "[nxc-catalog] installability filter skipped: repository_path={:?}, configuration_name={:?}",
+                root.err(),
+                name.err()
+            );
+            return results;
+        }
+    };
 
     let ids = results
         .iter()
@@ -305,8 +307,7 @@ where
     F: FnMut(RankedCatalogResults) -> RankedCatalogResults,
 {
     let limit = limit.clamp(1, MAX_PAGE_SIZE);
-    let (selected, next_offset) =
-        select_installable_candidates(ranked, offset, limit, filter);
+    let (selected, next_offset) = select_installable_candidates(ranked, offset, limit, filter);
     let results = attach_icon_candidates(selected)
         .into_iter()
         .map(|(_, package)| package)

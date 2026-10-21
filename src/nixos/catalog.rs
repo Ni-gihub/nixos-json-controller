@@ -1320,7 +1320,10 @@ mod tests {
                 .map(|package| package.id.clone())
                 .collect::<Vec<_>>();
 
-            assert!(!ids.is_empty(), "legacy search returned no results for {query}");
+            assert!(
+                !ids.is_empty(),
+                "legacy search returned no results for {query}"
+            );
             println!(
                 "catalog-benchmark legacy query={query:?} elapsed_ms={elapsed_ms} matched={matched_count} first_page={}",
                 ids.len()
@@ -1349,10 +1352,7 @@ mod tests {
         assert_eq!(loaded.action, "reused-cache");
         println!(
             "catalog-benchmark reload packages={} cache_bytes={} source_check_ms={} cache_load_ms={}",
-            loaded.package_count,
-            loaded.cache_bytes,
-            loaded.source_check_ms,
-            loaded.cache_load_ms
+            loaded.package_count, loaded.cache_bytes, loaded.source_check_ms, loaded.cache_load_ms
         );
 
         for query in queries {
@@ -1364,7 +1364,10 @@ mod tests {
                 .iter()
                 .map(|package| package.id.clone())
                 .collect::<Vec<_>>();
-            assert!(!local_ids.is_empty(), "local search returned no results for {query}");
+            assert!(
+                !local_ids.is_empty(),
+                "local search returned no results for {query}"
+            );
 
             let (legacy_ids, legacy_count, legacy_elapsed_ms) = &baseline[query];
             let legacy_id_set = legacy_ids.iter().collect::<HashSet<_>>();

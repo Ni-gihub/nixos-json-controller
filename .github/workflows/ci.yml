@@ -119,18 +119,17 @@ jobs:
       - name: Run Nix-dependent smoke test
         run: cargo test nix_command_is_available -- --ignored
 
-      - name: Benchmark legacy and local catalog search
-        if: github.event_name == 'workflow_dispatch'
-        continue-on-error: true
-        env:
-          XDG_CACHE_HOME: ${{ runner.temp }}/nxc-catalog-benchmark
-        run: cargo test full_catalog_benchmark_compares_legacy_and_local_search -- --ignored --nocapture
-
       - name: Test missing package attributes and selected outputs
         run: |
           test_name="nixos::provenance::tests::batch_output_lookup_skips_missing_attributes_and_includes_selected_outputs"
           cargo test --lib -- --list | grep -Fxq "${test_name}: test"
           cargo test --lib "${test_name}" -- --exact
+
+      - name: Benchmark legacy and local catalog search
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          XDG_CACHE_HOME: ${{ runner.temp }}/nxc-catalog-benchmark
+        run: cargo test full_catalog_benchmark_compares_legacy_and_local_search -- --ignored --nocapture
 
   tauri-check:
     name: Tauri Rust check

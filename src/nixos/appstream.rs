@@ -1612,12 +1612,12 @@ mod tests {
         let empty_index = HashMap::new();
         let fresh_cache = Mutex::new(HashMap::new());
         let restored = resolve_direct_stock_icon_with_cache_root(
-            &["firefox"],
+            &["firefox", "firefox", "Firefox"],
             &empty_index,
             &fresh_cache,
             Some(&cache_root),
         )
-        .expect("the persisted icon survives source removal");
+        .expect("the persisted icon survives source removal and a different alias list");
 
         assert_eq!(restored, first);
         let _ = fs::remove_dir_all(root);

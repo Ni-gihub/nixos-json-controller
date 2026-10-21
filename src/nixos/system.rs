@@ -206,10 +206,7 @@ fn perf_debug_enabled() -> bool {
 
 fn log_perf_duration(stage: &str, elapsed: std::time::Duration) {
     if perf_debug_enabled() {
-        eprintln!(
-            "[nxc-perf] {stage} elapsed_ms={}",
-            elapsed.as_millis()
-        );
+        eprintln!("[nxc-perf] {stage} elapsed_ms={}", elapsed.as_millis());
     }
 }
 

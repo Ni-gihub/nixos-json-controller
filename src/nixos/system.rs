@@ -44,7 +44,8 @@ impl PackageSystemSnapshot {
             &current_generation,
             || {
                 let query_started = Instant::now();
-                let result = discover_system_packages(&current_generation.join("sw"));
+                let result = resolve_system_sw(&current_generation)
+                    .and_then(|system_sw| discover_system_packages(&system_sw));
                 log_perf_duration("nix_store_references", query_started.elapsed());
                 result
             },
@@ -77,7 +78,8 @@ impl SystemState {
         let current_generation = resolve_current_generation()?;
         let binaries = discover_binaries(Path::new("/run/current-system/sw/bin"))?;
 
-        let packages = discover_system_packages(&current_generation.join("sw"))?;
+        let system_sw = resolve_system_sw(&current_generation)?;
+        let packages = discover_system_packages(&system_sw)?;
         let enabled_services = discover_enabled_services()?;
 
         Ok(Self {
@@ -162,6 +164,16 @@ fn resolve_current_generation() -> Result<PathBuf, String> {
 
     std::fs::canonicalize(current_system)
         .map_err(|e| format!("failed to resolve /run/current-system: {}", e))
+}
+
+fn resolve_system_sw(generation: &Path) -> Result<PathBuf, String> {
+    std::fs::canonicalize(generation.join("sw")).map_err(|error| {
+        format!(
+            "failed to resolve system package path for generation {}: {}",
+            generation.display(),
+            error
+        )
+    })
 }
 
 fn cached_packages_for_generation<F>(

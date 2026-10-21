@@ -31,6 +31,10 @@ async fn install_app(package: String, password: Option<String>) -> Result<Instal
             password.as_deref(),
         )?;
 
+        if outcome.active_state_verified {
+            nixos_json_controller::nixos::appstream::refresh_local_icon_cache();
+        }
+
         Ok(InstallResult {
             package: outcome.package,
             installed: true,

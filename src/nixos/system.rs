@@ -1,6 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::{Mutex, OnceLock};
+use std::time::Instant;
 
 use crate::dictionary::Dictionary;
 
@@ -16,26 +18,64 @@ pub struct SystemState {
     pub enabled_services: BTreeSet<String>,
 }
 
+/// Immutable active-system package outputs used by App Store status checks.
+/// This deliberately avoids scanning binaries or querying systemd services.
+#[derive(Debug, Clone)]
+pub(crate) struct PackageSystemSnapshot {
+    pub(crate) packages: BTreeSet<String>,
+}
+
+#[derive(Debug, Clone)]
+struct CachedPackageSnapshot {
+    generation: PathBuf,
+    packages: BTreeSet<String>,
+}
+
+static PACKAGE_SNAPSHOT_CACHE: OnceLock<Mutex<Option<CachedPackageSnapshot>>> = OnceLock::new();
+
+impl PackageSystemSnapshot {
+    pub(crate) fn discover() -> Result<Self, String> {
+        let started = Instant::now();
+        let current_generation = resolve_current_generation()?;
+        let cache = PACKAGE_SNAPSHOT_CACHE.get_or_init(|| Mutex::new(None));
+        let (packages, cache_hit) =
+            cached_packages_for_generation(cache, &current_generation, || {
+                let query_started = Instant::now();
+                let result = resolve_system_sw(&current_generation)
+                    .and_then(|system_sw| discover_system_packages(&system_sw));
+                log_perf_duration("nix_store_references", query_started.elapsed());
+                result
+            })?;
+
+        if perf_debug_enabled() {
+            eprintln!(
+                "[nxc-perf] package_system_snapshot elapsed_ms={} cache_hit={}",
+                started.elapsed().as_millis(),
+                cache_hit
+            );
+        }
+
+        Ok(Self { packages })
+    }
+
+    pub(crate) fn has_any_package_output(&self, output_names: &[String]) -> bool {
+        output_names
+            .iter()
+            .any(|output_name| self.packages.contains(output_name))
+    }
+}
+
 impl SystemState {
     /// 現在起動中のNixOS system generationから状態を取得する。
     ///
     /// 設定ファイルの再探索やNix評価は行わない。
     /// 現在のsystem generationとsystemdの状態だけを読む。
     pub fn discover() -> Result<Self, String> {
-        let current_system = Path::new("/run/current-system");
-
-        if !current_system.exists() {
-            return Err(
-                "current NixOS system generation was not found at /run/current-system".to_string(),
-            );
-        }
-
-        let current_generation = std::fs::canonicalize(current_system)
-            .map_err(|e| format!("failed to resolve /run/current-system: {}", e))?;
-
+        let current_generation = resolve_current_generation()?;
         let binaries = discover_binaries(Path::new("/run/current-system/sw/bin"))?;
 
-        let packages = discover_system_packages()?;
+        let system_sw = resolve_system_sw(&current_generation)?;
+        let packages = discover_system_packages(&system_sw)?;
         let enabled_services = discover_enabled_services()?;
 
         Ok(Self {
@@ -109,6 +149,66 @@ impl SystemState {
     }
 }
 
+fn resolve_current_generation() -> Result<PathBuf, String> {
+    let current_system = Path::new("/run/current-system");
+
+    if !current_system.exists() {
+        return Err(
+            "current NixOS system generation was not found at /run/current-system".to_string(),
+        );
+    }
+
+    std::fs::canonicalize(current_system)
+        .map_err(|e| format!("failed to resolve /run/current-system: {}", e))
+}
+
+fn resolve_system_sw(generation: &Path) -> Result<PathBuf, String> {
+    std::fs::canonicalize(generation.join("sw")).map_err(|error| {
+        format!(
+            "failed to resolve system package path for generation {}: {}",
+            generation.display(),
+            error
+        )
+    })
+}
+
+fn cached_packages_for_generation<F>(
+    cache: &Mutex<Option<CachedPackageSnapshot>>,
+    generation: &Path,
+    load_packages: F,
+) -> Result<(BTreeSet<String>, bool), String>
+where
+    F: FnOnce() -> Result<BTreeSet<String>, String>,
+{
+    // Keep the lock while loading so simultaneous requests for the same new
+    // generation do not start duplicate nix-store processes.
+    let mut cached = cache
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(snapshot) = cached.as_ref() {
+        if snapshot.generation.as_path() == generation {
+            return Ok((snapshot.packages.clone(), true));
+        }
+    }
+
+    let packages = load_packages()?;
+    *cached = Some(CachedPackageSnapshot {
+        generation: generation.to_path_buf(),
+        packages: packages.clone(),
+    });
+    Ok((packages, false))
+}
+
+fn perf_debug_enabled() -> bool {
+    matches!(std::env::var("NXC_PERF_DEBUG").as_deref(), Ok("1"))
+}
+
+fn log_perf_duration(stage: &str, elapsed: std::time::Duration) {
+    if perf_debug_enabled() {
+        eprintln!("[nxc-perf] {stage} elapsed_ms={}", elapsed.as_millis());
+    }
+}
+
 /// /run/current-system/sw/bin の内容を取得する。
 fn discover_binaries(bin_directory: &Path) -> Result<BTreeMap<String, PathBuf>, String> {
     let entries = std::fs::read_dir(bin_directory).map_err(|e| {
@@ -141,16 +241,18 @@ fn discover_binaries(bin_directory: &Path) -> Result<BTreeMap<String, PathBuf>, 
 }
 
 /// 現在のsystem generationが直接参照しているNix store pathを取得する。
-fn discover_system_packages() -> Result<BTreeSet<String>, String> {
+fn discover_system_packages(system_sw: &Path) -> Result<BTreeSet<String>, String> {
     let output = Command::new("nix-store")
-        .args(["--query", "--references", "/run/current-system/sw"])
+        .args(["--query", "--references"])
+        .arg(system_sw)
         .output()
         .map_err(|e| format!("failed to execute nix-store: {}", e))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(format!(
-            "nix-store --query --references failed: {}",
+            "nix-store --query --references {} failed: {}",
+            system_sw.display(),
             stderr.trim()
         ));
     }
@@ -215,6 +317,76 @@ fn parse_enabled_services(output: &[u8]) -> BTreeSet<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn package_snapshot_cache_reuses_same_generation_and_invalidates_on_change() {
+        let cache = Mutex::new(None);
+        let mut loads = 0;
+        let packages = BTreeSet::from(["firefox-1.0".to_string()]);
+
+        let (first, first_hit) = cached_packages_for_generation(
+            &cache,
+            Path::new("/nix/store/system-generation-a"),
+            || {
+                loads += 1;
+                Ok(packages.clone())
+            },
+        )
+        .unwrap();
+        assert_eq!(first, packages);
+        assert!(!first_hit);
+
+        let (second, second_hit) = cached_packages_for_generation(
+            &cache,
+            Path::new("/nix/store/system-generation-a"),
+            || {
+                loads += 1;
+                Ok(BTreeSet::new())
+            },
+        )
+        .unwrap();
+        assert_eq!(second, packages);
+        assert!(second_hit);
+        assert_eq!(loads, 1, "same generation should not query nix-store twice");
+
+        let (third, third_hit) = cached_packages_for_generation(
+            &cache,
+            Path::new("/nix/store/system-generation-b"),
+            || {
+                loads += 1;
+                Ok(BTreeSet::from(["chromium-2.0".to_string()]))
+            },
+        )
+        .unwrap();
+        assert_eq!(third, BTreeSet::from(["chromium-2.0".to_string()]));
+        assert!(!third_hit);
+        assert_eq!(loads, 2, "a new generation must refresh the snapshot");
+    }
+
+    #[test]
+    fn failed_snapshot_refresh_preserves_previous_generation_cache() {
+        let cached_packages = BTreeSet::from(["firefox-1.0".to_string()]);
+        let cache = Mutex::new(Some(CachedPackageSnapshot {
+            generation: PathBuf::from("/nix/store/system-generation-a"),
+            packages: cached_packages.clone(),
+        }));
+
+        let result = cached_packages_for_generation(
+            &cache,
+            Path::new("/nix/store/system-generation-b"),
+            || Err("nix-store failed".to_string()),
+        );
+        assert_eq!(result.unwrap_err(), "nix-store failed");
+
+        let (loaded, cache_hit) = cached_packages_for_generation(
+            &cache,
+            Path::new("/nix/store/system-generation-a"),
+            || panic!("valid cached snapshot should remain available"),
+        )
+        .unwrap();
+        assert_eq!(loaded, cached_packages);
+        assert!(cache_hit);
+    }
 
     #[test]
     fn parse_enabled_services_extracts_service_names() {

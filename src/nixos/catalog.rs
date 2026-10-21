@@ -95,7 +95,6 @@ pub struct CatalogPreparationStatus {
 struct CatalogRuntime {
     index: Option<Arc<CatalogIndex>>,
     preparing: bool,
-    last_status: Option<CatalogPreparationStatus>,
 }
 
 /// Return the shared catalog state used by search and preparation requests.
@@ -262,7 +261,6 @@ fn prepare_catalog_internal(force_refresh: bool) -> Result<CatalogPreparationSta
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         runtime.preparing = true;
         runtime.index = None;
-        runtime.last_status = None;
     }
 
     let prepared =
@@ -273,14 +271,11 @@ fn prepare_catalog_internal(force_refresh: bool) -> Result<CatalogPreparationSta
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         match &prepared {
-            Ok((index, status)) => {
+            Ok((index, _status)) => {
                 runtime.index = Some(Arc::clone(index));
-                runtime.last_status = Some(status.clone());
-                runtime.last_error = None;
             }
-            Err(error) => {
+            Err(_) => {
                 runtime.index = None;
-                runtime.last_status = None;
             }
         }
         runtime.preparing = false;

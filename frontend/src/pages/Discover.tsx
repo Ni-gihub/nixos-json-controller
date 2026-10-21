@@ -140,6 +140,7 @@ function Discover() {
   const [submittedQuery, setSubmittedQuery] = useState(initialQuery);
   const [results, setResults] = useState<App[]>([]);
   const [searching, setSearching] = useState(false);
+  const [searchElapsedMs, setSearchElapsedMs] = useState<number | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [nextOffset, setNextOffset] = useState(0);
   const [hasMoreResults, setHasMoreResults] = useState(false);
@@ -177,9 +178,11 @@ function Discover() {
 
   const runSearch = useCallback(
     (searchQuery: string) => {
+      const startedAt = performance.now();
       const requestId = ++searchRequestIdRef.current;
       resetQueuedPackageStates();
       setSearching(true);
+      setSearchElapsedMs(null);
       setSearchError(null);
       setResults([]);
       setNextOffset(0);
@@ -197,6 +200,7 @@ function Discover() {
           }
 
           setResults(page.results);
+          setSearchElapsedMs(Math.round(performance.now() - startedAt));
           setNextOffset(page.nextOffset);
           setHasMoreResults(page.hasMore);
           setResultsLimited(page.resultsLimited);
@@ -383,7 +387,16 @@ function Discover() {
     clearSearchCache();
     searchRequestIdRef.current += 1;
     setResults([]);
+    setSearchElapsedMs(null);
+    setNextOffset(0);
+    setHasMoreResults(false);
+    setResultsLimited(false);
+    setLoadingMore(false);
+    setLoadMoreError(null);
+    loadingMoreRef.current = false;
+    loadingMoreRequestIdRef.current = null;
     setSearching(false);
+    setSearchError(null);
     setCatalogPreparing(true);
     setCatalogError(null);
 
@@ -938,6 +951,9 @@ function Discover() {
                       {!searching && (
                         <p className="mt-1 text-sm text-muted-foreground">
                           {results.length}件表示中
+                          {searchElapsedMs !== null
+                            ? " · 検索 " + searchElapsedMs + " ms"
+                            : ""}
                         </p>
                       )}
                     </div>

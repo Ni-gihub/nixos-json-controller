@@ -282,7 +282,10 @@ fn prepare_catalog_internal(force_refresh: bool) -> Result<CatalogPreparationSta
         runtime.preparing = false;
     }
 
-    if prepared.is_ok() {
+    if prepared
+        .as_ref()
+        .is_ok_and(|(_, status)| status.action != "reused-memory")
+    {
         search_cache()
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -1564,6 +1567,13 @@ mod tests {
             generated.generation_ms
         );
 
+        // Clear only the process-local index so this assertion measures disk-cache reload.
+        {
+            let mut runtime = catalog_runtime()
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            runtime.index = None;
+        }
         let loaded = prepare_catalog(false).expect("reload the verified disk catalog");
         assert_eq!(loaded.action, "reused-cache");
         println!(

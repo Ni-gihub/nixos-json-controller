@@ -44,7 +44,7 @@ impl PackageSystemSnapshot {
             &current_generation,
             || {
                 let query_started = Instant::now();
-                let result = discover_system_packages();
+                let result = discover_system_packages(&current_generation.join("sw"));
                 log_perf_duration("nix_store_references", query_started.elapsed());
                 result
             },
@@ -77,7 +77,7 @@ impl SystemState {
         let current_generation = resolve_current_generation()?;
         let binaries = discover_binaries(Path::new("/run/current-system/sw/bin"))?;
 
-        let packages = discover_system_packages()?;
+        let packages = discover_system_packages(&current_generation.join("sw"))?;
         let enabled_services = discover_enabled_services()?;
 
         Ok(Self {
@@ -236,16 +236,18 @@ fn discover_binaries(bin_directory: &Path) -> Result<BTreeMap<String, PathBuf>, 
 }
 
 /// 現在のsystem generationが直接参照しているNix store pathを取得する。
-fn discover_system_packages() -> Result<BTreeSet<String>, String> {
+fn discover_system_packages(system_sw: &Path) -> Result<BTreeSet<String>, String> {
     let output = Command::new("nix-store")
-        .args(["--query", "--references", "/run/current-system/sw"])
+        .args(["--query", "--references"])
+        .arg(system_sw)
         .output()
         .map_err(|e| format!("failed to execute nix-store: {}", e))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(format!(
-            "nix-store --query --references failed: {}",
+            "nix-store --query --references {} failed: {}",
+            system_sw.display(),
             stderr.trim()
         ));
     }

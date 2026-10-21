@@ -243,7 +243,6 @@ fn paginate_ranked_results(
     }
 }
 
-
 /// Check the current Nixpkgs reference, load a matching cache, or atomically generate a new one.
 /// This is called on App Store entry and can also be forced by the explicit refresh action.
 pub fn prepare_catalog(force_refresh: bool) -> Result<CatalogPreparationStatus, String> {

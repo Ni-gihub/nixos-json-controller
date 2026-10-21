@@ -77,7 +77,9 @@ pub fn refresh_local_icon_cache() {
     let new_index = build_stock_icon_index();
     let stock_index = STOCK_ICON_INDEX.get_or_init(|| Mutex::new(HashMap::new()));
     // The whole map is replaced, so recovering from a poisoned lock is safe here.
-    let mut stock_index = stock_index.lock().unwrap_or_else(|error| error.into_inner());
+    let mut stock_index = stock_index
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
     let cache = ICON_CACHE.get();
     refresh_icon_index_and_cache(&mut stock_index, cache, new_index);
 }

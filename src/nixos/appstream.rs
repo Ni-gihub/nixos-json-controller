@@ -445,7 +445,10 @@ fn prune_persisted_icon_cache(root: &Path) {
 /// Additional aliases may be supplied by AppStream on normal searches, while the install event
 /// only has the package identifier. The primary identifier is shared by both paths.
 fn persisted_icon_cache_key(candidates: &[&str]) -> String {
-    let primary = candidates.first().map(|candidate| candidate.trim().to_lowercase()).unwrap_or_default();
+    let primary = candidates
+        .first()
+        .map(|candidate| candidate.trim().to_lowercase())
+        .unwrap_or_default();
     format!("persisted|{}:{primary}", primary.len())
 }
 

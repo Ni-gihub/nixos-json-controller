@@ -1291,6 +1291,110 @@ mod tests {
         );
     }
 
+    #[test]
+    #[ignore = "requires network access and enumerates the full Nixpkgs catalog"]
+    fn full_catalog_benchmark_compares_legacy_and_local_search() {
+        let (source_before, system_before) =
+            current_nixpkgs_identity().expect("resolve current Nixpkgs source");
+        let queries = ["firefox", "vscode", "python", "http", "rust compiler"];
+        let mut baseline = HashMap::new();
+
+        println!(
+            "catalog-benchmark source_nar_hash={} system={}",
+            source_before.nar_hash, system_before
+        );
+
+        for query in queries {
+            let started = Instant::now();
+            let output = run_nix_search(query).expect("legacy nix search succeeds");
+            let mut ranked =
+                parse_unlimited_results(&output, query).expect("legacy search JSON parses");
+            let matched_count = ranked.len();
+            let truncated = matched_count > MAX_CACHED_RESULTS;
+            ranked.truncate(MAX_CACHED_RESULTS);
+            let page = paginate_ranked_results(&ranked, 0, MAX_RESULTS, truncated);
+            let elapsed_ms = elapsed_ms(started);
+            let ids = page
+                .results
+                .iter()
+                .map(|package| package.id.clone())
+                .collect::<Vec<_>>();
+
+            assert!(!ids.is_empty(), "legacy search returned no results for {query}");
+            println!(
+                "catalog-benchmark legacy query={query:?} elapsed_ms={elapsed_ms} matched={matched_count} first_page={}",
+                ids.len()
+            );
+            baseline.insert(query, (ids, matched_count, elapsed_ms));
+        }
+
+        let generated = prepare_catalog(true).expect("generate a verified full catalog");
+        assert_eq!(
+            generated.source_nar_hash, source_before.nar_hash,
+            "baseline and catalog must use the same resolved Nixpkgs source"
+        );
+        assert_eq!(
+            generated.system, system_before,
+            "baseline and catalog must use the same system"
+        );
+        println!(
+            "catalog-benchmark generation packages={} cache_bytes={} source_check_ms={} generation_ms={}",
+            generated.package_count,
+            generated.cache_bytes,
+            generated.source_check_ms,
+            generated.generation_ms
+        );
+
+        let loaded = prepare_catalog(false).expect("reload the verified disk catalog");
+        assert_eq!(loaded.action, "reused-cache");
+        println!(
+            "catalog-benchmark reload packages={} cache_bytes={} source_check_ms={} cache_load_ms={}",
+            loaded.package_count,
+            loaded.cache_bytes,
+            loaded.source_check_ms,
+            loaded.cache_load_ms
+        );
+
+        for query in queries {
+            let started = Instant::now();
+            let local = search_page(query, 0, MAX_RESULTS).expect("local search succeeds");
+            let cold_elapsed_ms = elapsed_ms(started);
+            let local_ids = local
+                .results
+                .iter()
+                .map(|package| package.id.clone())
+                .collect::<Vec<_>>();
+            assert!(!local_ids.is_empty(), "local search returned no results for {query}");
+
+            let (legacy_ids, legacy_count, legacy_elapsed_ms) = &baseline[query];
+            let legacy_id_set = legacy_ids.iter().collect::<HashSet<_>>();
+            let overlap = local_ids
+                .iter()
+                .filter(|id| legacy_id_set.contains(id))
+                .count();
+
+            let warm_started = Instant::now();
+            let warm = search_page(query, 0, MAX_RESULTS).expect("cached local search succeeds");
+            let warm_elapsed_ms = elapsed_ms(warm_started);
+            assert_eq!(
+                local_ids,
+                warm.results
+                    .iter()
+                    .map(|package| package.id.clone())
+                    .collect::<Vec<_>>(),
+                "cached local search must preserve its first result page"
+            );
+
+            println!(
+                "catalog-benchmark compare query={query:?} legacy_ms={legacy_elapsed_ms} local_first_ms={cold_elapsed_ms} local_cached_ms={warm_elapsed_ms} legacy_matched={legacy_count} local_page={} overlap_with_legacy_first_page={overlap}/{} legacy_top3={:?} local_top3={:?}",
+                local_ids.len(),
+                legacy_ids.len(),
+                legacy_ids.iter().take(3).collect::<Vec<_>>(),
+                local_ids.iter().take(3).collect::<Vec<_>>()
+            );
+        }
+    }
+
     fn nix_search_output(entries: &[(&str, &str)]) -> Vec<u8> {
         let mut output = serde_json::Map::new();
         for (id, name) in entries {

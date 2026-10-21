@@ -889,7 +889,8 @@ fn load_icon(entry: &str) -> Option<String> {
 /// `/run/current-system/sw`. Icon files are converted to data URLs so the web frontend does
 /// not need direct filesystem access.
 fn load_stock_icon(icon_name: &str) -> Option<String> {
-    let index = STOCK_ICON_INDEX.get_or_init(build_stock_icon_index);
+    let index = STOCK_ICON_INDEX.get_or_init(|| Mutex::new(build_stock_icon_index()));
+    let index = index.lock().ok()?;
     let paths = index.get(&icon_name.to_lowercase())?;
 
     paths.iter().find_map(|path| read_icon(path))
@@ -1513,13 +1514,8 @@ mod tests {
         refresh_icon_index_and_cache(&mut active_index, Some(&cache), installed_index);
 
         assert!(
-            resolve_direct_stock_icon_with_cache_root(
-                &["firefox"],
-                &active_index,
-                &cache,
-                None,
-            )
-            .is_some(),
+            resolve_direct_stock_icon_with_cache_root(&["firefox"], &active_index, &cache, None,)
+                .is_some(),
             "refresh must invalidate the cached miss and discover the newly installed icon"
         );
 

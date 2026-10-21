@@ -1517,13 +1517,13 @@ mod tests {
         )
         .unwrap();
 
-        let index = HashMap::from([(
-            "applications-internet".to_string(),
-            vec![icon_path],
-        )]);
+        let index = HashMap::from([("applications-internet".to_string(), vec![icon_path])]);
         let icon = load_icon_with_stock_index("stock|applications-internet", Some(&index));
 
-        assert!(icon.is_some(), "stock icon should resolve from the supplied snapshot");
+        assert!(
+            icon.is_some(),
+            "stock icon should resolve from the supplied snapshot"
+        );
         let _ = fs::remove_dir_all(root);
     }
 

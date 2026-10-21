@@ -202,10 +202,7 @@ function Discover() {
           setResults(page.results);
           const elapsedMs = Math.round(performance.now() - startedAt);
           setSearchElapsedMs(elapsedMs);
-          if (
-            import.meta.env.DEV &&
-            import.meta.env.VITE_PERF_DEBUG === "1"
-          ) {
+          if (import.meta.env.DEV && import.meta.env.VITE_PERF_DEBUG === "1") {
             console.info("[nxc-perf] catalog_search", {
               elapsed_ms: elapsedMs,
               result_count: page.results.length,

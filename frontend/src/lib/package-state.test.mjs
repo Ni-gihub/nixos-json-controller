@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   PackageStateRevision,
+  PendingRequestCounter,
   withUnknownPackageState,
   withVerifiedActivePackageState,
 } from "./package-state.ts";
@@ -51,6 +52,27 @@ test("marks an unverified result unknown without claiming installation succeeded
     configured: false,
     active: false,
   });
+});
+
+test("keeps loading active until every overlapping request finishes", () => {
+  const pending = new PendingRequestCounter();
+
+  pending.begin();
+  pending.begin();
+
+  assert.equal(pending.finish(), true);
+  assert.equal(pending.finish(), false);
+});
+
+test("newer overlapping requests supersede only the package IDs they share", () => {
+  const revisions = new PackageStateRevision();
+  const olderFirefox = revisions.advance("firefox");
+  const olderChromium = revisions.advance("chromium");
+  const newerFirefox = revisions.advance("firefox");
+
+  assert.equal(revisions.isCurrent("firefox", olderFirefox), false);
+  assert.equal(revisions.isCurrent("firefox", newerFirefox), true);
+  assert.equal(revisions.isCurrent("chromium", olderChromium), true);
 });
 
 test("invalidates a package-state response that started before installation", () => {

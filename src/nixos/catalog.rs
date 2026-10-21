@@ -556,6 +556,14 @@ fn catalog_index_from_envelope(
 }
 
 fn atomic_write_catalog(path: &Path, envelope: &CatalogCacheEnvelope) -> Result<(), String> {
+    atomic_write_catalog_with_limit(path, envelope, MAX_CATALOG_CACHE_BYTES)
+}
+
+fn atomic_write_catalog_with_limit(
+    path: &Path,
+    envelope: &CatalogCacheEnvelope,
+    max_bytes: u64,
+) -> Result<(), String> {
     let parent = path
         .parent()
         .ok_or_else(|| "catalog cache path has no parent directory".to_string())?;
@@ -587,7 +595,7 @@ fn atomic_write_catalog(path: &Path, envelope: &CatalogCacheEnvelope) -> Result<
         let temporary_size = fs::metadata(&temporary_path)
             .map_err(|error| format!("unable to inspect temporary catalog cache: {error}"))?
             .len();
-        if temporary_size > MAX_CATALOG_CACHE_BYTES {
+        if temporary_size > max_bytes {
             return Err(format!(
                 "catalog cache is too large to persist safely ({temporary_size} bytes)"
             ));
@@ -1220,6 +1228,18 @@ mod tests {
             .is_some()
         );
 
+        let mut invalid_schema = parsed.clone();
+        invalid_schema.schema_version += 1;
+        assert!(
+            catalog_index_from_envelope(
+                invalid_schema,
+                &source,
+                "x86_64-linux",
+                bytes.len() as u64,
+            )
+            .is_none()
+        );
+
         let mut different_source = source.clone();
         different_source.nar_hash = "hash-b".to_string();
         assert!(
@@ -1247,6 +1267,106 @@ mod tests {
             catalog_index_from_envelope(invalid, &source, "x86_64-linux", bytes.len() as u64,)
                 .is_none()
         );
+    }
+
+    #[test]
+    fn corrupted_disk_cache_is_rejected_and_valid_cache_can_be_reloaded() {
+        let root = std::env::temp_dir().join(format!(
+            "nxc-catalog-corrupt-cache-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("catalog.json");
+        let source = CatalogSourceIdentity {
+            source: "nixpkgs".to_string(),
+            revision: Some("test-revision".to_string()),
+            nar_hash: "test-nar-hash".to_string(),
+            resolved_url: "nixpkgs".to_string(),
+        };
+
+        std::fs::write(&path, b"{invalid json").unwrap();
+        assert!(load_matching_catalog(&path, &source, "x86_64-linux").is_none());
+
+        let envelope = CatalogCacheEnvelope {
+            schema_version: CATALOG_SCHEMA_VERSION,
+            source: source.clone(),
+            system: "x86_64-linux".to_string(),
+            generated_at: 42,
+            packages: vec![CatalogPackage {
+                id: "firefox".to_string(),
+                name: "Firefox".to_string(),
+                description: "Web browser".to_string(),
+                version: "1".to_string(),
+                category: "ブラウザ".to_string(),
+                tags: vec![],
+                homepage: None,
+                icon: Some("untrusted-cache-icon".to_string()),
+                icon_candidates: vec!["also-untrusted".to_string()],
+            }],
+        };
+        atomic_write_catalog(&path, &envelope).unwrap();
+
+        let loaded =
+            load_matching_catalog(&path, &source, "x86_64-linux").expect("matching cache loads");
+        let package = loaded.packages.get("firefox").unwrap();
+        assert_eq!(loaded.generated_at, 42);
+        assert!(package.icon.is_none());
+        assert!(package.icon_candidates.is_empty());
+
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn failed_atomic_cache_update_preserves_the_previous_file() {
+        let root = std::env::temp_dir().join(format!(
+            "nxc-catalog-atomic-write-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("catalog.json");
+        let previous_contents = b"previous-valid-cache".to_vec();
+        std::fs::write(&path, &previous_contents).unwrap();
+
+        let envelope = CatalogCacheEnvelope {
+            schema_version: CATALOG_SCHEMA_VERSION,
+            source: CatalogSourceIdentity {
+                source: "nixpkgs".to_string(),
+                revision: Some("test-revision".to_string()),
+                nar_hash: "test-nar-hash".to_string(),
+                resolved_url: "nixpkgs".to_string(),
+            },
+            system: "x86_64-linux".to_string(),
+            generated_at: 42,
+            packages: vec![CatalogPackage {
+                id: "firefox".to_string(),
+                name: "Firefox".to_string(),
+                description: "Web browser".to_string(),
+                version: "1".to_string(),
+                category: "ブラウザ".to_string(),
+                tags: vec![],
+                homepage: None,
+                icon: None,
+                icon_candidates: vec![],
+            }],
+        };
+
+        assert!(atomic_write_catalog_with_limit(&path, &envelope, 1).is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), previous_contents);
+        assert_eq!(
+            std::fs::read_dir(&root).unwrap().count(),
+            1,
+            "a failed write should not leave a temporary file"
+        );
+
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

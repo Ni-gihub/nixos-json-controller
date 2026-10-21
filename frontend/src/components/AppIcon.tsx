@@ -143,11 +143,16 @@ function AppIcon({
 }: AppIconProps) {
   const [refreshedCandidates, setRefreshedCandidates] = useState<{
     packageId: string;
+    name: string;
+    sourceIconCandidates: string[];
     candidates: string[];
   } | null>(null);
+  // A refresh only supersedes the props used to request it. New catalog props must win.
   // This opt-in mode isolates Lucide/WebView rendering from package and external image sources.
   const currentIconCandidates =
-    refreshedCandidates?.packageId === packageId
+    refreshedCandidates?.packageId === packageId &&
+    refreshedCandidates.name === name &&
+    refreshedCandidates.sourceIconCandidates === iconCandidates
       ? refreshedCandidates.candidates
       : iconCandidates;
   const candidates = DEBUG_FALLBACK_ONLY
@@ -178,7 +183,12 @@ function AppIcon({
       void invoke<string[]>("get_icon_candidates", { package: packageId, name })
         .then((nextCandidates) => {
           if (!cancelled) {
-            setRefreshedCandidates({ packageId, candidates: nextCandidates });
+            setRefreshedCandidates({
+              packageId,
+              name,
+              sourceIconCandidates: iconCandidates,
+              candidates: nextCandidates,
+            });
           }
         })
         .catch(() => {

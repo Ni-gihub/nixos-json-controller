@@ -164,45 +164,48 @@ function Discover() {
     }
   }, []);
 
-  const runSearch = useCallback((searchQuery: string) => {
-    const requestId = ++searchRequestIdRef.current;
-    resetQueuedPackageStates();
-    setSearching(true);
-    setSearchError(null);
-    setResults([]);
-    setNextOffset(0);
-    setHasMoreResults(false);
-    setResultsLimited(false);
-    setLoadingMore(false);
-    setLoadMoreError(null);
-    loadingMoreRef.current = false;
-    loadingMoreRequestIdRef.current = null;
+  const runSearch = useCallback(
+    (searchQuery: string) => {
+      const requestId = ++searchRequestIdRef.current;
+      resetQueuedPackageStates();
+      setSearching(true);
+      setSearchError(null);
+      setResults([]);
+      setNextOffset(0);
+      setHasMoreResults(false);
+      setResultsLimited(false);
+      setLoadingMore(false);
+      setLoadMoreError(null);
+      loadingMoreRef.current = false;
+      loadingMoreRequestIdRef.current = null;
 
-    void searchApps(searchQuery, 0, 40)
-      .then((page) => {
-        if (!isCurrentSearchRequest(requestId, searchRequestIdRef.current)) {
-          return;
-        }
+      void searchApps(searchQuery, 0, 40)
+        .then((page) => {
+          if (!isCurrentSearchRequest(requestId, searchRequestIdRef.current)) {
+            return;
+          }
 
-        setResults(page.results);
-        setNextOffset(page.nextOffset);
-        setHasMoreResults(page.hasMore);
-        setResultsLimited(page.resultsLimited);
-      })
-      .catch((err: unknown) => {
-        if (!isCurrentSearchRequest(requestId, searchRequestIdRef.current)) {
-          return;
-        }
+          setResults(page.results);
+          setNextOffset(page.nextOffset);
+          setHasMoreResults(page.hasMore);
+          setResultsLimited(page.resultsLimited);
+        })
+        .catch((err: unknown) => {
+          if (!isCurrentSearchRequest(requestId, searchRequestIdRef.current)) {
+            return;
+          }
 
-        setResults([]);
-        setSearchError(String(err));
-      })
-      .finally(() => {
-        if (isCurrentSearchRequest(requestId, searchRequestIdRef.current)) {
-          setSearching(false);
-        }
-      });
-  }, [resetQueuedPackageStates]);
+          setResults([]);
+          setSearchError(String(err));
+        })
+        .finally(() => {
+          if (isCurrentSearchRequest(requestId, searchRequestIdRef.current)) {
+            setSearching(false);
+          }
+        });
+    },
+    [resetQueuedPackageStates],
+  );
 
   // Status checks run only for rendered/near-visible cards. Briefly batch rows
   // entering the virtual window so scrolling does not launch one Nix evaluation

@@ -197,8 +197,7 @@ function Discover() {
       setResultsLimited(false);
       setLoadingMore(false);
       setLoadMoreError(null);
-      loadingMoreRef.current = false;
-      loadingMoreRequestIdRef.current = null;
+      loadingMoreRef.current = false;      loadingMoreRequestIdRef.current = null;
 
       void searchApps(searchQuery, 0, 40)
         .then((page) => {
@@ -218,8 +217,9 @@ function Discover() {
           }
           setNextOffset(page.nextOffset);
           setHasMoreResults(page.hasMore);
-          setAutoLoadPaused(false);
-          consecutiveEmptyPagesRef.current = 0;
+          const autoLoadState = advanceEmptyPageAutoLoadState(0, page.results.length);
+          setAutoLoadPaused(autoLoadState.paused);
+          consecutiveEmptyPagesRef.current = autoLoadState.consecutiveEmptyPages;
           setResultsLimited(page.resultsLimited);
         })
         .catch((err: unknown) => {
@@ -397,8 +397,7 @@ function Discover() {
     hasMoreResults,
     loadMoreError,
     loadMoreResults,
-    loadingMore,
-    searchError,
+    loadingMore,    searchError,
     searching,
   ]);
 
@@ -597,8 +596,7 @@ function Discover() {
       // every visit. A successful online response replaces the cached content.
       if (currentData?.recommendations.length) {
         writeCachedRecommendations(currentData);
-      } else {
-        setRecommendationStatus("unavailable");
+      } else {        setRecommendationStatus("unavailable");
         setRecommendationMessage(
           "同梱データとオンラインのおすすめデータを読み込めませんでした。",
         );
@@ -797,8 +795,7 @@ function Discover() {
                           }
                         }}
                         autoFocus
-                      />
-                    </div>
+                      />                    </div>
                     <Button
                       type="submit"
                       className="h-11 rounded-full bg-primary px-5 font-semibold text-primary-foreground shadow-sm shadow-blue-500/20 hover:bg-primary/90"
@@ -997,8 +994,7 @@ function Discover() {
                           loading={loading}
                           searchQuery={submittedQuery}
                           onVisiblePackages={requestVisiblePackageStates}
-                        />
-                      ) : (
+                        />                      ) : (
                         <p
                           className="py-4 text-center text-sm text-muted-foreground"
                           role="status"

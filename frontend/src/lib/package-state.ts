@@ -26,6 +26,20 @@ export class PackageStateRevision {
   }
 }
 
+/** Counts independent state requests so one completion cannot hide another. */
+export class PendingRequestCounter {
+  private pending = 0;
+
+  begin(): void {
+    this.pending += 1;
+  }
+
+  finish(): boolean {
+    if (this.pending > 0) this.pending -= 1;
+    return this.pending > 0;
+  }
+}
+
 /** State for a package whose active status was verified by the install executor. */
 export function withVerifiedActivePackageState(
   states: Record<string, PackageState>,

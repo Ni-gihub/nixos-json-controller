@@ -42,6 +42,17 @@ async fn install_app(package: String, password: Option<String>) -> Result<Instal
 }
 
 #[tauri::command]
+async fn prepare_catalog(
+    force_refresh: bool,
+) -> Result<nixos_json_controller::nixos::catalog::CatalogPreparationStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        nixos_json_controller::nixos::catalog::prepare_catalog(force_refresh)
+    })
+    .await
+    .map_err(|error| format!("catalog preparation task failed: {error}"))?
+}
+
+#[tauri::command]
 async fn search_catalog(
     query: String,
     offset: Option<usize>,
@@ -107,6 +118,7 @@ pub fn run() {
             log_icon_debug,
             sudo_available,
             install_app,
+            prepare_catalog,
             search_catalog,
             get_catalog_app,
             get_catalog_apps,

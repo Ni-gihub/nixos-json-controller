@@ -10,6 +10,7 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   fmt:
@@ -123,6 +124,12 @@ jobs:
           test_name="nixos::provenance::tests::batch_output_lookup_skips_missing_attributes_and_includes_selected_outputs"
           cargo test --lib -- --list | grep -Fxq "${test_name}: test"
           cargo test --lib "${test_name}" -- --exact
+
+      - name: Benchmark legacy and local catalog search
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          XDG_CACHE_HOME: ${{ runner.temp }}/nxc-catalog-benchmark
+        run: cargo test full_catalog_benchmark_compares_legacy_and_local_search -- --ignored --nocapture
 
   tauri-check:
     name: Tauri Rust check

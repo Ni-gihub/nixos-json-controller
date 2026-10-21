@@ -5,6 +5,11 @@ import { SearchPageCache, type CatalogSearchPage } from "./search-cache";
 const PAGE_SIZE = 40;
 const searchCache = new SearchPageCache<App>(4);
 
+/** Drop cached pages when catalog validation or refresh changes the backend data source. */
+export function clearSearchCache(): void {
+  searchCache.clear();
+}
+
 /** Search the catalog in stable pages and reuse already loaded query pages. */
 export async function searchApps(
   query: string,

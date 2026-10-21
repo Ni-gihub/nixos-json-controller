@@ -266,7 +266,7 @@ fn retain_resolved_packages(
         .collect()
 }
 
-/// Select one bounded page and resolve icons only for packages in that page.
+/// Select a bounded page of installable candidates and resolve icons only for that page.
 fn paginate_ranked_results(
     ranked: &[(u32, CatalogPackage)],
     offset: usize,
@@ -274,10 +274,8 @@ fn paginate_ranked_results(
     results_limited: bool,
 ) -> CatalogSearchPage {
     let limit = limit.clamp(1, MAX_PAGE_SIZE);
-    let start = offset.min(ranked.len());
-    let end = start.saturating_add(limit).min(ranked.len());
-    let selected = ranked[start..end].to_vec();
-    let selected = filter_installable_results(selected);
+    let (selected, next_offset) =
+        select_installable_candidates(ranked, offset, limit, filter_installable_results);
     let results = attach_icon_candidates(selected)
         .into_iter()
         .map(|(_, package)| package)
@@ -285,10 +283,37 @@ fn paginate_ranked_results(
 
     CatalogSearchPage {
         results,
-        next_offset: end,
-        has_more: end < ranked.len(),
+        next_offset,
+        has_more: next_offset < ranked.len(),
         results_limited,
     }
+}
+
+/// Continue through bounded candidate batches until the page is full or the ranking is exhausted.
+/// Advancing the offset past filtered candidates prevents an all-filtered page from trapping the UI
+/// in its empty state while later candidates remain available.
+fn select_installable_candidates<F>(
+    ranked: &[(u32, CatalogPackage)],
+    offset: usize,
+    limit: usize,
+    mut filter: F,
+) -> (RankedCatalogResults, usize)
+where
+    F: FnMut(RankedCatalogResults) -> RankedCatalogResults,
+{
+    let mut cursor = offset.min(ranked.len());
+    let mut selected = Vec::with_capacity(limit);
+
+    while cursor < ranked.len() && selected.len() < limit {
+        let remaining = limit - selected.len();
+        let end = cursor.saturating_add(remaining).min(ranked.len());
+        let batch = ranked[cursor..end].to_vec();
+        cursor = end;
+        selected.extend(filter(batch));
+    }
+
+    selected.truncate(limit);
+    (selected, cursor)
 }
 
 /// Check the current Nixpkgs reference, load a matching cache, or atomically generate a new one.
@@ -1793,6 +1818,38 @@ mod tests {
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].0, 100);
         assert_eq!(filtered[0].1.id, "firefox");
+    }
+
+    #[test]
+    fn pagination_skips_fully_filtered_batches_and_finds_later_candidates() {
+        let package = |id: &str| CatalogPackage {
+            id: id.to_string(),
+            name: id.to_string(),
+            description: String::new(),
+            version: "1".to_string(),
+            category: "その他".to_string(),
+            tags: Vec::new(),
+            homepage: None,
+            icon: None,
+            icon_candidates: Vec::new(),
+        };
+        let ranked = vec![
+            (100, package("missing-a")),
+            (90, package("missing-b")),
+            (80, package("available")),
+            (70, package("later")),
+        ];
+
+        let (selected, next_offset) = select_installable_candidates(&ranked, 0, 1, |batch| {
+            batch
+                .into_iter()
+                .filter(|(_, package)| package.id == "available" || package.id == "later")
+                .collect()
+        });
+
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].1.id, "available");
+        assert_eq!(next_offset, 3);
     }
 
     #[test]

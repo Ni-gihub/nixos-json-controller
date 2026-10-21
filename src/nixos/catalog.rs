@@ -258,11 +258,7 @@ fn retain_resolved_packages(
     results
         .into_iter()
         .zip(output_names)
-        .filter_map(|(result, outputs)| {
-            outputs
-                .filter(|names| !names.is_empty())
-                .map(|_| result)
-        })
+        .filter_map(|(result, outputs)| outputs.filter(|names| !names.is_empty()).map(|_| result))
         .collect()
 }
 

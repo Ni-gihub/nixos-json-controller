@@ -10,7 +10,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 static INDEX: OnceLock<HashMap<String, Vec<String>>> = OnceLock::new();
 static ICON_CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
-static STOCK_ICON_INDEX: OnceLock<HashMap<String, Vec<PathBuf>>> = OnceLock::new();
+static STOCK_ICON_INDEX: OnceLock<Mutex<HashMap<String, Vec<PathBuf>>>> = OnceLock::new();
 
 /// Maximum number of icon URLs exposed per package without making search responses excessive.
 const MAX_ICON_CANDIDATES: usize = 5;
@@ -59,9 +59,30 @@ fn resolve_icon_candidates(candidates: &[&str], limit: usize) -> Vec<String> {
 
     let index = INDEX.get_or_init(load_index);
     let cache = ICON_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
-    let stock_index = STOCK_ICON_INDEX.get_or_init(build_stock_icon_index);
+    let stock_index = STOCK_ICON_INDEX.get_or_init(|| Mutex::new(build_stock_icon_index()));
+    let Ok(stock_index) = stock_index.lock() else {
+        return Vec::new();
+    };
 
-    resolve_icon_candidates_from_index(candidates, limit, index, stock_index, cache)
+    resolve_icon_candidates_from_index(candidates, limit, index, &stock_index, cache)
+}
+
+/// Refresh the local icon index and in-memory lookup cache after a successful system change.
+///
+/// The icon index is intentionally cached during normal search to avoid repeated filesystem
+/// scans. A package install/removal changes the available icon files, so the GUI should call
+/// this after a rebuild has been verified.
+pub fn refresh_local_icon_cache() {
+    let stock_index = STOCK_ICON_INDEX.get_or_init(|| Mutex::new(build_stock_icon_index()));
+    if let Ok(mut stock_index) = stock_index.lock() {
+        *stock_index = build_stock_icon_index();
+    }
+
+    if let Some(cache) = ICON_CACHE.get() {
+        if let Ok(mut cache) = cache.lock() {
+            cache.clear();
+        }
+    }
 }
 
 /// Resolve local AppStream and theme icons while excluding remote URLs that cannot be inspected for blank content.

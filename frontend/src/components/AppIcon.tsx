@@ -206,7 +206,7 @@ function AppIcon({
         handlePackageInstalled,
       );
     };
-  }, [packageId, name]);
+  }, [packageId, name, sourceIconCandidatesKey]);
 
   // Reset the effective index when the package/candidate list changes.
   const candidateIndex =

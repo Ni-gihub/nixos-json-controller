@@ -1527,7 +1527,7 @@ mod tests {
         fs::create_dir_all(&root).unwrap();
         fs::write(
             &icon_path,
-            r#"<svg xmlns="http://www.w3.org/2000/svg"><circle cx="1" cy="1" r="1"/></svg>"#,
+            r#r#"<svg xmlns="http://www.w3.org/2000/svg"><circle cx="1" cy="1" r="1"/></svg>"##,
         )
         .unwrap();
 

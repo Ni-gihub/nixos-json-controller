@@ -386,6 +386,7 @@ function Discover() {
     // catalog cannot survive a source change or failed refresh.
     clearSearchCache();
     searchRequestIdRef.current += 1;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- discard results from the previous source before async validation
     setResults([]);
     setSearchElapsedMs(null);
     setNextOffset(0);
@@ -426,6 +427,7 @@ function Discover() {
       return;
     }
     clearSearchCache();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- restart the current query only after catalog verification finishes
     runSearch(submittedQuery);
   }, [catalogAttemptId, catalogPreparing, runSearch, submittedQuery]);
 
@@ -724,7 +726,9 @@ function Discover() {
                   <div className="min-w-0 flex-1 text-sm" aria-live="polite">
                     {catalogPreparing ? (
                       <>
-                        <p className="font-medium">Nixpkgsカタログを確認・準備中...</p>
+                        <p className="font-medium">
+                          Nixpkgsカタログを確認・準備中...
+                        </p>
                         <p className="mt-1 text-xs text-muted-foreground">
                           初回は全パッケージ情報を取得してローカルカタログを作成するため、時間がかかる場合があります。
                         </p>
@@ -732,24 +736,36 @@ function Discover() {
                     ) : catalogStatus ? (
                       <>
                         <p className="font-medium">
-                          ローカルカタログ準備完了 · {catalogStatus.packageCount.toLocaleString("ja-JP")} 件
+                          ローカルカタログ準備完了 ·{" "}
+                          {catalogStatus.packageCount.toLocaleString("ja-JP")}{" "}
+                          件
                         </p>
                         <p className="mt-1 break-words text-xs text-muted-foreground">
-                          {catalogStatus.action === "generated" ? "カタログを生成" : "検証済みキャッシュを再利用"} ·
-                          {" " + catalogStatus.system + " · "}
+                          {catalogStatus.action === "generated"
+                            ? "カタログを生成"
+                            : "検証済みキャッシュを再利用"}{" "}
+                          ·{" " + catalogStatus.system + " · "}
                           {catalogStatus.sourceRevision
-                            ? "rev " + catalogStatus.sourceRevision.slice(0, 12) + " · "
+                            ? "rev " +
+                              catalogStatus.sourceRevision.slice(0, 12) +
+                              " · "
                             : ""}
                           {"照合 " + catalogStatus.sourceCheckMs + " ms · "}
                           {catalogStatus.action === "generated"
                             ? "生成 " + catalogStatus.generationMs + " ms"
                             : "読込 " + catalogStatus.cacheLoadMs + " ms"}
-                          {" · " + (catalogStatus.cacheBytes / (1024 * 1024)).toFixed(1) + " MiB"}
+                          {" · " +
+                            (catalogStatus.cacheBytes / (1024 * 1024)).toFixed(
+                              1,
+                            ) +
+                            " MiB"}
                         </p>
                       </>
                     ) : (
                       <>
-                        <p className="font-medium">ローカルカタログを利用できません</p>
+                        <p className="font-medium">
+                          ローカルカタログを利用できません
+                        </p>
                         <p className="mt-1 text-xs text-muted-foreground">
                           ソースを検証できないため、検索は従来のNix検索にフォールバックします。古いカタログは使用しません。
                         </p>
@@ -766,7 +782,9 @@ function Discover() {
                     size="sm"
                     variant="outline"
                     disabled={catalogPreparing}
-                    onClick={() => setCatalogRefreshKey((current) => current + 1)}
+                    onClick={() =>
+                      setCatalogRefreshKey((current) => current + 1)
+                    }
                   >
                     {catalogPreparing ? "準備中..." : "カタログを更新"}
                   </Button>

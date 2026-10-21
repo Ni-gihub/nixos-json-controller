@@ -514,8 +514,18 @@ function Discover() {
       setSubmittedQuery(transition.query);
     }
 
-    if (transition.query) runSearch(transition.query);
-  }, [initialQuery, location.key, navigationType, runSearch]);
+    // Avoid starting a legacy search while the source-matched local catalog is still preparing.
+    if (transition.query && !catalogPreparing && catalogAttemptId > 0) {
+      runSearch(transition.query);
+    }
+  }, [
+    catalogAttemptId,
+    catalogPreparing,
+    initialQuery,
+    location.key,
+    navigationType,
+    runSearch,
+  ]);
 
   useEffect(() => {
     let cancelled = false;

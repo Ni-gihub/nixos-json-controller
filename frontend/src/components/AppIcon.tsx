@@ -144,7 +144,7 @@ function AppIcon({
   const [refreshedCandidates, setRefreshedCandidates] = useState<{
     packageId: string;
     name: string;
-    sourceIconCandidates: string[];
+    sourceIconCandidates: string[] | undefined;
     candidates: string[];
   } | null>(null);
   // A refresh only supersedes the props used to request it. New catalog props must win.

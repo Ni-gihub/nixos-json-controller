@@ -4,7 +4,9 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 
 use super::{
-    config::ConfigState, discovery::DiscoveryContext, provenance::evaluate_service_provenance,
+    config::ConfigState,
+    discovery::DiscoveryContext,
+    provenance::evaluate_service_provenance,
     system::{PackageSystemSnapshot, SystemState},
 };
 
@@ -84,8 +86,7 @@ pub fn package_states(packages: &[String]) -> Result<Vec<PackageState>, String> 
         stage_started.elapsed(),
     );
 
-    let states =
-        package_states_from_output_names(packages, output_names, &provenance, &system)?;
+    let states = package_states_from_output_names(packages, output_names, &provenance, &system)?;
     log_perf_duration("package_states.total", total_started.elapsed());
     Ok(states)
 }

@@ -215,11 +215,12 @@ pub fn search_page(query: &str, offset: usize, limit: usize) -> Result<CatalogSe
         results
     };
 
-    Ok(paginate_ranked_results(
+    Ok(paginate_ranked_results_with_filter(
         &cached_results.ranked,
         offset,
         limit,
         cached_results.truncated,
+        filter_installable_results,
     ))
 }
 
@@ -232,11 +233,18 @@ fn filter_installable_results(results: RankedCatalogResults) -> RankedCatalogRes
         return results;
     }
 
-    let (Ok(flake_root), Ok(configuration_name)) =
-        (flake::repository_path(), flake::configuration_name())
-    else {
-        return results;
-    };
+    let (flake_root, configuration_name) =
+        match (flake::repository_path(), flake::configuration_name()) {
+            (Ok(root), Ok(name)) => (root, name),
+            (root, name) => {
+                eprintln!(
+                    "[nxc-catalog] installability filter skipped: repository_path={:?}, configuration_name={:?}",
+                    root.err(),
+                    name.err()
+                );
+                return results;
+            }
+        };
 
     let ids = results
         .iter()
@@ -246,9 +254,20 @@ fn filter_installable_results(results: RankedCatalogResults) -> RankedCatalogRes
         Ok(output_names) if output_names.len() == results.len() => {
             retain_resolved_packages(results, output_names)
         }
+        Ok(output_names) => {
+            eprintln!(
+                "[nxc-catalog] installability filter skipped: expected {} entries, got {}",
+                results.len(),
+                output_names.len()
+            );
+            results
+        }
         // A failed batch evaluation is not proof that individual packages are unavailable.
         // Keep the results visible and let the existing install path report its actual error.
-        _ => results,
+        Err(error) => {
+            eprintln!("[nxc-catalog] installability filter skipped: {error}");
+            results
+        }
     }
 }
 
@@ -271,9 +290,23 @@ fn paginate_ranked_results(
     limit: usize,
     results_limited: bool,
 ) -> CatalogSearchPage {
+    paginate_ranked_results_with_filter(ranked, offset, limit, results_limited, |results| results)
+}
+
+/// Paginate with an injectable filter so tests and fallback paths need not evaluate Nix.
+fn paginate_ranked_results_with_filter<F>(
+    ranked: &[(u32, CatalogPackage)],
+    offset: usize,
+    limit: usize,
+    results_limited: bool,
+    filter: F,
+) -> CatalogSearchPage
+where
+    F: FnMut(RankedCatalogResults) -> RankedCatalogResults,
+{
     let limit = limit.clamp(1, MAX_PAGE_SIZE);
     let (selected, next_offset) =
-        select_installable_candidates(ranked, offset, limit, filter_installable_results);
+        select_installable_candidates(ranked, offset, limit, filter);
     let results = attach_icon_candidates(selected)
         .into_iter()
         .map(|(_, package)| package)

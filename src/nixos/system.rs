@@ -22,9 +22,7 @@ pub struct SystemState {
 /// This deliberately avoids scanning binaries or querying systemd services.
 #[derive(Debug, Clone)]
 pub(crate) struct PackageSystemSnapshot {
-    pub(crate) current_generation: PathBuf,
     pub(crate) packages: BTreeSet<String>,
-    pub(crate) cache_hit: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -60,11 +58,7 @@ impl PackageSystemSnapshot {
             );
         }
 
-        Ok(Self {
-            current_generation,
-            packages,
-            cache_hit,
-        })
+        Ok(Self { packages })
     }
 
     pub(crate) fn has_any_package_output(&self, output_names: &[String]) -> bool {

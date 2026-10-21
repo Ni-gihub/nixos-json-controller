@@ -282,9 +282,12 @@ fn persistent_icon_cache_dir() -> Option<PathBuf> {
 /// Hash a cache key into a filesystem-safe filename. The stored header prevents collisions
 /// from ever returning an icon for a different package alias sequence.
 fn persisted_icon_cache_filename(key: &str) -> String {
-    let hash = key.as_bytes().iter().fold(0xcbf29ce484222325_u64, |hash, byte| {
-        (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3)
-    });
+    let hash = key
+        .as_bytes()
+        .iter()
+        .fold(0xcbf29ce484222325_u64, |hash, byte| {
+            (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3)
+        });
     format!("{hash:016x}.icon")
 }
 
@@ -299,9 +302,7 @@ fn is_persistable_icon(icon: &str) -> bool {
     };
     if !matches!(
         mime,
-        "data:image/png;base64"
-            | "data:image/svg+xml;base64"
-            | "data:image/jpeg;base64"
+        "data:image/png;base64" | "data:image/svg+xml;base64" | "data:image/jpeg;base64"
     ) {
         return false;
     }
@@ -340,11 +341,7 @@ fn write_persisted_icon_cache(root: &Path, key: &str, icon: &str) {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos();
-    let temporary_path = root.join(format!(
-        ".{file_name}.{}.{}.tmp",
-        std::process::id(),
-        nonce
-    ));
+    let temporary_path = root.join(format!(".{file_name}.{}.{}.tmp", std::process::id(), nonce));
     let contents = format!("{key}\n{icon}");
 
     let write_result = (|| {
@@ -1506,11 +1503,7 @@ mod tests {
         fs::write(&path, format!("{key}\ndata:text/html;base64,PHNjcmlwdD4=")).unwrap();
         assert!(read_persisted_icon_cache(&root, &key).is_none());
 
-        fs::write(
-            &path,
-            "direct|6:chrome|\ndata:image/png;base64,aGVsbG8=",
-        )
-        .unwrap();
+        fs::write(&path, "direct|6:chrome|\ndata:image/png;base64,aGVsbG8=").unwrap();
         assert!(read_persisted_icon_cache(&root, &key).is_none());
 
         let _ = fs::remove_dir_all(root);

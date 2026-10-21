@@ -1,14 +1,14 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::env;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
-use std::sync::Condvar;
-use serde_json::Value;
-use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::process::Command;
+use std::sync::Condvar;
 use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use super::appstream;
 
@@ -44,7 +44,6 @@ pub struct CatalogSearchPage {
     pub has_more: bool,
     pub results_limited: bool,
 }
-
 
 /// Identifies the exact Nixpkgs source resolved by the user's Nix registry.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -184,11 +183,7 @@ pub fn search_page(query: &str, offset: usize, limit: usize) -> Result<CatalogSe
 
     let active_index = catalog_index_for_lookup();
     let cache_key = match &active_index {
-        Some(index) => format!(
-            "catalog:{}:{}",
-            index.source.nar_hash,
-            query.to_lowercase()
-        ),
+        Some(index) => format!("catalog:{}:{}", index.source.nar_hash, query.to_lowercase()),
         None => format!("nix:{}", query.to_lowercase()),
     };
     let cached = search_cache()
@@ -274,12 +269,12 @@ fn prepare_catalog_internal(
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
         }
         if only_if_needed && runtime.preparation_attempted {
-            return runtime
-                .last_status
-                .clone()
-                .ok_or_else(|| runtime.last_error.clone().unwrap_or_else(|| {
-                    "Nixpkgs catalog preparation previously failed".to_string()
-                }));
+            return runtime.last_status.clone().ok_or_else(|| {
+                runtime
+                    .last_error
+                    .clone()
+                    .unwrap_or_else(|| "Nixpkgs catalog preparation previously failed".to_string())
+            });
         }
         runtime.preparing = true;
         runtime.preparation_attempted = true;
@@ -370,7 +365,9 @@ fn prepare_catalog_inner(
         packages.entry(package.id.clone()).or_insert(package);
     }
     if packages.is_empty() {
-        return Err("full Nixpkgs search returned no packages; keeping the previous cache".to_string());
+        return Err(
+            "full Nixpkgs search returned no packages; keeping the previous cache".to_string(),
+        );
     }
     if packages.len() > MAX_CATALOG_PACKAGES {
         return Err(format!(
@@ -499,8 +496,14 @@ fn catalog_cache_path() -> Result<PathBuf, String> {
     let root = env::var_os("XDG_CACHE_HOME")
         .map(PathBuf::from)
         .filter(|path| path.is_absolute())
-        .or_else(|| env::var_os("HOME").map(PathBuf::from).map(|home| home.join(".cache")))
-        .ok_or_else(|| "cannot determine a user cache directory (XDG_CACHE_HOME/HOME)".to_string())?;
+        .or_else(|| {
+            env::var_os("HOME")
+                .map(PathBuf::from)
+                .map(|home| home.join(".cache"))
+        })
+        .ok_or_else(|| {
+            "cannot determine a user cache directory (XDG_CACHE_HOME/HOME)".to_string()
+        })?;
     Ok(root.join("nxc").join("nixpkgs-catalog-v1.json"))
 }
 
@@ -563,7 +566,10 @@ fn atomic_write_catalog(path: &Path, envelope: &CatalogCacheEnvelope) -> Result<
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos();
-    let file_name = path.file_name().and_then(|name| name.to_str()).unwrap_or("catalog.json");
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("catalog.json");
     let temporary_path = parent.join(format!(".{file_name}.{}.{}.tmp", std::process::id(), nonce));
 
     let write_result = (|| {
@@ -624,7 +630,12 @@ fn rank_local_matches(index: &CatalogIndex, query: &str) -> RankedCatalogResults
     results.sort_by(|(score_a, package_a), (score_b, package_b)| {
         score_b
             .cmp(score_a)
-            .then_with(|| package_a.name.to_lowercase().cmp(&package_b.name.to_lowercase()))
+            .then_with(|| {
+                package_a
+                    .name
+                    .to_lowercase()
+                    .cmp(&package_b.name.to_lowercase())
+            })
             .then_with(|| package_a.id.cmp(&package_b.id))
     });
     results
@@ -707,13 +718,7 @@ fn run_nix_search(query: &str) -> Result<Vec<u8>, String> {
 /// Run nix search with an already-formed regex. The `.*` pattern enumerates the complete
 /// search result space from the same `nixpkgs` registry reference used by normal searches.
 fn run_nix_search_pattern(pattern: &str) -> Result<Vec<u8>, String> {
-    run_nix_command(&[
-        "search",
-        "nixpkgs",
-        "--json",
-        "--no-pretty",
-        pattern,
-    ])
+    run_nix_command(&["search", "nixpkgs", "--json", "--no-pretty", pattern])
 }
 
 /// Invoke Nix with the features required by this application, preserving stderr on failure.
@@ -1159,11 +1164,23 @@ mod tests {
         let ranked = rank_local_matches(&index, "FIREFOX");
         assert_eq!(ranked.len(), 3);
         assert_eq!(ranked[0].1.id, "firefox");
-        assert!(ranked.iter().any(|(_, package)| package.id == "firefox-esr"));
+        assert!(
+            ranked
+                .iter()
+                .any(|(_, package)| package.id == "firefox-esr")
+        );
 
         let multiple_terms = rank_local_matches(&index, "browser chromium");
-        assert!(multiple_terms.iter().any(|(_, package)| package.id == "chromium"));
-        assert!(multiple_terms.iter().any(|(_, package)| package.id == "firefox"));
+        assert!(
+            multiple_terms
+                .iter()
+                .any(|(_, package)| package.id == "chromium")
+        );
+        assert!(
+            multiple_terms
+                .iter()
+                .any(|(_, package)| package.id == "firefox")
+        );
     }
 
     #[test]
@@ -1194,36 +1211,43 @@ mod tests {
         };
         let bytes = serde_json::to_vec(&envelope).unwrap();
         let parsed: CatalogCacheEnvelope = serde_json::from_slice(&bytes).unwrap();
-        assert!(catalog_index_from_envelope(
-            parsed.clone(),
-            &source,
-            "x86_64-linux",
-            bytes.len() as u64,
-        ).is_some());
+        assert!(
+            catalog_index_from_envelope(
+                parsed.clone(),
+                &source,
+                "x86_64-linux",
+                bytes.len() as u64,
+            )
+            .is_some()
+        );
 
         let mut different_source = source.clone();
         different_source.nar_hash = "hash-b".to_string();
-        assert!(catalog_index_from_envelope(
-            parsed.clone(),
-            &different_source,
-            "x86_64-linux",
-            bytes.len() as u64,
-        ).is_none());
-        assert!(catalog_index_from_envelope(
-            parsed.clone(),
-            &source,
-            "aarch64-linux",
-            bytes.len() as u64,
-        ).is_none());
+        assert!(
+            catalog_index_from_envelope(
+                parsed.clone(),
+                &different_source,
+                "x86_64-linux",
+                bytes.len() as u64,
+            )
+            .is_none()
+        );
+        assert!(
+            catalog_index_from_envelope(
+                parsed.clone(),
+                &source,
+                "aarch64-linux",
+                bytes.len() as u64,
+            )
+            .is_none()
+        );
 
         let mut invalid = parsed;
         invalid.packages[0].id = "firefox; builtins.abort".to_string();
-        assert!(catalog_index_from_envelope(
-            invalid,
-            &source,
-            "x86_64-linux",
-            bytes.len() as u64,
-        ).is_none());
+        assert!(
+            catalog_index_from_envelope(invalid, &source, "x86_64-linux", bytes.len() as u64,)
+                .is_none()
+        );
     }
 
     #[test]

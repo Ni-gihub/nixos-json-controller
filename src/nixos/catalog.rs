@@ -6,7 +6,6 @@ use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::Condvar;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
@@ -96,16 +95,16 @@ pub struct CatalogPreparationStatus {
 struct CatalogRuntime {
     index: Option<Arc<CatalogIndex>>,
     preparing: bool,
-    preparation_attempted: bool,
     last_status: Option<CatalogPreparationStatus>,
-    last_error: Option<String>,
 }
 
-fn catalog_runtime() -> &'static (Mutex<CatalogRuntime>, Condvar) {
-    static RUNTIME: OnceLock<(Mutex<CatalogRuntime>, Condvar)> = OnceLock::new();
-    RUNTIME.get_or_init(|| (Mutex::new(CatalogRuntime::default()), Condvar::new()))
+/// Return the shared catalog state used by search and preparation requests.
+fn catalog_runtime() -> &'static Mutex<CatalogRuntime> {
+    static RUNTIME: OnceLock<Mutex<CatalogRuntime>> = OnceLock::new();
+    RUNTIME.get_or_init(|| Mutex::new(CatalogRuntime::default()))
 }
 
+/// Serialize catalog validation and generation so concurrent requests do not rebuild it.
 fn catalog_preparation_lock() -> &'static Mutex<()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
     LOCK.get_or_init(|| Mutex::new(()))
@@ -126,6 +125,7 @@ struct SearchCache {
 }
 
 impl SearchCache {
+    /// Clear all ranked query results after the active catalog source changes.
     fn clear(&mut self) {
         self.entries.clear();
         self.recency.clear();
@@ -156,6 +156,7 @@ impl SearchCache {
     }
 }
 
+/// Return the bounded, process-local query result cache.
 fn search_cache() -> &'static Mutex<SearchCache> {
     static CACHE: OnceLock<Mutex<SearchCache>> = OnceLock::new();
     CACHE.get_or_init(|| Mutex::new(SearchCache::default()))
@@ -246,48 +247,29 @@ fn paginate_ranked_results(
 /// Check the current Nixpkgs reference, load a matching cache, or atomically generate a new one.
 /// This is called on App Store entry and can also be forced by the explicit refresh action.
 pub fn prepare_catalog(force_refresh: bool) -> Result<CatalogPreparationStatus, String> {
-    prepare_catalog_internal(force_refresh, false)
+    prepare_catalog_internal(force_refresh)
 }
 
-fn prepare_catalog_internal(
-    force_refresh: bool,
-    only_if_needed: bool,
-) -> Result<CatalogPreparationStatus, String> {
+/// Verify or rebuild the persistent catalog while preventing overlapping preparations.
+fn prepare_catalog_internal(force_refresh: bool) -> Result<CatalogPreparationStatus, String> {
     let _serial = catalog_preparation_lock()
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
 
     {
-        let (runtime_lock, ready) = catalog_runtime();
-        let mut runtime = runtime_lock
+        let mut runtime = catalog_runtime()
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        while runtime.preparing {
-            runtime = ready
-                .wait(runtime)
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-        }
-        if only_if_needed && runtime.preparation_attempted {
-            return runtime.last_status.clone().ok_or_else(|| {
-                runtime
-                    .last_error
-                    .clone()
-                    .unwrap_or_else(|| "Nixpkgs catalog preparation previously failed".to_string())
-            });
-        }
         runtime.preparing = true;
-        runtime.preparation_attempted = true;
         runtime.index = None;
         runtime.last_status = None;
-        runtime.last_error = None;
     }
 
     let prepared =
         prepare_catalog_inner(force_refresh).map(|(index, status)| (Arc::new(index), status));
 
     {
-        let (runtime_lock, ready) = catalog_runtime();
-        let mut runtime = runtime_lock
+        let mut runtime = catalog_runtime()
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         match &prepared {
@@ -299,11 +281,9 @@ fn prepare_catalog_internal(
             Err(error) => {
                 runtime.index = None;
                 runtime.last_status = None;
-                runtime.last_error = Some(error.clone());
             }
         }
         runtime.preparing = false;
-        ready.notify_all();
     }
 
     if prepared.is_ok() {
@@ -316,9 +296,9 @@ fn prepare_catalog_internal(
     prepared.map(|(_, status)| status)
 }
 
+/// Return a ready in-memory catalog without starting or waiting for catalog generation.
 fn catalog_index_for_lookup() -> Option<Arc<CatalogIndex>> {
-    let (runtime_lock, _) = catalog_runtime();
-    let runtime = runtime_lock
+    let runtime = catalog_runtime()
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     if runtime.preparing {
@@ -327,6 +307,7 @@ fn catalog_index_for_lookup() -> Option<Arc<CatalogIndex>> {
     runtime.index.clone()
 }
 
+/// Load a matching disk cache or build, validate, and atomically persist the full catalog.
 fn prepare_catalog_inner(
     force_refresh: bool,
 ) -> Result<(CatalogIndex, CatalogPreparationStatus), String> {
@@ -415,6 +396,7 @@ fn prepare_catalog_inner(
     Ok((index, status))
 }
 
+/// Convert an active catalog and measured timings into the UI-facing status payload.
 fn preparation_status(
     action: &str,
     index: &CatalogIndex,
@@ -438,6 +420,7 @@ fn preparation_status(
     }
 }
 
+/// Resolve the current nixpkgs registry source identity and the host's Nix system.
 fn current_nixpkgs_identity() -> Result<(CatalogSourceIdentity, String), String> {
     let metadata = run_nix_command(&["flake", "metadata", "nixpkgs", "--json"])?;
     let metadata: Value = serde_json::from_slice(&metadata)
@@ -489,6 +472,7 @@ fn current_nixpkgs_identity() -> Result<(CatalogSourceIdentity, String), String>
     ))
 }
 
+/// Return the user cache path, rejecting relative environment-provided roots.
 fn catalog_cache_path() -> Result<PathBuf, String> {
     let root = env::var_os("XDG_CACHE_HOME")
         .map(PathBuf::from)
@@ -505,6 +489,7 @@ fn catalog_cache_path() -> Result<PathBuf, String> {
     Ok(root.join("nxc").join("nixpkgs-catalog-v1.json"))
 }
 
+/// Read a bounded cache file and accept it only when source, system, and schema match.
 fn load_matching_catalog(
     path: &Path,
     source: &CatalogSourceIdentity,
@@ -519,6 +504,7 @@ fn load_matching_catalog(
     catalog_index_from_envelope(envelope, source, system, metadata.len())
 }
 
+/// Validate a decoded cache envelope and build a search index without cached icon data.
 fn catalog_index_from_envelope(
     envelope: CatalogCacheEnvelope,
     source: &CatalogSourceIdentity,
@@ -554,10 +540,12 @@ fn catalog_index_from_envelope(
     })
 }
 
+/// Persist a catalog cache through a validated temporary file and atomic rename.
 fn atomic_write_catalog(path: &Path, envelope: &CatalogCacheEnvelope) -> Result<(), String> {
     atomic_write_catalog_with_limit(path, envelope, MAX_CATALOG_CACHE_BYTES)
 }
 
+/// Atomically write a catalog while enforcing a byte limit for production and failure tests.
 fn atomic_write_catalog_with_limit(
     path: &Path,
     envelope: &CatalogCacheEnvelope,
@@ -613,6 +601,7 @@ fn atomic_write_catalog_with_limit(
     write_result
 }
 
+/// Rank case-insensitive local ID, name, and description matches using legacy scoring.
 fn rank_local_matches(index: &CatalogIndex, query: &str) -> RankedCatalogResults {
     let query_lower = query.to_lowercase();
     let terms = query_lower.split_whitespace().collect::<Vec<_>>();
@@ -647,10 +636,12 @@ fn rank_local_matches(index: &CatalogIndex, query: &str) -> RankedCatalogResults
     results
 }
 
+/// Return elapsed milliseconds saturated to the range supported by u64.
 fn elapsed_ms(start: Instant) -> u64 {
     start.elapsed().as_millis().min(u64::MAX as u128) as u64
 }
 
+/// Return the current Unix timestamp, defaulting safely if the clock predates the epoch.
 fn unix_timestamp() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -878,6 +869,7 @@ fn attach_icon_candidates(mut results: Vec<(u32, CatalogPackage)>) -> Vec<(u32, 
     results
 }
 
+/// Strip the system and packages or legacyPackages prefix from a Nix search attribute.
 fn normalize_attribute(attribute: &str) -> Option<String> {
     for prefix in ["legacyPackages.", "packages."] {
         if let Some(rest) = attribute.strip_prefix(prefix) {
@@ -890,6 +882,7 @@ fn normalize_attribute(attribute: &str) -> Option<String> {
     None
 }
 
+/// Score exact, prefix, substring, and individual-term matches for search ordering.
 fn relevance_score(query: &str, id: &str, name: &str, description: &str) -> u32 {
     let normalized_query = query.to_lowercase();
     let normalized_id = id.to_lowercase();
@@ -929,6 +922,7 @@ fn relevance_score(query: &str, id: &str, name: &str, description: &str) -> u32 
     score
 }
 
+/// Infer the App Store category from package metadata without an external lookup.
 fn category_for(name: &str, description: &str) -> String {
     let text = format!("{} {}", name, description).to_lowercase();
 
@@ -984,6 +978,7 @@ fn category_for(name: &str, description: &str) -> String {
     }
 }
 
+/// Derive searchable tags from package metadata and its inferred category.
 fn tags_for(name: &str, description: &str, category: &str) -> Vec<String> {
     let text = format!("{} {}", name, description).to_lowercase();
     let mut tags = vec![category.to_string()];
@@ -1014,10 +1009,12 @@ fn tags_for(name: &str, description: &str, category: &str) -> Vec<String> {
     tags
 }
 
+/// Return whether text contains at least one of the supplied keyword fragments.
 fn contains_any(text: &str, keywords: &[&str]) -> bool {
     keywords.iter().any(|keyword| text.contains(keyword))
 }
 
+/// Escape a user query as a literal-compatible Nix regular expression.
 fn escape_regex(value: &str) -> String {
     let mut escaped = String::with_capacity(value.len() * 2);
     for character in value.chars() {
@@ -1029,10 +1026,12 @@ fn escape_regex(value: &str) -> String {
     }
     escaped
 }
+/// Validate every segment of a dotted Nix attribute path before passing it to Nix.
 fn is_safe_attribute_path(value: &str) -> bool {
     !value.is_empty() && value.split('.').all(is_safe_attribute_segment)
 }
 
+/// Validate one Nix attribute identifier segment and reject reserved keywords.
 fn is_safe_attribute_segment(segment: &str) -> bool {
     let mut characters = segment.chars();
     let Some(first) = characters.next() else {

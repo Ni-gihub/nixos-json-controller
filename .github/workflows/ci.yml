@@ -146,6 +146,12 @@ jobs:
 
       - name: Install Tauri Linux dependencies
         run: |
+          # The runner may contain an optional Microsoft APT feed that can return
+          # 403 in CI. Tauri's Linux dependencies are from Ubuntu's repositories,
+          # so disable only that unrelated feed before updating package indexes.
+          while IFS= read -r source; do
+            sudo mv "$source" "$source.disabled"
+          done < <(grep -rl 'packages\.microsoft\.com' /etc/apt/sources.list.d 2>/dev/null || true)
           sudo apt-get update
           sudo apt-get install --yes \
             build-essential \

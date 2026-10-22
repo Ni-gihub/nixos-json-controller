@@ -36,7 +36,7 @@ NXC は個人所有リポジトリでも利用できるよう、タイトル接�
 
 ### Project / PBL は専用フォームと正本構造を使う
 
-- Project憲章は [#166](https://github.com/Ni-gihub/nixos-json-controller/issues/166)、PBLは [#167](https://github.com/Ni-gihub/nixos-json-controller/issues/167) を正本とし、それぞれ専用の Issue Form（`05-project.yml` / `06-pbl.yml`）を用いる。
+- Project憲章は [#166](https://github.com/Ni-gihub/nixos-json-controller/issues/166)、PBLは [#167](https://github.com/Ni-gihub/nixos-json-controller/issues/167) を正本とし、それぞれ専用の Issue Form（`05-project.yml` / `06-pbl.yml`）で項目構成を定義する。GitHub Issue Form の送信は既存Issueの編集ではなく新規Issue作成になるため、正本を更新するときは #166 / #167 を直接編集し、フォームを送信しない。新規のProject/PBL作成は明示的に必要と判断された場合に限る。
 - Projectは目的・スコープ・成功基準・リリースゲートを管理し、PBLは優先順位付きの現在バックログと完了／見送り履歴の索引を管理する。通常のPBI / Task / Bugフォームで代替しない。
 - これらの正本は複数カテゴリの情報、優先順位表、集計スナップショットを持つため、既存内容を移行する際は表や履歴を保持し、項目を無理に単一の節へ統合しない。専用フォームと既存構造の粒度が合わない場合は「補足・詳細記録」へ保持する。
 

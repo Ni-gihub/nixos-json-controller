@@ -222,12 +222,9 @@ fn resolve_icon_candidates_from_index(
     }
 
     // Reserve room for the system/profile icon matching the package name.
-    if let Some(icon) = resolve_direct_stock_icon_with_cache_root(
-        candidates,
-        stock_index,
-        cache,
-        cache_root,
-    ) {
+    if let Some(icon) =
+        resolve_direct_stock_icon_with_cache_root(candidates, stock_index, cache, cache_root)
+    {
         push_icon_candidate(&mut resolved, icon, limit);
     }
 

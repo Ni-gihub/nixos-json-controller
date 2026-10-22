@@ -305,7 +305,7 @@ fn resolve_cached_entry(
     icon
 }
 
-remove wrapper/// Resolve the current theme icon first, then fall back to a previously persisted copy.
+/// Resolve the current theme icon first, then fall back to a previously persisted copy.
 fn resolve_direct_stock_icon_with_cache_root(
     candidates: &[&str],
     index: &HashMap<String, Vec<PathBuf>>,

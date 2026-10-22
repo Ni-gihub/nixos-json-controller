@@ -35,7 +35,9 @@ fn validate_required_input(value: &str, field: &str, max_bytes: usize) -> Result
         return Err(format!("{field} must not be empty"));
     }
     if value.trim() != value {
-        return Err(format!("{field} must not have leading or trailing whitespace"));
+        return Err(format!(
+            "{field} must not have leading or trailing whitespace"
+        ));
     }
     Ok(())
 }
@@ -65,7 +67,10 @@ fn validate_sudo_password(password: Option<&str>) -> Result<(), String> {
     if password.is_empty() {
         return Err("password must not be empty".to_string());
     }
-    if password.chars().any(|character| matches!(character, '\n' | '\r')) {
+    if password
+        .chars()
+        .any(|character| matches!(character, '\n' | '\r'))
+    {
         return Err("password must not contain line breaks".to_string());
     }
     Ok(())
@@ -208,7 +213,12 @@ async fn get_catalog_apps(
 async fn get_app_states(
     packages: Vec<String>,
 ) -> Result<Vec<nixos_json_controller::nixos::status::PackageState>, String> {
-    validate_input_batch(&packages, "packages", MAX_PACKAGE_STATE_BATCH, MAX_CATALOG_ID_BYTES)?;
+    validate_input_batch(
+        &packages,
+        "packages",
+        MAX_PACKAGE_STATE_BATCH,
+        MAX_CATALOG_ID_BYTES,
+    )?;
 
     tauri::async_runtime::spawn_blocking(move || {
         nixos_json_controller::nixos::status::package_states(&packages)

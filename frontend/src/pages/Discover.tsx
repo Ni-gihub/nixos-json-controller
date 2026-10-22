@@ -175,6 +175,7 @@ function Discover() {
   const consecutiveEmptyPagesRef = useRef(0);
   const resultIdsRef = useRef(new Set<string>());
   const requestedStateIdsRef = useRef(new Set<string>());
+  const attemptedRecommendationStateIdsRef = useRef(new Set<string>());
   const recommendationStateRequestsInFlightRef = useRef(new Set<string>());
   const pendingStateIdsRef = useRef(new Set<string>());
   const stateRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -324,6 +325,7 @@ function Discover() {
     // native request cannot be cancelled here, but it will not schedule another batch.
     pendingStateIdsRef.current.clear();
     requestedStateIdsRef.current.clear();
+    attemptedRecommendationStateIdsRef.current.clear();
     if (stateRefreshTimerRef.current !== null) {
       clearTimeout(stateRefreshTimerRef.current);
       stateRefreshTimerRef.current = null;
@@ -776,10 +778,12 @@ function Discover() {
       .filter(
         (id) =>
           states[id] === undefined &&
+          !attemptedRecommendationStateIdsRef.current.has(id) &&
           !recommendationStateRequestsInFlightRef.current.has(id),
       );
     if (missingIds.length > 0) {
       for (const id of missingIds) {
+        attemptedRecommendationStateIdsRef.current.add(id);
         recommendationStateRequestsInFlightRef.current.add(id);
       }
       void refreshPackages(missingIds).finally(() => {

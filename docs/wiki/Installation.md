@@ -6,8 +6,11 @@
 
 ## 前提条件
 
-- Nix が利用できる NixOS / Linux 環境
+- Nix が利用できる Linux 環境
+- 現在の Flake package の対応 system は `x86_64-linux` のみ
 - Flakes と `nix-command` が利用可能であること
+
+`aarch64-linux` など、ほかのアーキテクチャは現時点でこの Flake package の対応対象に含まれません。別アーキテクチャで利用する場合は、対応する package output が追加されていることを確認してください。
 
 Flakes が無効の場合、Nix の設定で次を有効にしてください。
 
@@ -76,5 +79,5 @@ install -Dm755 target/release/nixos-json-controller ~/.local/bin/nxc
 
 ## 次に読むページ
 
-- [CLI の使い方](CLI-Usage)
-- [トラブルシューティング](Troubleshooting)
+- [CLI の使い方](CLI-Usage.md)
+- [トラブルシューティング](Troubleshooting.md)

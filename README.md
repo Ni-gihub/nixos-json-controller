@@ -335,20 +335,23 @@ GUI 用の Flake package、Desktop Entry、静的なランチャーアイコン�
 
 ---
 
-# 関連 Issue（未完了の主な作業）
+# 関連 Issue（未完了の作業）
 
-- [#43 — 検索後のインストール状態確認の遅延を調査・改善する](https://github.com/Ni-gihub/nixos-json-controller/issues/43)
-- [#101 — nxc App Store を Nix profile から本番インストールできるようにする](https://github.com/Ni-gihub/nixos-json-controller/issues/101)
-- [#103 — パスワード送信後の待機表示とインストール中UIを改善する](https://github.com/Ni-gihub/nixos-json-controller/issues/103)
-- [#106 — 本番配布前にCSPとTauriの権限設定を見直す](https://github.com/Ni-gihub/nixos-json-controller/issues/106)
-- [#123 — Nixpkgs検索をローカルインデックス化する](https://github.com/Ni-gihub/nixos-json-controller/issues/123)
-- [#126 — 通常検索の結果を追加で表示できるようにする](https://github.com/Ni-gihub/nixos-json-controller/issues/126)
-- [#134 — 高速スクロール時にサイドバーの描画が重なって見える](https://github.com/Ni-gihub/nixos-json-controller/issues/134)
-- [#137 — 書き込み権限を持つ推薦更新ワークフローの Actions を SHA 固定する](https://github.com/Ni-gihub/nixos-json-controller/issues/137)
-- [#138 — サービス設定の変更失敗を検知し、再ビルド後の状態を検証する](https://github.com/Ni-gihub/nixos-json-controller/issues/138)
-- [#139 — プロジェクトのライセンスを明示し、利用・再配布条件を整える](https://github.com/Ni-gihub/nixos-json-controller/issues/139)
-- [#140 — パッケージ名の前方一致によるインストール済み誤判定を修正する](https://github.com/Ni-gihub/nixos-json-controller/issues/140)
-- [#141 — サービス設定の安全性判定を対象オプション単位に修正する](https://github.com/Ni-gihub/nixos-json-controller/issues/141)
+## App Store本番配布
+- [#101 — PBI: nxc App StoreをNix profileからインストール・起動・更新・削除する](https://github.com/Ni-gihub/nixos-json-controller/issues/101)
+- [#169 — Task: GUI用Nix Flake packageを再現可能にビルドする](https://github.com/Ni-gihub/nixos-json-controller/issues/169)
+- [#170 — Task: GUI packageのデスクトップ統合と本番起動環境を整える](https://github.com/Ni-gihub/nixos-json-controller/issues/170)
+- [#171 — Task: GUI packageの利用手順とCI成果物検証を整備する](https://github.com/Ni-gihub/nixos-json-controller/issues/171)
+- [#106 — Task: 本番配布前にCSPとTauriの権限設定を監査する](https://github.com/Ni-gihub/nixos-json-controller/issues/106)
+- [#139 — Task: プロジェクト本体と同梱資産のライセンス条件を明示する](https://github.com/Ni-gihub/nixos-json-controller/issues/139)
+
+## GUI機能・品質
+- [#102 — PBI: GUIからインストール済みアプリを確認・管理する](https://github.com/Ni-gihub/nixos-json-controller/issues/102)
+- [#134 — Bug: 高速スクロール時にサイドバーの描画が重なる](https://github.com/Ni-gihub/nixos-json-controller/issues/134)
+- [#162 — PBI: インストール制約に合うパッケージをApp Storeで表示する](https://github.com/Ni-gihub/nixos-json-controller/issues/162)
+- [#163 — Bug: アンインストール後もアプリアイコンを表示できる](https://github.com/Ni-gihub/nixos-json-controller/issues/163)
+
+完了済みの改善と対応見送りの履歴は [PBL #167](https://github.com/Ni-gihub/nixos-json-controller/issues/167) を参照してください。
 
 ---
 

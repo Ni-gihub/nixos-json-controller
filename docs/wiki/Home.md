@@ -6,12 +6,12 @@ CLI はパッケージやサービスの変更を NixOS の宣言的な設定へ
 
 ## はじめに
 
-- [CLI のインストール](Installation)：Nix profile を利用した CLI の導入方法
-- [CLI の使い方](CLI-Usage)：パッケージ・サービスの操作と状態確認
-- [安全設計と内部の流れ](Safety-and-Architecture)：設定変更・評価・検証について
-- [GUI 開発環境](GUI-Development)：開発者向けの起動手順
-- [トラブルシューティング](Troubleshooting)：エラー発生時の確認事項
-- [開発への参加](Contributing)：テスト、Issue、PR の進め方
+- [CLI のインストール](Installation.md)：Nix profile を利用した CLI の導入方法
+- [CLI の使い方](CLI-Usage.md)：パッケージ・サービスの操作と状態確認
+- [安全設計と内部の流れ](Safety-and-Architecture.md)：設定変更・評価・検証について
+- [GUI 開発環境](GUI-Development.md)：開発者向けの起動手順
+- [トラブルシューティング](Troubleshooting.md)：エラー発生時の確認事項
+- [開発への参加](Contributing.md)：テスト、Issue、PR の進め方
 
 ## 現在の状態
 
@@ -62,4 +62,4 @@ CLI のパッケージ操作は NixOS configuration の編集やシステムの�
 - [Issue の書き方](https://github.com/Ni-gihub/nixos-json-controller/blob/main/docs/project-management/issue-writing.md)
 - [プロジェクトとバックログの運用](https://github.com/Ni-gihub/nixos-json-controller/blob/main/docs/project-management/backlog-management.md)
 
-CLI コマンドの詳細は [CLI Usage](CLI-Usage) を参照してください。
+CLI コマンドの詳細は [CLI Usage](CLI-Usage.md) を参照してください。

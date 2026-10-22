@@ -298,6 +298,7 @@ mod tests {
         assert!(validate_sudo_password(Some("correct horse")).is_ok());
         assert!(validate_sudo_password(Some("")).is_err());
         assert!(validate_sudo_password(Some("first\nsecond")).is_err());
-        assert!(validate_sudo_password(Some(&"x".repeat(MAX_PASSWORD_BYTES + 1))).is_err());
+        let long_password = "x".repeat(MAX_PASSWORD_BYTES + 1);
+        assert!(validate_sudo_password(Some(long_password.as_str())).is_err());
     }
 }

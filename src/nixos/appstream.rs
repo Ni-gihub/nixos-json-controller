@@ -194,10 +194,7 @@ fn resolve_icon_candidates_from_index(
             }
         };
 
-        if freshly_resolved
-            && entry.starts_with("stock|")
-            && appstream_stock_icon_to_persist.is_none()
-        {
+        if entry.starts_with("stock|") && appstream_stock_icon_to_persist.is_none() {
             if let Some(icon) = icon.as_deref().filter(|icon| is_persistable_icon(icon)) {
                 appstream_stock_icon_to_persist = Some(icon.to_string());
             }
@@ -1752,6 +1749,110 @@ mod tests {
         .expect("the AppStream stock icon is restored from the package-keyed cache");
 
         assert_eq!(restored, original);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn persists_shared_appstream_stock_icon_for_each_package() {
+        let root = std::env::temp_dir().join(format!(
+            "nxc-shared-appstream-stock-persist-test-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        let icon_root = root.join("system-icons");
+        let cache_root = root.join("cache");
+        let icon_path = icon_root.join("hicolor/scalable/apps/shared-brand-icon.svg");
+        fs::create_dir_all(icon_path.parent().unwrap()).unwrap();
+        fs::write(
+            &icon_path,
+            r#"<svg xmlns="http://www.w3.org/2000/svg"><circle cx="1" cy="1" r="1"/></svg>"#,
+        )
+        .unwrap();
+
+        let first_package = ["com.example.editor-one"];
+        let second_package = ["com.example.editor-two"];
+        let shared_entry = vec!["stock|shared-brand-icon".to_string()];
+        let appstream_index = HashMap::from([
+            (first_package[0].to_string(), shared_entry.clone()),
+            (second_package[0].to_string(), shared_entry),
+        ]);
+        let stock_index = build_stock_icon_index_from_roots(std::slice::from_ref(&icon_root));
+        let shared_cache = Mutex::new(HashMap::new());
+
+        let first_icon = resolve_icon_candidates_from_index(
+            &first_package,
+            MAX_ICON_CANDIDATES,
+            &appstream_index,
+            &stock_index,
+            &shared_cache,
+            Some(&cache_root),
+        )
+        .into_iter()
+        .next()
+        .expect("the first package resolves the shared stock icon");
+        let second_icon = resolve_icon_candidates_from_index(
+            &second_package,
+            MAX_ICON_CANDIDATES,
+            &appstream_index,
+            &stock_index,
+            &shared_cache,
+            Some(&cache_root),
+        )
+        .into_iter()
+        .next()
+        .expect("the second package reuses the cached stock icon");
+
+        assert_eq!(first_icon, second_icon);
+        assert!(
+            read_persisted_icon_cache(
+                &cache_root,
+                &persisted_icon_cache_key(&first_package),
+            )
+            .is_some(),
+            "the first package has its own persisted cache entry"
+        );
+        assert!(
+            read_persisted_icon_cache(
+                &cache_root,
+                &persisted_icon_cache_key(&second_package),
+            )
+            .is_some(),
+            "a cache hit must also persist the second package's icon entry"
+        );
+
+        fs::remove_file(&icon_path).unwrap();
+
+        // Simulate a new process after the shared source has disappeared.
+        let empty_stock_index = HashMap::new();
+        let fresh_cache = Mutex::new(HashMap::new());
+        let restored_first = resolve_icon_candidates_from_index(
+            &first_package,
+            MAX_ICON_CANDIDATES,
+            &appstream_index,
+            &empty_stock_index,
+            &fresh_cache,
+            Some(&cache_root),
+        )
+        .into_iter()
+        .next()
+        .expect("the first package restores its persisted icon");
+        let restored_second = resolve_icon_candidates_from_index(
+            &second_package,
+            MAX_ICON_CANDIDATES,
+            &appstream_index,
+            &empty_stock_index,
+            &fresh_cache,
+            Some(&cache_root),
+        )
+        .into_iter()
+        .next()
+        .expect("the second package restores its persisted icon");
+
+        assert_eq!(restored_first, first_icon);
+        assert_eq!(restored_second, second_icon);
         let _ = fs::remove_dir_all(root);
     }
 

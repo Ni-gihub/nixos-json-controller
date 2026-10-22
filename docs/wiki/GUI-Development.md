@@ -4,7 +4,7 @@ NXC のデスクトップ版 App Store は React / TypeScript、Vite、Tailwind 
 
 ## 必要な環境
 
-- Nix が利用可能な Linux / NixOS 環境
+- Nix が利用可能な x86_64 Linux 環境（`x86_64-linux`）
 - Rust / Cargo
 - Node.js（CI では Node.js 24 を利用）
 - pnpm（CI では pnpm 11.9.0 を利用）
@@ -73,4 +73,4 @@ Frontend のビルドに成功しても、Tauri の本番パッケージやデ�
 nix profile install github:Ni-gihub/nixos-json-controller#nxc-app
 ```
 
-GUI 用 Flake package、Desktop Entry、ランチャーアイコン、本番起動時の環境設定、profile の更新・削除手順は整備中です。状況は [Issue #101](https://github.com/Ni-gihub/nixos-json-controller/issues/101) と [#169–#171](https://github.com/Ni-gihub/nixos-json-controller/issues/169) を参照してください。
+GUI 用 Flake package、Desktop Entry、ランチャーアイコン、本番起動時の環境設定、profile の更新・削除手順は整備中です。状況は [Issue #101](https://github.com/Ni-gihub/nixos-json-controller/issues/101)、[#169](https://github.com/Ni-gihub/nixos-json-controller/issues/169)、[#170](https://github.com/Ni-gihub/nixos-json-controller/issues/170)、[#171](https://github.com/Ni-gihub/nixos-json-controller/issues/171) を参照してください。

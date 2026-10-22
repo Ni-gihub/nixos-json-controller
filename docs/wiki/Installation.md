@@ -6,11 +6,12 @@
 
 ## 前提条件
 
-- Nix が利用できる Linux 環境
-- 現在の Flake package の対応 system は `x86_64-linux` のみ
+- **NixOS を実行している `x86_64-linux` 環境**
 - Flakes と `nix-command` が利用可能であること
 
-`aarch64-linux` など、ほかのアーキテクチャは現時点でこの Flake package の対応対象に含まれません。別アーキテクチャで利用する場合は、対応する package output が追加されていることを確認してください。
+現在の Flake package は `x86_64-linux` のみを対象としています。また、NXC CLI は NixOS の状態取得・設定変更と `nixos-rebuild switch` を前提にしているため、Nix を導入しただけの Ubuntu / Debian など、非 NixOS 環境はサポート対象ではありません。
+
+`aarch64-linux` など、ほかのアーキテクチャも現在の Flake package の対応対象に含まれません。別アーキテクチャへの対応は、対応する Flake output が追加されていることを確認してください。
 
 Flakes が無効の場合、Nix の設定で次を有効にしてください。
 
@@ -61,13 +62,23 @@ nix profile remove nixos-json-controller
 
 ## ソースから CLI をビルド
 
-開発・調査目的でソースからビルドする場合は、Rust と Cargo が必要です。
+開発・調査目的でソースからビルドする場合は、Rust / Cargo 1.85.0 以降が必要です。これは `edition = "2024"` を使うための最低バージョンです。依存関係がより新しいツールチェーンを要求する場合もあるため、Nix が利用できる場合はリポジトリの開発シェルを使う方法を推奨します。
 
 ```sh
 git clone https://github.com/Ni-gihub/nixos-json-controller.git
 cd nixos-json-controller
+nix develop
 cargo build --release
 ```
+
+`nix develop` を使わない場合は、Rust と Cargo のバージョンを確認します。
+
+```sh
+rustc --version
+cargo --version
+```
+
+開発シェルを利用する場合も、現在の `flake.nix` が定義している開発環境は `x86_64-linux` 向けです。
 
 生成される実行ファイルは `target/release/nixos-json-controller` です。ユーザー用の PATH が通ったディレクトリへ配置する場合は、たとえば次のようにします。
 

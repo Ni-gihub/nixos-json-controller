@@ -50,8 +50,7 @@ export function shouldRestoreDiscoverScroll(
   nextQuery: string,
 ): boolean {
   return (
-    previousPathname !== "/discover" &&
-    savedQuery.trim() === nextQuery.trim()
+    previousPathname !== "/discover" && savedQuery.trim() === nextQuery.trim()
   );
 }
 

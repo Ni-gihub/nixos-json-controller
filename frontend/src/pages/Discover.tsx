@@ -51,6 +51,7 @@ import {
   advanceEmptyPageAutoLoadState,
   classifySearchUrlTransition,
   isCurrentSearchRequest,
+  shouldReuseSearchOnReturn,
 } from "./discover-search-state";
 import { useLocation, useNavigationType, useSearchParams } from "react-router";
 
@@ -170,6 +171,7 @@ function Discover() {
   const stateRefreshInFlightRef = useRef(false);
   const pendingUrlQueryRef = useRef<string | null>(null);
   const lastHandledLocationKeyRef = useRef<string | null>(null);
+  const lastKnownPathnameRef = useRef(location.pathname);
 
   const resetQueuedPackageStates = useCallback(() => {
     requestedStateIdsRef.current.clear();
@@ -513,16 +515,42 @@ function Discover() {
     if (lastHandledLocationKeyRef.current === location.key) return;
     lastHandledLocationKeyRef.current = location.key;
 
+    const previousPathname = lastKnownPathnameRef.current;
+    lastKnownPathnameRef.current = location.pathname;
+    if (location.pathname !== "/discover") return;
+
     const transition = classifySearchUrlTransition(
       initialQuery,
       pendingUrlQueryRef.current,
       navigationType,
     );
 
-    if (transition.kind === "stale") return;
-    if (transition.kind === "internal") {
+    const returningFromDetails = previousPathname.startsWith("/apps/");
+    let nextQuery: string;
+    if (returningFromDetails) {
+      nextQuery = initialQuery;
+      if (
+        shouldReuseSearchOnReturn(
+          previousPathname,
+          location.pathname,
+          submittedQueryRef.current,
+          nextQuery,
+        )
+      ) {
+        pendingUrlQueryRef.current = null;
+        return;
+      }
+
+      // The URL is authoritative when leaving details, even if an older search
+      // parameter update is still pending.
       pendingUrlQueryRef.current = null;
-      return;
+    } else {
+      if (transition.kind === "stale") return;
+      if (transition.kind === "internal") {
+        pendingUrlQueryRef.current = null;
+        return;
+      }
+      nextQuery = transition.query;
     }
 
     pendingUrlQueryRef.current = null;
@@ -540,19 +568,20 @@ function Discover() {
       loadingMoreRef.current = false;
       loadingMoreRequestIdRef.current = null;
       setSearchError(null);
-      setQuery(transition.query);
-      setSubmittedQuery(transition.query);
+      setQuery(nextQuery);
+      setSubmittedQuery(nextQuery);
     }
 
     // Avoid starting a legacy search while the source-matched local catalog is still preparing.
-    if (transition.query && !catalogPreparing && catalogAttemptId > 0) {
-      runSearch(transition.query);
+    if (nextQuery && !catalogPreparing && catalogAttemptId > 0) {
+      runSearch(nextQuery);
     }
   }, [
     catalogAttemptId,
     catalogPreparing,
     initialQuery,
     location.key,
+    location.pathname,
     navigationType,
     runSearch,
   ]);
@@ -997,6 +1026,7 @@ function Discover() {
                       {results.length > 0 ? (
                         <VirtualizedAppList
                           key={`${submittedQuery}:${searching ? "loading" : "ready"}`}
+                          active={location.pathname === "/discover"}
                           apps={results}
                           states={states}
                           loading={loading}

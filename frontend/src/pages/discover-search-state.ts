@@ -26,6 +26,23 @@ export function classifySearchUrlTransition(
   return { kind: "stale" };
 }
 
+/**
+ * Reuse the mounted Discover state when returning from an app detail route with
+ * the same query. A changed query must go through the normal search path.
+ */
+export function shouldReuseSearchOnReturn(
+  previousPathname: string,
+  targetPathname: string,
+  currentQuery: string,
+  targetQuery: string,
+): boolean {
+  return (
+    previousPathname.startsWith("/apps/") &&
+    targetPathname === "/discover" &&
+    currentQuery.trim() === targetQuery.trim()
+  );
+}
+
 /** Ignore results from any search request superseded by a newer action. */
 export function isCurrentSearchRequest(
   requestId: number,

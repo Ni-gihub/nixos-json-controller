@@ -1,0 +1,72 @@
+name: Publish GitHub Wiki
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/wiki/**"
+      - ".github/workflows/publish-wiki.yml"
+  workflow_dispatch:
+
+# The token is only used to publish to this repository's own Wiki.
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-github-wiki
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Sync documentation to Wiki
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Clone source at the triggering commit
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          git clone --quiet --no-checkout "https://github.com/${GITHUB_REPOSITORY}.git" source
+          git -C source checkout --quiet --detach "${GITHUB_SHA}"
+
+      - name: Publish pages to the repository Wiki
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          workdir="$(mktemp -d)"
+          trap 'rm -rf "$workdir"' EXIT
+
+          # Keep credentials out of the remote URL and the repository config.
+          auth_header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)"
+          git -c "http.https://github.com/.extraheader=$auth_header" clone --quiet "https://github.com/${GITHUB_REPOSITORY}.wiki.git" "$workdir/wiki"
+
+          source_dir="$GITHUB_WORKSPACE/source/docs/wiki"
+          wiki_dir="$workdir/wiki"
+
+          cp "$source_dir/Home.md" "$wiki_dir/Home.md"
+          cp "$source_dir/Installation.md" "$wiki_dir/Installation.md"
+          cp "$source_dir/CLI-Usage.md" "$wiki_dir/CLI-Usage.md"
+          cp "$source_dir/Safety-and-Architecture.md" "$wiki_dir/Safety-and-Architecture.md"
+          cp "$source_dir/GUI-Development.md" "$wiki_dir/GUI-Development.md"
+          cp "$source_dir/Troubleshooting.md" "$wiki_dir/Troubleshooting.md"
+          cp "$source_dir/Contributing.md" "$wiki_dir/Contributing.md"
+
+          git -C "$wiki_dir" config user.name "github-actions[bot]"
+          git -C "$wiki_dir" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$wiki_dir" add -- Home.md Installation.md CLI-Usage.md Safety-and-Architecture.md GUI-Development.md Troubleshooting.md Contributing.md
+
+          if git -C "$wiki_dir" diff --cached --quiet; then
+            echo "Wiki pages already match the source documentation."
+            exit 0
+          fi
+
+          git -C "$wiki_dir" commit -m "docs: sync Wiki from ${GITHUB_SHA:0:7}"
+          git -c "http.https://github.com/.extraheader=$auth_header" -C "$wiki_dir" push origin HEAD

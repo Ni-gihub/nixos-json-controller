@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import type { FormEvent } from "react";
 import {
   BookOpen,
@@ -169,6 +175,7 @@ function Discover() {
   const consecutiveEmptyPagesRef = useRef(0);
   const resultIdsRef = useRef(new Set<string>());
   const requestedStateIdsRef = useRef(new Set<string>());
+  const requestedRecommendationStateIdsRef = useRef(new Set<string>());
   const pendingStateIdsRef = useRef(new Set<string>());
   const stateRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -317,6 +324,7 @@ function Discover() {
     // native request cannot be cancelled here, but it will not schedule another batch.
     pendingStateIdsRef.current.clear();
     requestedStateIdsRef.current.clear();
+    requestedRecommendationStateIdsRef.current.clear();
     if (stateRefreshTimerRef.current !== null) {
       clearTimeout(stateRefreshTimerRef.current);
       stateRefreshTimerRef.current = null;
@@ -766,8 +774,15 @@ function Discover() {
     // only missing state when the retained page becomes visible again.
     const missingIds = recommendedCatalogApps
       .map((app) => app.id)
-      .filter((id) => states[id] === undefined);
+      .filter(
+        (id) =>
+          states[id] === undefined &&
+          !requestedRecommendationStateIdsRef.current.has(id),
+      );
     if (missingIds.length > 0) {
+      for (const id of missingIds) {
+        requestedRecommendationStateIdsRef.current.add(id);
+      }
       void refreshPackages(missingIds);
     }
   }, [isDiscoverActive, recommendedCatalogApps, refreshPackages, states]);

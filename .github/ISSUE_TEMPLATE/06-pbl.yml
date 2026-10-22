@@ -1,5 +1,5 @@
 name: PBL / Product Backlog List
-description: PBL #167 の項目定義を参照する（送信すると新しいIssueが作成されます）
+description: "PBL #167 の項目定義を参照する（送信すると新しいIssueが作成されます）"
 title: "[PBL] "
 body:
   - type: markdown

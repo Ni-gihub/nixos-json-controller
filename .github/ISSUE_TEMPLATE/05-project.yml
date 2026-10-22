@@ -1,5 +1,5 @@
 name: Project / プロジェクト憲章
-description: Project #166 の項目定義を参照する（送信すると新しいIssueが作成されます）
+description: "Project #166 の項目定義を参照する（送信すると新しいIssueが作成されます）"
 title: "[PROJECT] "
 body:
   - type: markdown

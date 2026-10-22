@@ -679,6 +679,10 @@ function Discover() {
   }, [recommendationReloadKey]);
 
   useEffect(() => {
+    // Do not start potentially expensive catalog lookups while Discover is hidden.
+    // Changing this dependency to true on return restarts the effect with current IDs.
+    if (!isDiscoverActive) return;
+
     const ids = recommendationIds.split("\n").filter(Boolean);
     if (ids.length === 0) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- clear derived results when recommendation data is unavailable
@@ -766,7 +770,7 @@ function Discover() {
     return () => {
       cancelled = true;
     };
-  }, [recommendationIds, recommendationReloadKey]);
+  }, [isDiscoverActive, recommendationIds, recommendationReloadKey]);
 
   useEffect(() => {
     if (!isDiscoverActive || recommendedCatalogApps.length === 0) return;

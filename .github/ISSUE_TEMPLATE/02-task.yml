@@ -45,3 +45,11 @@ body:
       placeholder: "- Project: #166\n- PBL: #167\n- PBI: #番号\n- Blocked by: #番号"
     validations:
       required: false
+  - type: textarea
+    id: supplemental
+    attributes:
+      label: 補足・詳細記録
+      description: 上の項目に収まらない設計判断、調査記録、比較結果、履歴、追加の検証情報などを記載します。重複は避け、必要な情報を保持してください。
+      placeholder: "設計判断、調査メモ、関連資料など（必要な場合のみ）。"
+    validations:
+      required: false

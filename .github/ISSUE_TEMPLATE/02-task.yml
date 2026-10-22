@@ -1,0 +1,47 @@
+name: Task（実装・調査）
+description: PBIに寄与する具体的な作業や調査を管理する
+title: "[TASK] "
+body:
+  - type: markdown
+    attributes:
+      value: "Taskは、目的のある独立した作業単位です。細かい関数単位へ機械的に分割せず、実装方針が未確定でも調査を始められます。"
+  - type: textarea
+    id: why
+    attributes:
+      label: Why（作業が必要な理由）
+      description: この作業が必要な理由、今の障害、親PBIへの貢献を書いてください。
+      placeholder: "現状は...。これを解消しないと...ができない。"
+    validations:
+      required: true
+  - type: textarea
+    id: approach
+    attributes:
+      label: 方針・How（分かっている範囲）
+      description: 対象、現行実装、仮説、候補などを記載します。未調査の原因や技術選定を決定事項として書かないでください。
+      placeholder: "確認済み: ...。仮説: ...。次に...を比較する。"
+    validations:
+      required: false
+  - type: textarea
+    id: done
+    attributes:
+      label: 作業完了条件
+      description: 作業の結果として確認できることを少数に絞ってください。必要なら追加テスト・ドキュメント・測定結果も含めます。
+      placeholder: "- ...が再現条件で解消する。\n- ...の判断根拠が記録される。"
+    validations:
+      required: false
+  - type: textarea
+    id: verification
+    attributes:
+      label: 検証・リスク
+      description: 関連するテスト・CI・実機確認、境界条件、rollback、未確認事項を書いてください。未実施は未実施とします。
+      placeholder: "- 自動テスト: ...\n- 手動確認: ...\n- 未確認: ..."
+    validations:
+      required: false
+  - type: textarea
+    id: related
+    attributes:
+      label: 関連Issue・PR
+      description: 親PBI、Blocked by、Blocks、Relatedを区別して記載してください。
+      placeholder: "- Project: #166\n- PBL: #167\n- PBI: #番号\n- Blocked by: #番号"
+    validations:
+      required: false

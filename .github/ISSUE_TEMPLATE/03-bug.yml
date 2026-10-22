@@ -7,6 +7,14 @@ body:
     attributes:
       value: "原因を決めつけず、実際に観察した挙動と期待値を分けてください。再現条件が完全でなくても、確認済みの症状があれば起票できます。"
   - type: textarea
+    id: why
+    attributes:
+      label: Why（現状と影響）
+      description: なぜ修正が必要か、利用者・安全性・品質にどんな影響があるかを書きます。原因が未確定なら仮説と明記します。
+      placeholder: "現状は...。そのため...という影響がある。"
+    validations:
+      required: false
+  - type: textarea
     id: observed
     attributes:
       label: 実際に起きていること

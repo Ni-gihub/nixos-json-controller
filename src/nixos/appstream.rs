@@ -183,14 +183,14 @@ fn resolve_icon_candidates_from_index(
             .lock()
             .ok()
             .and_then(|icons| icons.get(entry).cloned());
-        let (icon, freshly_resolved) = match cached {
-            Some(icon) => (icon, false),
+        let icon = match cached {
+            Some(icon) => icon,
             None => {
                 let icon = load_icon_with_stock_index(entry, Some(stock_index));
                 if let Ok(mut icons) = cache.lock() {
                     icons.insert(entry.clone(), icon.clone());
                 }
-                (icon, true)
+                icon
             }
         };
 

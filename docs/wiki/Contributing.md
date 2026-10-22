@@ -19,8 +19,8 @@ NXC は、NixOS の設定を安全に扱う CLI と、そのコア機能を利�
 - [Issue一覧](https://github.com/Ni-gihub/nixos-json-controller/issues)
 - [プロジェクト憲章 #166](https://github.com/Ni-gihub/nixos-json-controller/issues/166)
 - [PBL #167](https://github.com/Ni-gihub/nixos-json-controller/issues/167)
-- [Issue の書き方](../project-management/issue-writing.md)
-- [プロジェクトとバックログの運用](../project-management/backlog-management.md)
+- [Issue の書き方](https://github.com/Ni-gihub/nixos-json-controller/blob/main/docs/project-management/issue-writing.md)
+- [プロジェクトとバックログの運用](https://github.com/Ni-gihub/nixos-json-controller/blob/main/docs/project-management/backlog-management.md)
 
 既存 Issue に該当する作業がある場合は、その Issue のスコープと受け入れ条件を確認してください。内容が古い場合も、クローズ済みの履歴を理由なく再オープンせず、必要に応じて新しい Issue を作成し関連付けます。
 

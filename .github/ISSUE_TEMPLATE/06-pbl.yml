@@ -1,0 +1,63 @@
+name: PBL / Product Backlog List
+description: PBIの優先順位、依存関係、完了・見送り履歴の索引を管理する
+title: "[PBL] "
+body:
+  - type: markdown
+    attributes:
+      value: "PBLは個別の作業Issueではなく、唯一のバックログ索引です。既存のPBL #167を更新する用途に使い、重複したPBL Issueを作成しないでください。本文中の集計は取得日と状態内訳を明記してください。"
+  - type: textarea
+    id: current_backlog
+    attributes:
+      label: 現在のバックログ（優先順位順）
+      description: 現在OpenのPBIを優先度、状態、依存関係とともに列挙します。Markdown表を使用できます。
+      placeholder: "| Priority | PBI | Status | Dependencies |\n| --- | --- | --- | --- |"
+    validations:
+      required: true
+  - type: textarea
+    id: priorities
+    attributes:
+      label: 優先度の運用ルール
+      description: P0〜P3の定義と適用例を記載します。
+      placeholder: "P0: ...\nP1: ...\nP2: ...\nP3: ..."
+    validations:
+      required: true
+  - type: textarea
+    id: completed_history
+    attributes:
+      label: 完了済み・見送り履歴
+      description: CompletedとNot plannedを区別し、理由や関連Issueを保持します。
+      placeholder: "## Completed\n- #番号: ...\n\n## Not planned\n- #番号: ...（理由）"
+    validations:
+      required: false
+  - type: textarea
+    id: ready_done
+    attributes:
+      label: Ready / Done基準
+      description: 着手条件、完了基準、リリース品質条件を記載します。
+      placeholder: "Ready: ...\nDone: ..."
+    validations:
+      required: false
+  - type: textarea
+    id: status_snapshot
+    attributes:
+      label: ステータス集計（取得日・内訳）
+      description: 取得日、Open/Closed、Completed/Not plannedなどの内訳で集計します。最新状態を自動取得していると誤解させないようにします。
+      placeholder: "更新日: YYYY-MM-DD\nOpen: ...\nClosed: ...\nCompleted: ...\nNot planned: ..."
+    validations:
+      required: false
+  - type: textarea
+    id: related_docs
+    attributes:
+      label: 管理情報・関連文書
+      description: Project、運用ガイド、参照Issue/PRなどを記載します。
+      placeholder: "- Project: #166\n- Issue writing guide: ...\n- Related: #番号"
+    validations:
+      required: false
+  - type: textarea
+    id: supplemental
+    attributes:
+      label: 補足・詳細記録
+      description: 上記に収まらない依存関係、履歴、集計条件、運用上の注意などを保持します。
+      placeholder: "集計方法、追加ルール、記録の補足など。"
+    validations:
+      required: false

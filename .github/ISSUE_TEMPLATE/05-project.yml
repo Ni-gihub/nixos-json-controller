@@ -1,10 +1,10 @@
 name: Project / プロジェクト憲章
-description: プロダクト全体の目的・スコープ・成功基準・リリースゲートを管理する
+description: Project #166 の項目定義を参照する（送信すると新しいIssueが作成されます）
 title: "[PROJECT] "
 body:
   - type: markdown
     attributes:
-      value: "通常の作業Issueではなく、プロダクト全体の正本を管理する用途です。既存のプロジェクト憲章 #166 を更新する場合に使用します。事実・決定・未確認事項を区別してください。"
+      value: "このフォームの送信は既存Issue #166 を更新せず、新しいIssueを作成します。Projectの正本は #166 です。更新時は #166 を直接編集してください。このフォームは項目構成の参照用であり、#166 の更新目的で送信しないでください。新しいProjectを別途作成する判断が明示的にある場合に限り、新規Issueとして使用します。事実・決定・未確認事項を区別してください。"
   - type: textarea
     id: overview
     attributes:

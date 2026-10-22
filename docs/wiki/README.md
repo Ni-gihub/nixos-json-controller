@@ -33,6 +33,26 @@
 
 PR が作成・更新されただけでは Wiki に公開しません。未レビューの変更が一般公開されないよう、`main` へのマージ後に同期します。
 
+## 手動で同期する場合
+
+通常は GitHub Actions が自動同期するため、この手順は初回確認やワークフローの障害時にだけ使用します。リポジトリのルートで実行してください。Wiki を初期化してから使用します。
+
+```sh
+git clone https://github.com/Ni-gihub/nixos-json-controller.wiki.git ../nixos-json-controller.wiki
+
+for page in Home Installation CLI-Usage Safety-and-Architecture GUI-Development Troubleshooting Contributing; do
+  cp "docs/wiki/$page.md" "../nixos-json-controller.wiki/$page.md"
+  # Repository Markdown uses .md links; GitHub Wiki page links omit the suffix.
+  perl -pi -e 's/\]\(([A-Za-z0-9_-]+)\.md\)/]($1)/g' "../nixos-json-controller.wiki/$page.md"
+done
+
+git -C ../nixos-json-controller.wiki add -- Home.md Installation.md CLI-Usage.md Safety-and-Architecture.md GUI-Development.md Troubleshooting.md Contributing.md
+git -C ../nixos-json-controller.wiki commit -m "docs: sync NXC Wiki pages"
+git -C ../nixos-json-controller.wiki push origin HEAD
+```
+
+If the Wiki clone directory already exists, update it with `git -C ../nixos-json-controller.wiki pull --ff-only` instead of cloning again. Review the result of `git status` before committing.
+
 ## ページの更新方法
 
 1. `docs/wiki/` の該当 Markdown を編集します。

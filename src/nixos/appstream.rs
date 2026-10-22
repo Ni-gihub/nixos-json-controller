@@ -57,6 +57,17 @@ fn resolve_icon_candidates(candidates: &[&str], limit: usize) -> Vec<String> {
         return Vec::new();
     }
 
+    // Prune the on-disk cache at most once per process, not once per package.
+    static CACHE_PRUNED: OnceLock<()> = OnceLock::new();
+    let cache_root = persistent_icon_cache_dir();
+    if let Some(root) = cache_root.as_deref() {
+        CACHE_PRUNED.get_or_init(|| {
+            if root.is_dir() {
+                prune_persisted_icon_cache(root);
+            }
+        });
+    }
+
     let index = INDEX.get_or_init(load_index);
     let cache = ICON_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
     let stock_index = STOCK_ICON_INDEX.get_or_init(|| Mutex::new(build_stock_icon_index()));
@@ -64,7 +75,14 @@ fn resolve_icon_candidates(candidates: &[&str], limit: usize) -> Vec<String> {
         return Vec::new();
     };
 
-    resolve_icon_candidates_from_index(candidates, limit, index, &stock_index, cache)
+    resolve_icon_candidates_from_index(
+        candidates,
+        limit,
+        index,
+        &stock_index,
+        cache,
+        cache_root.as_deref(),
+    )
 }
 
 /// Refresh the local icon index and in-memory lookup cache after a successful system change.
@@ -105,6 +123,7 @@ fn resolve_icon_candidates_from_index(
     index: &HashMap<String, Vec<String>>,
     stock_index: &HashMap<String, Vec<PathBuf>>,
     cache: &Mutex<HashMap<String, Option<String>>>,
+    cache_root: Option<&Path>,
 ) -> Vec<String> {
     if limit == 0 {
         return Vec::new();
@@ -156,9 +175,35 @@ fn resolve_icon_candidates_from_index(
 
     // AppStream-declared stock icons take precedence over guessed aliases.
     let mut appstream_stock_count = 0;
+    let mut appstream_stock_icon_to_persist: Option<String> = None;
     for entry in &entries_by_priority[1] {
         // Use the already-held index snapshot to avoid re-locking STOCK_ICON_INDEX.
-        if let Some(icon) = load_icon_with_stock_index(entry, Some(stock_index)) {
+        // Cache these results so we only persist the icon when it is first resolved.
+        let cached = cache
+            .lock()
+            .ok()
+            .and_then(|icons| icons.get(entry).cloned());
+        let (icon, freshly_resolved) = match cached {
+            Some(icon) => (icon, false),
+            None => {
+                let icon = load_icon_with_stock_index(entry, Some(stock_index));
+                if let Ok(mut icons) = cache.lock() {
+                    icons.insert(entry.clone(), icon.clone());
+                }
+                (icon, true)
+            }
+        };
+
+        if freshly_resolved
+            && entry.starts_with("stock|")
+            && appstream_stock_icon_to_persist.is_none()
+        {
+            if let Some(icon) = icon.as_deref().filter(|icon| is_persistable_icon(icon)) {
+                appstream_stock_icon_to_persist = Some(icon.to_string());
+            }
+        }
+
+        if let Some(icon) = icon {
             if push_icon_candidate(&mut resolved, icon, limit) {
                 appstream_stock_count += 1;
             }
@@ -169,13 +214,26 @@ fn resolve_icon_candidates_from_index(
     }
 
     if resolved.len() >= limit {
+        if let (Some(root), Some(icon)) = (cache_root, appstream_stock_icon_to_persist.as_deref()) {
+            write_persisted_icon_cache(root, &persisted_icon_cache_key(candidates), icon);
+        }
         log_icon_resolution(candidates, &entries_by_priority, stock_index, &resolved);
         return resolved;
     }
 
     // Reserve room for the system/profile icon matching the package name.
-    if let Some(icon) = resolve_direct_stock_icon(candidates, stock_index, cache) {
+    if let Some(icon) = resolve_direct_stock_icon_with_cache_root(
+        candidates,
+        stock_index,
+        cache,
+        cache_root,
+    ) {
         push_icon_candidate(&mut resolved, icon, limit);
+    }
+
+    // Preserve AppStream's higher priority when a direct alias also resolves to an icon.
+    if let (Some(root), Some(icon)) = (cache_root, appstream_stock_icon_to_persist.as_deref()) {
+        write_persisted_icon_cache(root, &persisted_icon_cache_key(candidates), icon);
     }
 
     log_icon_resolution(candidates, &entries_by_priority, stock_index, &resolved);
@@ -247,27 +305,7 @@ fn resolve_cached_entry(
     icon
 }
 
-/// Resolve the direct theme lookup once per normalized set of package aliases.
-///
-/// Cache misses as well as successful results: catalog search can ask for the same
-/// package on many keystrokes, and even an unsuccessful theme lookup should not
-/// repeatedly scan icon paths and encode image files.
-fn resolve_direct_stock_icon(
-    candidates: &[&str],
-    index: &HashMap<String, Vec<PathBuf>>,
-    cache: &Mutex<HashMap<String, Option<String>>>,
-) -> Option<String> {
-    static CACHE_PRUNED: OnceLock<()> = OnceLock::new();
-
-    let cache_root = persistent_icon_cache_dir();
-    if let Some(root) = cache_root.as_deref().filter(|root| root.is_dir()) {
-        // Bound the cache from previous application sessions without scanning it per icon.
-        CACHE_PRUNED.get_or_init(|| prune_persisted_icon_cache(root));
-    }
-    resolve_direct_stock_icon_with_cache_root(candidates, index, cache, cache_root.as_deref())
-}
-
-/// Resolve the current theme icon first, then fall back to a previously persisted copy.
+remove wrapper/// Resolve the current theme icon first, then fall back to a previously persisted copy.
 fn resolve_direct_stock_icon_with_cache_root(
     candidates: &[&str],
     index: &HashMap<String, Vec<PathBuf>>,
@@ -1367,6 +1405,7 @@ mod tests {
             &index,
             &empty_stock_index,
             &cache,
+            None,
         );
 
         assert!(resolved.is_empty());
@@ -1656,6 +1695,66 @@ mod tests {
         .expect("the persisted icon survives source removal and a different alias list");
 
         assert_eq!(restored, first);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn persists_appstream_stock_icon_when_name_differs_from_package_aliases() {
+        let root = std::env::temp_dir().join(format!(
+            "nxc-appstream-stock-persist-test-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        let icon_root = root.join("system-icons");
+        let cache_root = root.join("cache");
+        let icon_path = icon_root.join("hicolor/scalable/apps/custom-brand-name.svg");
+        fs::create_dir_all(icon_path.parent().unwrap()).unwrap();
+        fs::write(
+            &icon_path,
+            r#"<svg xmlns="http://www.w3.org/2000/svg"><circle cx="1" cy="1" r="1"/></svg>"#,
+        )
+        .unwrap();
+
+        let candidates = ["com.example.editor"];
+        let appstream_index = HashMap::from([(
+            candidates[0].to_string(),
+            vec!["stock|custom-brand-name".to_string()],
+        )]);
+        let stock_index = build_stock_icon_index_from_roots(std::slice::from_ref(&icon_root));
+        let cache = Mutex::new(HashMap::new());
+        let original = resolve_icon_candidates_from_index(
+            &candidates,
+            MAX_ICON_CANDIDATES,
+            &appstream_index,
+            &stock_index,
+            &cache,
+            Some(&cache_root),
+        )
+        .into_iter()
+        .next()
+        .expect("AppStream stock icon resolves");
+
+        fs::remove_file(&icon_path).unwrap();
+
+        // Simulate a new process: no memory cache remains and the stock source is gone.
+        let empty_stock_index = HashMap::new();
+        let fresh_cache = Mutex::new(HashMap::new());
+        let restored = resolve_icon_candidates_from_index(
+            &candidates,
+            MAX_ICON_CANDIDATES,
+            &appstream_index,
+            &empty_stock_index,
+            &fresh_cache,
+            Some(&cache_root),
+        )
+        .into_iter()
+        .next()
+        .expect("the AppStream stock icon is restored from the package-keyed cache");
+
+        assert_eq!(restored, original);
         let _ = fs::remove_dir_all(root);
     }
 

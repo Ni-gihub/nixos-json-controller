@@ -7,6 +7,14 @@ body:
     attributes:
       value: "原因を決めつけず、実際に観察した挙動と期待値を分けてください。再現条件が完全でなくても、確認済みの症状があれば起票できます。"
   - type: textarea
+    id: why
+    attributes:
+      label: Why（現状と影響）
+      description: なぜ修正が必要か、利用者・安全性・品質にどんな影響があるかを書きます。原因が未確定なら仮説と明記します。
+      placeholder: "現状は...。そのため...という影響がある。"
+    validations:
+      required: false
+  - type: textarea
     id: observed
     attributes:
       label: 実際に起きていること
@@ -52,5 +60,13 @@ body:
       label: 関連Issue・PR
       description: Project #166、PBL #167、関連する過去IssueやPRを記載してください。
       placeholder: "- Project: #166\n- PBL: #167\n- Related: #番号"
+    validations:
+      required: false
+  - type: textarea
+    id: supplemental
+    attributes:
+      label: 補足・詳細記録
+      description: 上の項目に収まらない設計判断、調査記録、比較結果、履歴、追加の検証情報などを記載します。重複は避け、必要な情報を保持してください。
+      placeholder: "設計判断、調査メモ、関連資料など（必要な場合のみ）。"
     validations:
       required: false

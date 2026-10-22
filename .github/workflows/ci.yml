@@ -214,3 +214,35 @@ jobs:
 
       - name: Clippy
         run: cargo clippy --all-targets --all-features
+
+  issue-template-validation:
+    name: Issue template YAML
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate Issue Form YAML syntax and required fields
+        shell: ruby {0}
+        run: |
+          require "yaml"
+
+          Dir.glob(".github/ISSUE_TEMPLATE/*.yml").sort.each do |path|
+            data = YAML.load_file(path)
+            if path.end_with?("config.yml")
+              abort("#{path}: contact_links must be an array") unless data["contact_links"].is_a?(Array)
+              data["contact_links"].each_with_index do |link, index|
+                %w[name url about].each do |key|
+                  abort("#{path}: contact_links[#{index}] is missing #{key}") unless link[key].is_a?(String) && !link[key].strip.empty?
+                end
+              end
+            else
+              %w[name description title body].each do |key|
+                abort("#{path}: missing required field #{key}") unless data[key]
+              end
+              abort("#{path}: body must be an array") unless data["body"].is_a?(Array)
+            end
+            puts "Valid: #{path}"
+          end
+

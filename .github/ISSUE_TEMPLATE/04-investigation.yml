@@ -1,0 +1,47 @@
+name: 技術調査（SPIKE）
+description: 原因・実現可能性・設計判断を根拠に基づいて明らかにする
+title: "[SPIKE] "
+body:
+  - type: markdown
+    attributes:
+      value: "調査の開始時点で原因や結論を決める必要はありません。確認済みの事実と仮説を区別し、何を判断できれば調査完了かを記載してください。"
+  - type: textarea
+    id: question
+    attributes:
+      label: 調査したい問い
+      description: 調査後に判断できるようになりたいことを、問いの形で書いてください。
+      placeholder: "高速スクロール時の表示の重なりは、CSS・DOM・WebKitGTK/GPUのどの経路で発生しているか。"
+    validations:
+      required: true
+  - type: textarea
+    id: facts
+    attributes:
+      label: 確認済みの事実と仮説
+      description: 再現結果、コード、ログ、環境など確認済みの情報を書きます。仮説は未確認と分かるように記載します。
+      placeholder: "確認済み: ...。仮説: ...（まだ未確認）。"
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 調査範囲・制約
+      description: 比較したい条件、対象外、性能・安全性など守るべき条件を書きます。
+      placeholder: "同じ操作で一度に1要因を変えて比較する。通常時の描画性能を大きく悪化させる回避策は採用しない。"
+    validations:
+      required: false
+  - type: textarea
+    id: outcome
+    attributes:
+      label: 調査の完了条件・成果物
+      description: どのような証拠や判断材料を残せば完了かを書いてください。必ずしも修正完了を調査Issueの条件にしません。
+      placeholder: "- 再現条件と環境が記録される。\n- 原因候補を比較した結果と、次の対応案の推奨理由が残る。"
+    validations:
+      required: false
+  - type: textarea
+    id: related
+    attributes:
+      label: 関連Issue・PR・資料
+      description: Project #166、PBL #167、親PBIやブロッカー、参考資料を記載してください。
+      placeholder: "- Project: #166\n- PBL: #167\n- PBI / Related: #番号"
+    validations:
+      required: false

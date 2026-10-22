@@ -1,0 +1,56 @@
+name: Bug（不具合）
+description: 想定と異なる挙動や回帰を記録する
+title: "[BUG] "
+labels: bug
+body:
+  - type: markdown
+    attributes:
+      value: "原因を決めつけず、実際に観察した挙動と期待値を分けてください。再現条件が完全でなくても、確認済みの症状があれば起票できます。"
+  - type: textarea
+    id: observed
+    attributes:
+      label: 実際に起きていること
+      description: 実際の動作、発生頻度、影響を書いてください。分かっていない原因は断定しないでください。
+      placeholder: "特定の操作後に...となり、利用者が...できない。"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期待すること
+      description: 正しい動作・状態を記載してください。
+      placeholder: "...の場合でも...できる。"
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 再現手順
+      description: 再現できる場合は最小手順を書いてください。再現できない場合は「未確認」と記載します。
+      placeholder: "1. ...\n2. ...\n3. ..."
+    validations:
+      required: false
+  - type: textarea
+    id: environment
+    attributes:
+      label: 環境・証拠
+      description: NixOS、Wayland compositor、GPU/driver、WebKitGTK、起動方法、ログなど、切り分けに必要な情報を記載してください。
+      placeholder: "OS: ...\n起動方法: ...\nログ: ..."
+    validations:
+      required: false
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 修正後の確認
+      description: 再現条件、回帰テスト、失敗系や境界条件など、修正完了時に確認する観点を記載してください。原因未確定なら後から追記できます。
+      placeholder: "- 再現手順で期待値を満たす。\n- 関連する回帰テストが成功する。"
+    validations:
+      required: false
+  - type: textarea
+    id: related
+    attributes:
+      label: 関連Issue・PR
+      description: Project #166、PBL #167、関連する過去IssueやPRを記載してください。
+      placeholder: "- Project: #166\n- PBL: #167\n- Related: #番号"
+    validations:
+      required: false

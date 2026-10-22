@@ -1,0 +1,55 @@
+name: PBI（ユーザー価値）
+description: 利用者に提供する価値・体験を定義する
+title: "[PBI] "
+body:
+  - type: markdown
+    attributes:
+      value: "記述ルール: [Issueの書き方](https://github.com/Ni-gihub/nixos-json-controller/blob/main/docs/project-management/issue-writing.md)。誰が何をできるようになり、なぜ必要かを中心に書きます。"
+  - type: textarea
+    id: story
+    attributes:
+      label: ユーザーストーリー
+      description: 誰が・何をしたいか・なぜ必要かを1〜2文で書いてください。役割はNixOS利用者、開発者、保守者、運用者などを具体化できます。
+      placeholder: "NixOSの利用者として、インストール可能なアプリを識別したい。なぜなら、導入前に安心して候補を選びたいからだ。"
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why（現状と影響）
+      description: 現状の事実、困る場面、利用者・安全性・品質への影響を書いてください。原因未確認なら断定せず、事実と仮説を分けます。
+      placeholder: "現状は...。そのため...という影響がある。"
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: ユーザーに提供する体験
+      description: 改善後に利用者ができること、観察可能な結果を少数書いてください。実装方法や関数名だけにしないでください。
+      placeholder: "- 利用者が...すると、...できる。"
+    validations:
+      required: false
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 受け入れ条件
+      description: 成果を第三者が判定できる条件を書いてください。詳細なテストケースは実装・レビュー時に具体化できます。
+      placeholder: "- ...の条件で...となる。\n- ...の場合は...しない。"
+    validations:
+      required: false
+  - type: textarea
+    id: scope
+    attributes:
+      label: スコープ・対象外・制約
+      description: 重要な境界、互換性、安全性、性能上の条件のみ記載してください。
+      placeholder: "対象外: ...。制約: ...。未確認: ..."
+    validations:
+      required: false
+  - type: textarea
+    id: related
+    attributes:
+      label: 関連Issue・PR・証拠
+      description: Project #166、PBL #167、依存・関連Issue、再現ログやコード箇所などを記載してください。
+      placeholder: "- Project: #166\n- PBL: #167\n- Related: #番号"
+    validations:
+      required: false

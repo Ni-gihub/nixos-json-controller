@@ -188,7 +188,7 @@ function AppIcon({
             setRefreshedCandidates({
               packageId,
               name,
-              sourceIconCandidatesKey: JSON.stringify(iconCandidates ?? []),
+              sourceIconCandidatesKey,
               candidates: nextCandidates,
             });
           }

@@ -30,6 +30,14 @@ body:
     validations:
       required: false
   - type: textarea
+    id: investigation_plan
+    attributes:
+      label: 調査計画・確認項目
+      description: 調査手順、比較する条件、コードやログを確認する観点などを記載します。
+      placeholder: "- 再現条件を整理する。\n- 候補となる原因や取得経路を比較する。"
+    validations:
+      required: false
+  - type: textarea
     id: outcome
     attributes:
       label: 調査の完了条件・成果物

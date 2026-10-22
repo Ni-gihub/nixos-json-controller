@@ -22,6 +22,7 @@ const MAX_PERSISTED_ICON_DATA_URL_BYTES: usize = 512 * 1024;
 const MAX_PERSISTED_ICON_CACHE_ENTRIES: usize = 512;
 const MAX_PERSISTED_ICON_CACHE_BYTES: u64 = 32 * 1024 * 1024;
 static PERSISTED_ICON_CACHE_WRITES: AtomicUsize = AtomicUsize::new(0);
+static PERSISTED_ICON_CACHE_FILES: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
 
 /// Enable opt-in diagnostics for missing or invisible application icons.
 pub(crate) fn icon_debug_enabled() -> bool {
@@ -100,6 +101,9 @@ pub fn refresh_local_icon_cache() {
         .unwrap_or_else(|error| error.into_inner());
     let cache = ICON_CACHE.get();
     refresh_icon_index_and_cache(&mut stock_index, cache, new_index);
+    clear_persisted_icon_cache_write_keys(
+        PERSISTED_ICON_CACHE_FILES.get_or_init(|| Mutex::new(HashSet::new())),
+    );
 }
 
 /// Replace the local icon index and invalidate cached hits and misses as one refresh operation.
@@ -399,13 +403,50 @@ fn read_persisted_icon_cache(root: &Path, key: &str) -> Option<String> {
     Some(icon.to_string())
 }
 
-/// Atomically persist a local icon and periodically prune this best-effort cache.
+/// Atomically persist a local icon once per key during the current icon-index generation.
 fn write_persisted_icon_cache(root: &Path, key: &str, icon: &str) {
-    if !is_persistable_icon(icon) || fs::create_dir_all(root).is_err() {
+    let written_files = PERSISTED_ICON_CACHE_FILES.get_or_init(|| Mutex::new(HashSet::new()));
+    if !write_persisted_icon_cache_once(root, key, icon, written_files) {
         return;
     }
 
+    // Avoid scanning the cache directory on every visible app; prune in small batches.
+    if PERSISTED_ICON_CACHE_WRITES.fetch_add(1, Ordering::Relaxed) % 16 == 15 {
+        if let Ok(mut written_files) = written_files.lock() {
+            for removed_file in prune_persisted_icon_cache(root) {
+                written_files.remove(&removed_file);
+            }
+        }
+    }
+}
+
+/// Clear write tracking after the local icon index is refreshed so changed icons can be saved.
+fn clear_persisted_icon_cache_write_keys(written_files: &Mutex<HashSet<String>>) {
+    if let Ok(mut written_files) = written_files.lock() {
+        written_files.clear();
+    }
+}
+
+/// Write atomically unless this process has already saved the same cache filename.
+/// The tracking lock covers the write, preventing concurrent searches from duplicating it.
+fn write_persisted_icon_cache_once(
+    root: &Path,
+    key: &str,
+    icon: &str,
+    written_files: &Mutex<HashSet<String>>,
+) -> bool {
+    if !is_persistable_icon(icon) {
+        return false;
+    }
+
     let file_name = persisted_icon_cache_filename(key);
+    let Ok(mut written_files) = written_files.lock() else {
+        return false;
+    };
+    if written_files.contains(&file_name) || fs::create_dir_all(root).is_err() {
+        return false;
+    }
+
     let path = root.join(&file_name);
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -429,19 +470,17 @@ fn write_persisted_icon_cache(root: &Path, key: &str, icon: &str) {
 
     if write_result.is_none() {
         let _ = fs::remove_file(&temporary_path);
-        return;
+        return false;
     }
 
-    // Avoid scanning the cache directory on every visible app; prune in small batches.
-    if PERSISTED_ICON_CACHE_WRITES.fetch_add(1, Ordering::Relaxed) % 16 == 15 {
-        prune_persisted_icon_cache(root);
-    }
+    written_files.insert(file_name);
+    true
 }
 
 /// Keep the on-disk icon cache bounded by both entry count and total bytes.
-fn prune_persisted_icon_cache(root: &Path) {
+fn prune_persisted_icon_cache(root: &Path) -> Vec<String> {
     let Ok(entries) = fs::read_dir(root) else {
-        return;
+        return Vec::new();
     };
     let mut files = entries
         .flatten()
@@ -462,6 +501,7 @@ fn prune_persisted_icon_cache(root: &Path) {
     files.sort_by_key(|(_, _, modified)| *modified);
 
     let mut total_bytes = files.iter().map(|(_, size, _)| *size).sum::<u64>();
+    let mut removed_files = Vec::new();
     while files.len() > MAX_PERSISTED_ICON_CACHE_ENTRIES
         || total_bytes > MAX_PERSISTED_ICON_CACHE_BYTES
     {
@@ -469,10 +509,18 @@ fn prune_persisted_icon_cache(root: &Path) {
             break;
         }
         let (path, size, _) = files.remove(0);
+        let file_name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map(str::to_string);
         if fs::remove_file(path).is_ok() {
             total_bytes = total_bytes.saturating_sub(size);
+            if let Some(file_name) = file_name {
+                removed_files.push(file_name);
+            }
         }
     }
+    removed_files
 }
 
 /// Build a stable on-disk key from the primary package identifier.
@@ -1194,6 +1242,65 @@ mod tests {
         for (xml, icons) in expected {
             assert!(found.contains(&(temp.join(xml), temp.join(icons),)));
         }
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn persists_each_icon_key_once_until_refresh_and_keeps_package_keys_separate() {
+        let temp = std::env::temp_dir().join(format!(
+            "nxc-persisted-icon-write-once-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&temp);
+        let written_files = Mutex::new(HashSet::new());
+        let original_icon = "data:image/svg+xml;base64,PHN2Zy8+";
+        let updated_icon = "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=";
+        let package_one_key = "persisted|package-one";
+        let package_two_key = "persisted|package-two";
+
+        assert!(write_persisted_icon_cache_once(
+            &temp,
+            package_one_key,
+            original_icon,
+            &written_files,
+        ));
+        assert!(!write_persisted_icon_cache_once(
+            &temp,
+            package_one_key,
+            updated_icon,
+            &written_files,
+        ));
+        assert_eq!(
+            read_persisted_icon_cache(&temp, package_one_key).as_deref(),
+            Some(original_icon),
+            "repeat lookups must not rewrite a package's cached icon"
+        );
+
+        assert!(write_persisted_icon_cache_once(
+            &temp,
+            package_two_key,
+            original_icon,
+            &written_files,
+        ));
+        assert_eq!(
+            read_persisted_icon_cache(&temp, package_two_key).as_deref(),
+            Some(original_icon),
+            "the same stock icon must still be saved for a different package key"
+        );
+
+        clear_persisted_icon_cache_write_keys(&written_files);
+        assert!(write_persisted_icon_cache_once(
+            &temp,
+            package_one_key,
+            updated_icon,
+            &written_files,
+        ));
+        assert_eq!(
+            read_persisted_icon_cache(&temp, package_one_key).as_deref(),
+            Some(updated_icon),
+            "refreshing the icon index must permit saving an updated icon"
+        );
 
         let _ = fs::remove_dir_all(&temp);
     }

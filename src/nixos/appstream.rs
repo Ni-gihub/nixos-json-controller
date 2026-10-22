@@ -414,7 +414,7 @@ fn write_persisted_icon_cache(root: &Path, key: &str, icon: &str) {
     if PERSISTED_ICON_CACHE_WRITES.fetch_add(1, Ordering::Relaxed) % 16 == 15 {
         if let Ok(mut written_files) = written_files.lock() {
             for removed_file in prune_persisted_icon_cache(root) {
-                written_files.remove(&removed_file);
+                written_files.remove(&root.join(removed_file).to_string_lossy().into_owned());
             }
         }
     }
@@ -440,14 +440,14 @@ fn write_persisted_icon_cache_once(
     }
 
     let file_name = persisted_icon_cache_filename(key);
+    let path = root.join(&file_name);
+    let tracking_key = path.to_string_lossy().into_owned();
     let Ok(mut written_files) = written_files.lock() else {
         return false;
     };
-    if written_files.contains(&file_name) || fs::create_dir_all(root).is_err() {
+    if written_files.contains(&tracking_key) || fs::create_dir_all(root).is_err() {
         return false;
     }
-
-    let path = root.join(&file_name);
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
@@ -473,7 +473,7 @@ fn write_persisted_icon_cache_once(
         return false;
     }
 
-    written_files.insert(file_name);
+    written_files.insert(tracking_key);
     true
 }
 

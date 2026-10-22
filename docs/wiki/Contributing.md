@@ -39,7 +39,7 @@ cargo test -- --test-threads=1
 
 ### GUI / Frontend
 
-[GUI Development](GUI-Development) の手順に従って Nix 開発シェルを起動し、`frontend` ディレクトリで確認します。
+[GUI Development](GUI-Development.md) の手順に従って Nix 開発シェルを起動し、`frontend` ディレクトリで確認します。
 
 ```sh
 pnpm format:check

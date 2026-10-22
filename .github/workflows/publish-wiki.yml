@@ -60,6 +60,13 @@ jobs:
           cp "$source_dir/Troubleshooting.md" "$wiki_dir/Troubleshooting.md"
           cp "$source_dir/Contributing.md" "$wiki_dir/Contributing.md"
 
+          # Repository-relative links must include .md for source review, while
+          # GitHub Wiki page links omit the suffix. Only transform simple local
+          # page links, never external URLs or repository-relative paths.
+          for page in Home Installation CLI-Usage Safety-and-Architecture GUI-Development Troubleshooting Contributing; do
+            perl -pi -e 's/\]\(([A-Za-z0-9_-]+)\.md\)/]($1)/g' "$wiki_dir/$page.md"
+          done
+
           git -C "$wiki_dir" config user.name "github-actions[bot]"
           git -C "$wiki_dir" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git -C "$wiki_dir" add -- Home.md Installation.md CLI-Usage.md Safety-and-Architecture.md GUI-Development.md Troubleshooting.md Contributing.md

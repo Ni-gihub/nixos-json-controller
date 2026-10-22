@@ -112,4 +112,4 @@ nxc explain service openssh
 
 設定変更や再ビルドに必要な操作では、sudo 認証を求められる場合があります。また、変更対象の設定構造を安全に判断できない場合、NXC は処理を拒否することがあります。
 
-詳細は [Safety and Architecture](Safety-and-Architecture) を参照してください。
+詳細は [Safety and Architecture](Safety-and-Architecture.md) を参照してください。

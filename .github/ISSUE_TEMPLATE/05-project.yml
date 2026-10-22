@@ -1,0 +1,66 @@
+name: Project / プロジェクト憲章
+description: プロダクト全体の目的・スコープ・成功基準・リリースゲートを管理する
+title: "[PROJECT] "
+body:
+  - type: markdown
+    attributes:
+      value: "通常の作業Issueではなく、プロダクト全体の正本を管理する用途です。既存のプロジェクト憲章 #166 を更新する場合に使用します。事実・決定・未確認事項を区別してください。"
+  - type: textarea
+    id: overview
+    attributes:
+      label: プロジェクト概要
+      description: プロジェクトが提供するものと目的を記載します。
+      placeholder: "プロダクトの目的、提供するCLI/GUI、対象利用者など。"
+    validations:
+      required: true
+  - type: textarea
+    id: background
+    attributes:
+      label: 背景・解決する課題
+      description: 現状、課題、対象利用者、解決する理由を記載します。
+      placeholder: "現在の課題と、その影響・必要性。"
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: スコープ（対象・対象外）
+      description: 対象、対象外、制約や見送り履歴を記載します。
+      placeholder: "対象: ...。対象外: ...。制約: ..."
+    validations:
+      required: false
+  - type: textarea
+    id: outcomes
+    attributes:
+      label: 期待する成果・成功基準
+      description: 観察可能な成果や、達成と判断できる条件を記載します。
+      placeholder: "- ...を確認できる。
+- ...の条件を満たす。"
+    validations:
+      required: true
+  - type: textarea
+    id: release_gate
+    attributes:
+      label: リリースゲート
+      description: 公開・配布前に満たす必要がある安全性、品質、ライセンスなどの条件を記載します。
+      placeholder: "- 安全性: ...
+- 品質: ...
+- 配布条件: ..."
+    validations:
+      required: false
+  - type: textarea
+    id: governance
+    attributes:
+      label: 開発・レビュー・進捗管理
+      description: 開発・レビュー運用、進捗・リスク管理を記載します。
+      placeholder: "開発フロー、レビュー基準、進捗管理の方針。"
+    validations:
+      required: false
+  - type: textarea
+    id: supplemental
+    attributes:
+      label: 補足・詳細記録
+      description: 上記に収まらない決定根拠、追加記録、関連文書などを保持します。
+      placeholder: "決定理由、追加資料、管理上の注意など。"
+    validations:
+      required: false

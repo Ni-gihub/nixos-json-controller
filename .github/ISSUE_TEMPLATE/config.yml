@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Issue の書き方・プロジェクト運用
+    url: https://github.com/Ni-gihub/nixos-json-controller/blob/main/docs/project-management/issue-writing.md
+    about: PBI・Task・Bugの使い分け、Whyの書き方、Ready / Done基準
+  - name: Project / PBL
+    url: https://github.com/Ni-gihub/nixos-json-controller/issues/167
+    about: 優先順位、進行中のIssue、完了・見送り履歴はこちら

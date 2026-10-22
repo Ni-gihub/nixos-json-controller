@@ -8,6 +8,7 @@ const ESTIMATED_ROW_HEIGHT = 144;
 const OVERSCAN_ROWS = 8;
 
 type VirtualizedAppListProps = {
+  active: boolean;
   apps: App[];
   states: Record<string, AppState>;
   loading: boolean;
@@ -19,6 +20,7 @@ type VirtualizedAppListProps = {
  * Render only rows near the window viewport while preserving the full list height.
  */
 export default function VirtualizedAppList({
+  active,
   apps,
   states,
   loading,
@@ -43,6 +45,8 @@ export default function VirtualizedAppList({
   }, []);
 
   useEffect(() => {
+    if (!active) return;
+
     const updateViewport = () => {
       setViewport((current) => {
         const next = { scrollY: window.scrollY, height: window.innerHeight };
@@ -59,13 +63,14 @@ export default function VirtualizedAppList({
       setListTop((current) => (current === nextTop ? current : nextTop));
     };
 
+    updateViewport();
     window.addEventListener("scroll", updateViewport, { passive: true });
     window.addEventListener("resize", updateViewport);
     return () => {
       window.removeEventListener("scroll", updateViewport);
       window.removeEventListener("resize", updateViewport);
     };
-  }, []);
+  }, [active]);
 
   const offsets = useMemo(
     () =>
@@ -119,12 +124,12 @@ export default function VirtualizedAppList({
   }, [apps, range.endIndex, range.startIndex]);
 
   useEffect(() => {
-    if (range.endIndex <= range.startIndex) return;
+    if (!active || range.endIndex <= range.startIndex) return;
     const visibleIds = apps
       .slice(range.startIndex, range.endIndex)
       .map((app) => app.id);
     onVisiblePackages(visibleIds);
-  }, [apps, onVisiblePackages, range.endIndex, range.startIndex]);
+  }, [active, apps, onVisiblePackages, range.endIndex, range.startIndex]);
 
   const renderRow = useCallback(
     (app: App) => {

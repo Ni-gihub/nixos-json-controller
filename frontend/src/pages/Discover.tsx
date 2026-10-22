@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import type { FormEvent } from "react";
 import {
   BookOpen,
@@ -51,6 +57,7 @@ import {
   advanceEmptyPageAutoLoadState,
   classifySearchUrlTransition,
   isCurrentSearchRequest,
+  shouldReuseSearchOnReturn,
 } from "./discover-search-state";
 import { useLocation, useNavigationType, useSearchParams } from "react-router";
 
@@ -156,6 +163,11 @@ function Discover() {
     useState<CatalogPreparationStatus | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const { states, loading, error, refreshPackages } = useAppState();
+  const isDiscoverActive = location.pathname === "/discover";
+  const isDiscoverActiveRef = useRef(isDiscoverActive);
+  useLayoutEffect(() => {
+    isDiscoverActiveRef.current = isDiscoverActive;
+  }, [isDiscoverActive]);
   const searchRequestIdRef = useRef(0);
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
   const loadingMoreRef = useRef(false);
@@ -163,6 +175,8 @@ function Discover() {
   const consecutiveEmptyPagesRef = useRef(0);
   const resultIdsRef = useRef(new Set<string>());
   const requestedStateIdsRef = useRef(new Set<string>());
+  const attemptedRecommendationStateIdsRef = useRef(new Set<string>());
+  const recommendationStateRequestsInFlightRef = useRef(new Set<string>());
   const pendingStateIdsRef = useRef(new Set<string>());
   const stateRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -170,6 +184,7 @@ function Discover() {
   const stateRefreshInFlightRef = useRef(false);
   const pendingUrlQueryRef = useRef<string | null>(null);
   const lastHandledLocationKeyRef = useRef<string | null>(null);
+  const lastKnownPathnameRef = useRef(location.pathname);
 
   const resetQueuedPackageStates = useCallback(() => {
     requestedStateIdsRef.current.clear();
@@ -252,6 +267,7 @@ function Discover() {
   const dispatchQueuedPackageStates = useCallback(() => {
     const scheduleNextBatch = () => {
       if (
+        !isDiscoverActiveRef.current ||
         pendingStateIdsRef.current.size === 0 ||
         stateRefreshTimerRef.current !== null ||
         stateRefreshInFlightRef.current
@@ -261,6 +277,7 @@ function Discover() {
 
       stateRefreshTimerRef.current = setTimeout(() => {
         stateRefreshTimerRef.current = null;
+        if (!isDiscoverActiveRef.current) return;
         const batch = Array.from(pendingStateIdsRef.current).slice(0, 40);
         for (const packageName of batch) {
           pendingStateIdsRef.current.delete(packageName);
@@ -285,6 +302,7 @@ function Discover() {
   /** Queue state checks for packages in the current virtual viewport. */
   const requestVisiblePackageStates = useCallback(
     (packageNames: string[]) => {
+      if (!isDiscoverActiveRef.current) return;
       for (const packageName of packageNames) {
         if (
           states[packageName] !== undefined ||
@@ -299,6 +317,20 @@ function Discover() {
     },
     [dispatchQueuedPackageStates, states],
   );
+
+  useEffect(() => {
+    if (isDiscoverActive) return;
+
+    // Drop queued visibility checks when the page is hidden. An already-running
+    // native request cannot be cancelled here, but it will not schedule another batch.
+    pendingStateIdsRef.current.clear();
+    requestedStateIdsRef.current.clear();
+    attemptedRecommendationStateIdsRef.current.clear();
+    if (stateRefreshTimerRef.current !== null) {
+      clearTimeout(stateRefreshTimerRef.current);
+      stateRefreshTimerRef.current = null;
+    }
+  }, [isDiscoverActive]);
 
   useEffect(
     () => () => {
@@ -513,16 +545,42 @@ function Discover() {
     if (lastHandledLocationKeyRef.current === location.key) return;
     lastHandledLocationKeyRef.current = location.key;
 
+    const previousPathname = lastKnownPathnameRef.current;
+    lastKnownPathnameRef.current = location.pathname;
+    if (location.pathname !== "/discover") return;
+
     const transition = classifySearchUrlTransition(
       initialQuery,
       pendingUrlQueryRef.current,
       navigationType,
     );
 
-    if (transition.kind === "stale") return;
-    if (transition.kind === "internal") {
+    const returningFromDetails = previousPathname.startsWith("/apps/");
+    let nextQuery: string;
+    if (returningFromDetails) {
+      nextQuery = initialQuery;
+      if (
+        shouldReuseSearchOnReturn(
+          previousPathname,
+          location.pathname,
+          submittedQueryRef.current,
+          nextQuery,
+        )
+      ) {
+        pendingUrlQueryRef.current = null;
+        return;
+      }
+
+      // The URL is authoritative when leaving details, even if an older search
+      // parameter update is still pending.
       pendingUrlQueryRef.current = null;
-      return;
+    } else {
+      if (transition.kind === "stale") return;
+      if (transition.kind === "internal") {
+        pendingUrlQueryRef.current = null;
+        return;
+      }
+      nextQuery = transition.query;
     }
 
     pendingUrlQueryRef.current = null;
@@ -540,19 +598,20 @@ function Discover() {
       loadingMoreRef.current = false;
       loadingMoreRequestIdRef.current = null;
       setSearchError(null);
-      setQuery(transition.query);
-      setSubmittedQuery(transition.query);
+      setQuery(nextQuery);
+      setSubmittedQuery(nextQuery);
     }
 
     // Avoid starting a legacy search while the source-matched local catalog is still preparing.
-    if (transition.query && !catalogPreparing && catalogAttemptId > 0) {
-      runSearch(transition.query);
+    if (nextQuery && !catalogPreparing && catalogAttemptId > 0) {
+      runSearch(nextQuery);
     }
   }, [
     catalogAttemptId,
     catalogPreparing,
     initialQuery,
     location.key,
+    location.pathname,
     navigationType,
     runSearch,
   ]);
@@ -620,6 +679,10 @@ function Discover() {
   }, [recommendationReloadKey]);
 
   useEffect(() => {
+    // Do not start potentially expensive catalog lookups while Discover is hidden.
+    // Changing this dependency to true on return restarts the effect with current IDs.
+    if (!isDiscoverActive) return;
+
     const ids = recommendationIds.split("\n").filter(Boolean);
     if (ids.length === 0) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- clear derived results when recommendation data is unavailable
@@ -664,7 +727,6 @@ function Discover() {
             setRecommendationStatus("ready");
             setRecommendationMessage(null);
           }
-          void refreshPackages(combinedApps.map((app) => app.id));
           return;
         }
 
@@ -678,7 +740,6 @@ function Discover() {
           ];
           if (unresolvedMessage) messages.push(unresolvedMessage);
           setRecommendationMessage(messages.join(" "));
-          void refreshPackages(fallbackApps.map((app) => app.id));
         } else {
           setRecommendationStatus("unavailable");
           const messages = [
@@ -698,7 +759,6 @@ function Discover() {
           setRecommendationMessage(
             `Nixpkgsの詳細情報取得に失敗しました: ${String(err)}`,
           );
-          void refreshPackages(fallbackApps.map((app) => app.id));
         } else {
           setRecommendationStatus("unavailable");
           setRecommendationMessage(
@@ -710,7 +770,33 @@ function Discover() {
     return () => {
       cancelled = true;
     };
-  }, [recommendationIds, refreshPackages, recommendationReloadKey]);
+  }, [isDiscoverActive, recommendationIds, recommendationReloadKey]);
+
+  useEffect(() => {
+    if (!isDiscoverActive || recommendedCatalogApps.length === 0) return;
+
+    // Defer recommendation status lookups while Discover is hidden and refresh
+    // only missing state when the retained page becomes visible again.
+    const missingIds = recommendedCatalogApps
+      .map((app) => app.id)
+      .filter(
+        (id) =>
+          states[id] === undefined &&
+          !attemptedRecommendationStateIdsRef.current.has(id) &&
+          !recommendationStateRequestsInFlightRef.current.has(id),
+      );
+    if (missingIds.length > 0) {
+      for (const id of missingIds) {
+        attemptedRecommendationStateIdsRef.current.add(id);
+        recommendationStateRequestsInFlightRef.current.add(id);
+      }
+      void refreshPackages(missingIds).finally(() => {
+        for (const id of missingIds) {
+          recommendationStateRequestsInFlightRef.current.delete(id);
+        }
+      });
+    }
+  }, [isDiscoverActive, recommendedCatalogApps, refreshPackages, states]);
 
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -997,6 +1083,7 @@ function Discover() {
                       {results.length > 0 ? (
                         <VirtualizedAppList
                           key={`${submittedQuery}:${searching ? "loading" : "ready"}`}
+                          active={location.pathname === "/discover"}
                           apps={results}
                           states={states}
                           loading={loading}

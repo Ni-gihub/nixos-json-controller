@@ -4,6 +4,8 @@ import {
   advanceEmptyPageAutoLoadState,
   classifySearchUrlTransition,
   isCurrentSearchRequest,
+  shouldReuseSearchOnReturn,
+  shouldRestoreDiscoverScroll,
 } from "./discover-search-state.ts";
 
 test("ignores a stale URL query while a clear operation is pending", () => {
@@ -31,6 +33,60 @@ test("syncs an external URL change when no internal update is pending", () => {
   assert.deepEqual(
     classifySearchUrlTransition("vscode", null, "PUSH"),
     { kind: "external", query: "vscode" },
+  );
+});
+
+test("reuses same-query search state after detail navigation", () => {
+  assert.equal(
+    shouldReuseSearchOnReturn(
+      "/apps/firefox",
+      "/discover",
+      "firefox",
+      "firefox",
+    ),
+    true,
+  );
+  assert.equal(
+    shouldReuseSearchOnReturn(
+      "/apps/firefox",
+      "/discover",
+      "firefox",
+      "vscode",
+    ),
+    false,
+  );
+  assert.equal(
+    shouldReuseSearchOnReturn(
+      "/settings",
+      "/discover",
+      "firefox",
+      "firefox",
+    ),
+    false,
+  );
+  assert.equal(
+    shouldReuseSearchOnReturn(
+      "/apps/firefox",
+      "/apps/firefox",
+      "firefox",
+      "firefox",
+    ),
+    false,
+  );
+});
+
+test("restores scroll only when returning to the same query", () => {
+  assert.equal(
+    shouldRestoreDiscoverScroll("/apps/firefox", "firefox", "firefox"),
+    true,
+  );
+  assert.equal(
+    shouldRestoreDiscoverScroll("/apps/firefox", "firefox", "vscode"),
+    false,
+  );
+  assert.equal(
+    shouldRestoreDiscoverScroll("/discover", "firefox", "firefox"),
+    false,
   );
 });
 

@@ -322,6 +322,19 @@ GUI 用の Flake package、Desktop Entry、静的なランチャーアイコン�
 
 ---
 
+# 開発・Issue運用
+
+開発計画は次のIssueを起点に管理しています。
+
+- [プロジェクト憲章 #166](https://github.com/Ni-gihub/nixos-json-controller/issues/166)：目的・スコープ・成功基準
+- [PBL #167](https://github.com/Ni-gihub/nixos-json-controller/issues/167)：優先順位付きバックログ、依存関係、完了・見送り履歴
+- [Issueの書き方](docs/project-management/issue-writing.md)：PBI・Task・Bugの使い分け、Why中心の書き方、Ready / Done基準
+- [プロジェクトとバックログの運用](docs/project-management/backlog-management.md)：Issue間の関係、優先度、PBLの更新ルール
+
+新しいIssueは適切なIssue Formから作成してください。原因・実装方法・環境情報が未確定でも、確認できた事実と未確認事項を区別して相談できます。クローズ済みIssueは履歴として保持し、実装完了と対応見送りを区別します。
+
+---
+
 # 関連 Issue（未完了の主な作業）
 
 - [#43 — 検索後のインストール状態確認の遅延を調査・改善する](https://github.com/Ni-gihub/nixos-json-controller/issues/43)

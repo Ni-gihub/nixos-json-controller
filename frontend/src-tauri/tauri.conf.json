@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "nxc-app",
   "version": "0.1.0",
-  "identifier": "com.tauri.dev",
+  "identifier": "io.github.ni-gihub.nxc-app",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
@@ -21,7 +21,28 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": {
+        "default-src": "'self' customprotocol: asset:",
+        "base-uri": "'self'",
+        "connect-src": "ipc: http://ipc.localhost https://api.iconify.design",
+        "font-src": "'self'",
+        "form-action": "'self'",
+        "img-src": "'self' asset: http://asset.localhost data:",
+        "object-src": "'none'",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'"
+      },
+      "devCsp": {
+        "default-src": "'self' customprotocol: asset: http://localhost:5173",
+        "base-uri": "'self'",
+        "connect-src": "ipc: http://ipc.localhost https://api.iconify.design http://localhost:5173 ws://localhost:5173",
+        "font-src": "'self'",
+        "form-action": "'self'",
+        "img-src": "'self' asset: http://asset.localhost data:",
+        "object-src": "'none'",
+        "script-src": "'self' http://localhost:5173",
+        "style-src": "'self' 'unsafe-inline' http://localhost:5173"
+      }
     }
   },
   "bundle": {

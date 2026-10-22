@@ -1346,7 +1346,12 @@ mod tests {
         let icon = "data:image/svg+xml;base64,PHN2Zy8+";
         let path = root.join(persisted_icon_cache_filename(key));
 
-        assert!(write_persisted_icon_cache_once(&root, key, icon, &written_files));
+        assert!(write_persisted_icon_cache_once(
+            &root,
+            key,
+            icon,
+            &written_files
+        ));
         assert!(path.is_file());
         fs::remove_file(&path).unwrap();
 
@@ -1780,7 +1785,7 @@ mod tests {
                 &cache,
                 None,
             )
-                .is_some(),
+            .is_some(),
             "refresh must invalidate the cached miss and discover the newly installed icon"
         );
 
@@ -1809,16 +1814,12 @@ mod tests {
         let stock_icon_name = "vendor-selected-name";
         let mut appstream_index = HashMap::new();
         let mut stock_index = HashMap::new();
-        let cache = Mutex::new(HashMap::from([(
-            format!("stock|{stock_icon_name}"),
-            None,
-        )]));
+        let cache = Mutex::new(HashMap::from([(format!("stock|{stock_icon_name}"), None)]));
         let appstream_after_install = HashMap::from([(
             package_id.to_string(),
             vec![format!("stock|{stock_icon_name}")],
         )]);
-        let stock_after_install =
-            build_stock_icon_index_from_roots(std::slice::from_ref(&root));
+        let stock_after_install = build_stock_icon_index_from_roots(std::slice::from_ref(&root));
 
         refresh_icon_indexes_and_cache(
             &mut appstream_index,
@@ -1837,7 +1838,9 @@ mod tests {
             None,
         );
         assert!(
-            resolved.first().is_some_and(|icon| icon.starts_with("data:image/svg+xml;base64,")),
+            resolved
+                .first()
+                .is_some_and(|icon| icon.starts_with("data:image/svg+xml;base64,")),
             "refresh must load newly available AppStream stock aliases and clear stale negative entries"
         );
 

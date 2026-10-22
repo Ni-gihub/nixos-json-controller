@@ -59,7 +59,7 @@ CLI のパッケージ操作は NixOS configuration の編集やシステムの�
 
 - [プロジェクト憲章 #166](https://github.com/Ni-gihub/nixos-json-controller/issues/166)：目的・スコープ・成功基準
 - [PBL #167](https://github.com/Ni-gihub/nixos-json-controller/issues/167)：優先順位付きバックログと完了履歴
-- [Issue の書き方](../project-management/issue-writing.md)
-- [プロジェクトとバックログの運用](../project-management/backlog-management.md)
+- [Issue の書き方](https://github.com/Ni-gihub/nixos-json-controller/blob/main/docs/project-management/issue-writing.md)
+- [プロジェクトとバックログの運用](https://github.com/Ni-gihub/nixos-json-controller/blob/main/docs/project-management/backlog-management.md)
 
 CLI コマンドの詳細は [CLI Usage](CLI-Usage) を参照してください。

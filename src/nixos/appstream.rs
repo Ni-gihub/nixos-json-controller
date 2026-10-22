@@ -1,18 +1,28 @@
 use std::collections::{HashMap, HashSet};
 use std::env;
-use std::fs;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
+use std::time::{SystemTime, UNIX_EPOCH};
 
-static INDEX: OnceLock<HashMap<String, Vec<String>>> = OnceLock::new();
+static INDEX: OnceLock<Mutex<HashMap<String, Vec<String>>>> = OnceLock::new();
 static ICON_CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
-static STOCK_ICON_INDEX: OnceLock<HashMap<String, Vec<PathBuf>>> = OnceLock::new();
+static STOCK_ICON_INDEX: OnceLock<Mutex<HashMap<String, Vec<PathBuf>>>> = OnceLock::new();
 
 /// Maximum number of icon URLs exposed per package without making search responses excessive.
 const MAX_ICON_CANDIDATES: usize = 5;
 const MAX_CACHED_ICON_CANDIDATES: usize = 2;
 const MAX_APPSTREAM_STOCK_ICON_CANDIDATES: usize = 1;
+// Persist small local theme icons so removing their owning package does not remove the
+// last known icon source from the next application launch.
+const MAX_PERSISTED_ICON_DATA_URL_BYTES: usize = 512 * 1024;
+const MAX_PERSISTED_ICON_CACHE_ENTRIES: usize = 512;
+const MAX_PERSISTED_ICON_CACHE_BYTES: u64 = 32 * 1024 * 1024;
+static PERSISTED_ICON_CACHE_WRITES: AtomicUsize = AtomicUsize::new(0);
+static PERSISTED_ICON_CACHE_FILES: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
 
 /// Enable opt-in diagnostics for missing or invisible application icons.
 pub(crate) fn icon_debug_enabled() -> bool {
@@ -48,11 +58,86 @@ fn resolve_icon_candidates(candidates: &[&str], limit: usize) -> Vec<String> {
         return Vec::new();
     }
 
-    let index = INDEX.get_or_init(load_index);
-    let cache = ICON_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
-    let stock_index = STOCK_ICON_INDEX.get_or_init(build_stock_icon_index);
+    // Prune the on-disk cache at most once per process, not once per package.
+    static CACHE_PRUNED: OnceLock<()> = OnceLock::new();
+    let cache_root = persistent_icon_cache_dir();
+    if let Some(root) = cache_root.as_deref() {
+        CACHE_PRUNED.get_or_init(|| {
+            if root.is_dir() {
+                prune_persisted_icon_cache(root);
+            }
+        });
+    }
 
-    resolve_icon_candidates_from_index(candidates, limit, index, stock_index, cache)
+    // Lock indexes in AppStream -> stock order, matching refresh_local_icon_cache().
+    let index = INDEX.get_or_init(|| Mutex::new(load_index()));
+    let Ok(index) = index.lock() else {
+        return Vec::new();
+    };
+    let cache = ICON_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    let stock_index = STOCK_ICON_INDEX.get_or_init(|| Mutex::new(build_stock_icon_index()));
+    let Ok(stock_index) = stock_index.lock() else {
+        return Vec::new();
+    };
+
+    resolve_icon_candidates_from_index(
+        candidates,
+        limit,
+        &index,
+        &stock_index,
+        cache,
+        cache_root.as_deref(),
+    )
+}
+
+/// Refresh the local icon index and in-memory lookup cache after a successful system change.
+///
+/// The icon index is intentionally cached during normal search to avoid repeated filesystem
+/// scans. A package install/removal changes the available icon files, so the GUI should call
+/// this after a rebuild has been verified.
+pub fn refresh_local_icon_cache() {
+    // Scan outside the locks so normal lookups are not blocked during filesystem traversal.
+    let new_appstream_index = load_index();
+    let new_stock_index = build_stock_icon_index();
+
+    // Always acquire AppStream before the stock index; resolve_icon_candidates uses this order too.
+    let appstream_index = INDEX.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut appstream_index = appstream_index
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    let stock_index = STOCK_ICON_INDEX.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut stock_index = stock_index
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+
+    let cache = ICON_CACHE.get();
+    refresh_icon_indexes_and_cache(
+        &mut appstream_index,
+        &mut stock_index,
+        cache,
+        new_appstream_index,
+        new_stock_index,
+    );
+    clear_persisted_icon_cache_write_keys(
+        PERSISTED_ICON_CACHE_FILES.get_or_init(|| Mutex::new(HashSet::new())),
+    );
+}
+
+/// Replace both local icon indexes and invalidate cached hits and misses as one refresh operation.
+fn refresh_icon_indexes_and_cache(
+    appstream_index: &mut HashMap<String, Vec<String>>,
+    stock_index: &mut HashMap<String, Vec<PathBuf>>,
+    cache: Option<&Mutex<HashMap<String, Option<String>>>>,
+    new_appstream_index: HashMap<String, Vec<String>>,
+    new_stock_index: HashMap<String, Vec<PathBuf>>,
+) {
+    *appstream_index = new_appstream_index;
+    *stock_index = new_stock_index;
+    if let Some(cache) = cache {
+        if let Ok(mut cache) = cache.lock() {
+            cache.clear();
+        }
+    }
 }
 
 /// Resolve local AppStream and theme icons while excluding remote URLs that cannot be inspected for blank content.
@@ -62,6 +147,7 @@ fn resolve_icon_candidates_from_index(
     index: &HashMap<String, Vec<String>>,
     stock_index: &HashMap<String, Vec<PathBuf>>,
     cache: &Mutex<HashMap<String, Option<String>>>,
+    cache_root: Option<&Path>,
 ) -> Vec<String> {
     if limit == 0 {
         return Vec::new();
@@ -113,8 +199,32 @@ fn resolve_icon_candidates_from_index(
 
     // AppStream-declared stock icons take precedence over guessed aliases.
     let mut appstream_stock_count = 0;
+    let mut appstream_stock_icon_to_persist: Option<String> = None;
     for entry in &entries_by_priority[1] {
-        if let Some(icon) = load_icon(entry) {
+        // Use the already-held index snapshot to avoid re-locking STOCK_ICON_INDEX.
+        // Cache these results so we only persist the icon when it is first resolved.
+        let cached = cache
+            .lock()
+            .ok()
+            .and_then(|icons| icons.get(entry).cloned());
+        let icon = match cached {
+            Some(icon) => icon,
+            None => {
+                let icon = load_icon_with_stock_index(entry, Some(stock_index));
+                if let Ok(mut icons) = cache.lock() {
+                    icons.insert(entry.clone(), icon.clone());
+                }
+                icon
+            }
+        };
+
+        if entry.starts_with("stock|") && appstream_stock_icon_to_persist.is_none() {
+            if let Some(icon) = icon.as_deref().filter(|icon| is_persistable_icon(icon)) {
+                appstream_stock_icon_to_persist = Some(icon.to_string());
+            }
+        }
+
+        if let Some(icon) = icon {
             if push_icon_candidate(&mut resolved, icon, limit) {
                 appstream_stock_count += 1;
             }
@@ -125,13 +235,23 @@ fn resolve_icon_candidates_from_index(
     }
 
     if resolved.len() >= limit {
+        if let (Some(root), Some(icon)) = (cache_root, appstream_stock_icon_to_persist.as_deref()) {
+            write_persisted_icon_cache(root, &persisted_icon_cache_key(candidates), icon);
+        }
         log_icon_resolution(candidates, &entries_by_priority, stock_index, &resolved);
         return resolved;
     }
 
     // Reserve room for the system/profile icon matching the package name.
-    if let Some(icon) = resolve_direct_stock_icon(candidates, stock_index, cache) {
+    if let Some(icon) =
+        resolve_direct_stock_icon_with_cache_root(candidates, stock_index, cache, cache_root)
+    {
         push_icon_candidate(&mut resolved, icon, limit);
+    }
+
+    // Preserve AppStream's higher priority when a direct alias also resolves to an icon.
+    if let (Some(root), Some(icon)) = (cache_root, appstream_stock_icon_to_persist.as_deref()) {
+        write_persisted_icon_cache(root, &persisted_icon_cache_key(candidates), icon);
     }
 
     log_icon_resolution(candidates, &entries_by_priority, stock_index, &resolved);
@@ -203,15 +323,12 @@ fn resolve_cached_entry(
     icon
 }
 
-/// Resolve the direct theme lookup once per normalized set of package aliases.
-///
-/// Cache misses as well as successful results: catalog search can ask for the same
-/// package on many keystrokes, and even an unsuccessful theme lookup should not
-/// repeatedly scan icon paths and encode image files.
-fn resolve_direct_stock_icon(
+/// Resolve the current theme icon first, then fall back to a previously persisted copy.
+fn resolve_direct_stock_icon_with_cache_root(
     candidates: &[&str],
     index: &HashMap<String, Vec<PathBuf>>,
     cache: &Mutex<HashMap<String, Option<String>>>,
+    cache_root: Option<&Path>,
 ) -> Option<String> {
     let key = direct_stock_cache_key(candidates);
     let cached = cache.lock().ok().and_then(|icons| icons.get(&key).cloned());
@@ -220,11 +337,227 @@ fn resolve_direct_stock_icon(
         return icon;
     }
 
-    let icon = direct_stock_icon_from_index(candidates, index);
+    // The in-memory lookup key includes every alias, but persisted entries must survive callers
+    // supplying different alias lists for the same package (e.g. the post-install GUI refresh).
+    let persisted_key = persisted_icon_cache_key(candidates);
+    // Prefer the currently installed theme asset (which may have been updated). Only use the
+    // persisted copy when this alias no longer resolves, e.g. after uninstall or garbage collection.
+    let local_icon = direct_stock_icon_from_index(candidates, index);
+    let icon = match local_icon {
+        Some(icon) => {
+            if let Some(root) = cache_root {
+                write_persisted_icon_cache(root, &persisted_key, &icon);
+            }
+            Some(icon)
+        }
+        None => cache_root.and_then(|root| read_persisted_icon_cache(root, &persisted_key)),
+    };
+
     if let Ok(mut icons) = cache.lock() {
         icons.insert(key, icon.clone());
     }
     icon
+}
+
+/// Return the per-user cache directory, respecting XDG_CACHE_HOME when it is absolute.
+fn persistent_icon_cache_dir() -> Option<PathBuf> {
+    let cache_home = env::var_os("XDG_CACHE_HOME")
+        .map(PathBuf::from)
+        .filter(|path| path.is_absolute())
+        .or_else(|| {
+            env::var_os("HOME")
+                .map(PathBuf::from)
+                .filter(|path| path.is_absolute())
+                .map(|home| home.join(".cache"))
+        })?;
+    Some(cache_home.join("nixos-json-controller").join("icons"))
+}
+
+/// Hash a cache key into a filesystem-safe filename. The stored header prevents collisions
+/// from ever returning an icon for a different package alias sequence.
+fn persisted_icon_cache_filename(key: &str) -> String {
+    let hash = key
+        .as_bytes()
+        .iter()
+        .fold(0xcbf29ce484222325_u64, |hash, byte| {
+            (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3)
+        });
+    format!("{hash:016x}.icon")
+}
+
+/// Accept only bounded image data URLs produced by the local icon reader.
+fn is_persistable_icon(icon: &str) -> bool {
+    if icon.len() > MAX_PERSISTED_ICON_DATA_URL_BYTES {
+        return false;
+    }
+
+    let Some((mime, payload)) = icon.split_once(',') else {
+        return false;
+    };
+    if !matches!(
+        mime,
+        "data:image/png;base64" | "data:image/svg+xml;base64" | "data:image/jpeg;base64"
+    ) {
+        return false;
+    }
+
+    !payload.is_empty()
+        && payload
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'/' | b'='))
+}
+
+/// Read a previously saved icon only when its key and image data are valid.
+fn read_persisted_icon_cache(root: &Path, key: &str) -> Option<String> {
+    let path = root.join(persisted_icon_cache_filename(key));
+    let metadata = fs::metadata(&path).ok()?;
+    if metadata.len() > (MAX_PERSISTED_ICON_DATA_URL_BYTES + 8192) as u64 {
+        return None;
+    }
+
+    let contents = fs::read_to_string(path).ok()?;
+    let (stored_key, icon) = contents.split_once('\n')?;
+    if stored_key != key || !is_persistable_icon(icon) {
+        return None;
+    }
+    Some(icon.to_string())
+}
+
+/// Atomically persist a local icon once per key during the current icon-index generation.
+fn write_persisted_icon_cache(root: &Path, key: &str, icon: &str) {
+    let written_files = PERSISTED_ICON_CACHE_FILES.get_or_init(|| Mutex::new(HashSet::new()));
+    if !write_persisted_icon_cache_once(root, key, icon, written_files) {
+        return;
+    }
+
+    // Avoid scanning the cache directory on every visible app; prune in small batches.
+    if PERSISTED_ICON_CACHE_WRITES.fetch_add(1, Ordering::Relaxed) % 16 == 15 {
+        if let Ok(mut written_files) = written_files.lock() {
+            for removed_file in prune_persisted_icon_cache(root) {
+                written_files.remove(&root.join(removed_file).to_string_lossy().into_owned());
+            }
+        }
+    }
+}
+
+/// Clear write tracking after the local icon index is refreshed so changed icons can be saved.
+fn clear_persisted_icon_cache_write_keys(written_files: &Mutex<HashSet<String>>) {
+    if let Ok(mut written_files) = written_files.lock() {
+        written_files.clear();
+    }
+}
+
+/// Write atomically unless this process has already saved the same cache filename.
+/// The tracking lock covers the write, preventing concurrent searches from duplicating it.
+fn write_persisted_icon_cache_once(
+    root: &Path,
+    key: &str,
+    icon: &str,
+    written_files: &Mutex<HashSet<String>>,
+) -> bool {
+    if !is_persistable_icon(icon) {
+        return false;
+    }
+
+    let file_name = persisted_icon_cache_filename(key);
+    let path = root.join(&file_name);
+    let tracking_key = path.to_string_lossy().into_owned();
+    let Ok(mut written_files) = written_files.lock() else {
+        return false;
+    };
+    if written_files.contains(&tracking_key) && path.is_file() {
+        return false;
+    }
+    // Another process or a cache-cleanup task may remove the persisted file.
+    // Drop stale tracking so the next successful lookup can recreate it.
+    written_files.remove(&tracking_key);
+    if fs::create_dir_all(root).is_err() {
+        return false;
+    }
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let temporary_path = root.join(format!(".{file_name}.{}.{}.tmp", std::process::id(), nonce));
+    let contents = format!("{key}\n{icon}");
+
+    let write_result = (|| {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary_path)
+            .ok()?;
+        file.write_all(contents.as_bytes()).ok()?;
+        file.flush().ok()?;
+        drop(file);
+        fs::rename(&temporary_path, &path).ok()?;
+        Some(())
+    })();
+
+    if write_result.is_none() {
+        let _ = fs::remove_file(&temporary_path);
+        return false;
+    }
+
+    written_files.insert(tracking_key);
+    true
+}
+
+/// Keep the on-disk icon cache bounded by both entry count and total bytes.
+fn prune_persisted_icon_cache(root: &Path) -> Vec<String> {
+    let Ok(entries) = fs::read_dir(root) else {
+        return Vec::new();
+    };
+    let mut files = entries
+        .flatten()
+        .filter_map(|entry| {
+            let path = entry.path();
+            (path.extension().and_then(|extension| extension.to_str()) == Some("icon"))
+                .then(|| {
+                    let metadata = fs::metadata(&path).ok()?;
+                    Some((
+                        path,
+                        metadata.len(),
+                        metadata.modified().unwrap_or(UNIX_EPOCH),
+                    ))
+                })
+                .flatten()
+        })
+        .collect::<Vec<_>>();
+    files.sort_by_key(|(_, _, modified)| *modified);
+
+    let mut total_bytes = files.iter().map(|(_, size, _)| *size).sum::<u64>();
+    let mut removed_files = Vec::new();
+    while files.len() > MAX_PERSISTED_ICON_CACHE_ENTRIES
+        || total_bytes > MAX_PERSISTED_ICON_CACHE_BYTES
+    {
+        if files.is_empty() {
+            break;
+        }
+        let (path, size, _) = files.remove(0);
+        let file_name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map(str::to_string);
+        if fs::remove_file(path).is_ok() {
+            total_bytes = total_bytes.saturating_sub(size);
+            if let Some(file_name) = file_name {
+                removed_files.push(file_name);
+            }
+        }
+    }
+    removed_files
+}
+
+/// Build a stable on-disk key from the primary package identifier.
+/// Additional aliases may be supplied by AppStream on normal searches, while the install event
+/// only has the package identifier. The primary identifier is shared by both paths.
+fn persisted_icon_cache_key(candidates: &[&str]) -> String {
+    let primary = candidates
+        .first()
+        .map(|candidate| candidate.trim().to_lowercase())
+        .unwrap_or_default();
+    format!("persisted|{}:{primary}", primary.len())
 }
 
 /// Build a collision-resistant key for the original candidate sequence.
@@ -616,11 +949,25 @@ fn element_attribute(input: &str, element: &str, attribute: &str) -> Option<Stri
 
 /// Load an AppStream icon from cached data, the system icon theme, or a remote URL.
 fn load_icon(entry: &str) -> Option<String> {
+    load_icon_with_stock_index(entry, None)
+}
+
+/// Resolve using a supplied stock-index snapshot when the caller already holds one.
+/// This avoids re-locking the global index while resolving AppStream stock candidates.
+fn load_icon_with_stock_index(
+    entry: &str,
+    stock_index: Option<&HashMap<String, Vec<PathBuf>>>,
+) -> Option<String> {
     if let Some(url) = entry.strip_prefix("remote|") {
         return Some(url.to_string());
     }
 
     if let Some(icon_name) = entry.strip_prefix("stock|") {
+        if let Some(index) = stock_index {
+            return index
+                .get(&icon_name.to_lowercase())
+                .and_then(|paths| paths.iter().find_map(|path| read_icon(path)));
+        }
         return load_stock_icon(icon_name);
     }
 
@@ -679,7 +1026,8 @@ fn load_icon(entry: &str) -> Option<String> {
 /// `/run/current-system/sw`. Icon files are converted to data URLs so the web frontend does
 /// not need direct filesystem access.
 fn load_stock_icon(icon_name: &str) -> Option<String> {
-    let index = STOCK_ICON_INDEX.get_or_init(build_stock_icon_index);
+    let index = STOCK_ICON_INDEX.get_or_init(|| Mutex::new(build_stock_icon_index()));
+    let index = index.lock().ok()?;
     let paths = index.get(&icon_name.to_lowercase())?;
 
     paths.iter().find_map(|path| read_icon(path))
@@ -925,6 +1273,98 @@ mod tests {
     }
 
     #[test]
+    fn persists_each_icon_key_once_until_refresh_and_keeps_package_keys_separate() {
+        let temp = std::env::temp_dir().join(format!(
+            "nxc-persisted-icon-write-once-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&temp);
+        let written_files = Mutex::new(HashSet::new());
+        let original_icon = "data:image/svg+xml;base64,PHN2Zy8+";
+        let updated_icon = "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=";
+        let package_one_key = "persisted|package-one";
+        let package_two_key = "persisted|package-two";
+
+        assert!(write_persisted_icon_cache_once(
+            &temp,
+            package_one_key,
+            original_icon,
+            &written_files,
+        ));
+        assert!(!write_persisted_icon_cache_once(
+            &temp,
+            package_one_key,
+            updated_icon,
+            &written_files,
+        ));
+        assert_eq!(
+            read_persisted_icon_cache(&temp, package_one_key).as_deref(),
+            Some(original_icon),
+            "repeat lookups must not rewrite a package's cached icon"
+        );
+
+        assert!(write_persisted_icon_cache_once(
+            &temp,
+            package_two_key,
+            original_icon,
+            &written_files,
+        ));
+        assert_eq!(
+            read_persisted_icon_cache(&temp, package_two_key).as_deref(),
+            Some(original_icon),
+            "the same stock icon must still be saved for a different package key"
+        );
+
+        clear_persisted_icon_cache_write_keys(&written_files);
+        assert!(write_persisted_icon_cache_once(
+            &temp,
+            package_one_key,
+            updated_icon,
+            &written_files,
+        ));
+        assert_eq!(
+            read_persisted_icon_cache(&temp, package_one_key).as_deref(),
+            Some(updated_icon),
+            "refreshing the icon index must permit saving an updated icon"
+        );
+
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn recreates_persisted_icon_if_an_external_cleanup_removes_it() {
+        let root = std::env::temp_dir().join(format!(
+            "nxc-persisted-icon-external-delete-test-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        let written_files = Mutex::new(HashSet::new());
+        let key = "persisted|external-delete-test";
+        let icon = "data:image/svg+xml;base64,PHN2Zy8+";
+        let path = root.join(persisted_icon_cache_filename(key));
+
+        assert!(write_persisted_icon_cache_once(
+            &root,
+            key,
+            icon,
+            &written_files
+        ));
+        assert!(path.is_file());
+        fs::remove_file(&path).unwrap();
+
+        assert!(
+            write_persisted_icon_cache_once(&root, key, icon, &written_files),
+            "a cache file removed externally must be recreated despite stale tracking"
+        );
+        assert_eq!(read_persisted_icon_cache(&root, key).as_deref(), Some(icon));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn direct_stock_cache_key_distinguishes_candidate_sequences() {
         assert_ne!(
             direct_stock_cache_key(&["firefox", "mozilla"]),
@@ -943,7 +1383,10 @@ mod tests {
 
         let empty_index = HashMap::new();
         let cache = Mutex::new(HashMap::new());
-        assert!(resolve_direct_stock_icon(&["firefox"], &empty_index, &cache).is_none());
+        assert!(
+            resolve_direct_stock_icon_with_cache_root(&["firefox"], &empty_index, &cache, None)
+                .is_none()
+        );
 
         // Repeated searches reuse a cached miss instead of scanning the index again.
         let icon_path = temp.join("hicolor/scalable/apps/firefox.svg");
@@ -954,7 +1397,15 @@ mod tests {
         )
         .unwrap();
         let populated_index = build_stock_icon_index_from_roots(std::slice::from_ref(&temp));
-        assert!(resolve_direct_stock_icon(&["firefox"], &populated_index, &cache).is_none());
+        assert!(
+            resolve_direct_stock_icon_with_cache_root(
+                &["firefox"],
+                &populated_index,
+                &cache,
+                None,
+            )
+            .is_none()
+        );
 
         let cached_key = direct_stock_cache_key(&["firefox"]);
         assert!(
@@ -1114,6 +1565,7 @@ mod tests {
             &index,
             &empty_stock_index,
             &cache,
+            None,
         );
 
         assert!(resolved.is_empty());
@@ -1260,5 +1712,404 @@ mod tests {
         assert!(icon.is_some());
 
         let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn loads_appstream_stock_icon_from_the_existing_index_snapshot() {
+        let root = std::env::temp_dir().join(format!(
+            "nxc-appstream-stock-icon-test-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        let icon_path = root.join("applications-internet.svg");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(
+            &icon_path,
+            r#"<svg xmlns="http://www.w3.org/2000/svg"><circle cx="1" cy="1" r="1"/></svg>"#,
+        )
+        .unwrap();
+
+        let index = HashMap::from([("applications-internet".to_string(), vec![icon_path])]);
+        let icon = load_icon_with_stock_index("stock|applications-internet", Some(&index));
+
+        assert!(
+            icon.is_some(),
+            "stock icon should resolve from the supplied snapshot"
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn refreshes_negative_icon_lookup_after_package_install() {
+        let root = std::env::temp_dir().join(format!(
+            "nxc-refresh-icon-index-test-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        let icon_path = root.join("hicolor/scalable/apps/firefox.svg");
+        let empty_index = HashMap::new();
+        let cache = Mutex::new(HashMap::new());
+
+        assert!(
+            resolve_direct_stock_icon_with_cache_root(&["firefox"], &empty_index, &cache, None)
+                .is_none()
+        );
+
+        fs::create_dir_all(icon_path.parent().unwrap()).unwrap();
+        fs::write(
+            &icon_path,
+            r#"<svg xmlns="http://www.w3.org/2000/svg"><circle cx="1" cy="1" r="1"/></svg>"#,
+        )
+        .unwrap();
+        let installed_index = build_stock_icon_index_from_roots(std::slice::from_ref(&root));
+        let mut active_appstream_index = HashMap::new();
+        let mut active_stock_index = empty_index;
+        refresh_icon_indexes_and_cache(
+            &mut active_appstream_index,
+            &mut active_stock_index,
+            Some(&cache),
+            HashMap::new(),
+            installed_index,
+        );
+
+        assert!(
+            resolve_direct_stock_icon_with_cache_root(
+                &["firefox"],
+                &active_stock_index,
+                &cache,
+                None,
+            )
+            .is_some(),
+            "refresh must invalidate the cached miss and discover the newly installed icon"
+        );
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn refreshes_appstream_stock_candidates_after_catalog_changes() {
+        let root = std::env::temp_dir().join(format!(
+            "nxc-refresh-appstream-index-test-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        let icon_path = root.join("hicolor/scalable/apps/vendor-selected-name.svg");
+        fs::create_dir_all(icon_path.parent().unwrap()).unwrap();
+        fs::write(
+            &icon_path,
+            r#"<svg xmlns="http://www.w3.org/2000/svg"><circle cx="1" cy="1" r="1"/></svg>"#,
+        )
+        .unwrap();
+
+        let package_id = "com.example.special-editor";
+        let stock_icon_name = "vendor-selected-name";
+        let mut appstream_index = HashMap::new();
+        let mut stock_index = HashMap::new();
+        let cache = Mutex::new(HashMap::from([(format!("stock|{stock_icon_name}"), None)]));
+        let appstream_after_install = HashMap::from([(
+            package_id.to_string(),
+            vec![format!("stock|{stock_icon_name}")],
+        )]);
+        let stock_after_install = build_stock_icon_index_from_roots(std::slice::from_ref(&root));
+
+        refresh_icon_indexes_and_cache(
+            &mut appstream_index,
+            &mut stock_index,
+            Some(&cache),
+            appstream_after_install,
+            stock_after_install,
+        );
+
+        let resolved = resolve_icon_candidates_from_index(
+            &[package_id],
+            MAX_ICON_CANDIDATES,
+            &appstream_index,
+            &stock_index,
+            &cache,
+            None,
+        );
+        assert!(
+            resolved
+                .first()
+                .is_some_and(|icon| icon.starts_with("data:image/svg+xml;base64,")),
+            "refresh must load newly available AppStream stock aliases and clear stale negative entries"
+        );
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn resolves_stock_icon_by_display_name_alias() {
+        let root = std::env::temp_dir().join(format!(
+            "nxc-display-name-icon-test-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let icon_path = root.join("display-name.svg");
+        fs::write(
+            &icon_path,
+            r#"<svg xmlns="http://www.w3.org/2000/svg"><circle cx="1" cy="1" r="1"/></svg>"#,
+        )
+        .unwrap();
+        let index = HashMap::from([("editor pro".to_string(), vec![icon_path])]);
+
+        assert!(
+            direct_stock_icon_from_index(&["com.example.editor"], &index).is_none(),
+            "the package ID alone does not match this icon"
+        );
+        assert!(
+            direct_stock_icon_from_index(&["com.example.editor", "Editor Pro"], &index).is_some(),
+            "the display-name alias should resolve the icon"
+        );
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn keeps_a_local_app_icon_after_its_source_file_is_removed() {
+        let root = std::env::temp_dir().join(format!(
+            "nxc-persisted-icon-test-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        let icon_root = root.join("system-icons");
+        let cache_root = root.join("cache");
+        let icon_path = icon_root.join("hicolor/scalable/apps/firefox.svg");
+        fs::create_dir_all(icon_path.parent().unwrap()).unwrap();
+        fs::write(
+            &icon_path,
+            "<svg xmlns=\"http://www.w3.org/2000/svg\"><circle cx=\"1\" cy=\"1\" r=\"1\"/></svg>",
+        )
+        .unwrap();
+
+        let index = build_stock_icon_index_from_roots(std::slice::from_ref(&icon_root));
+        let first_cache = Mutex::new(HashMap::new());
+        let first = resolve_direct_stock_icon_with_cache_root(
+            &["firefox"],
+            &index,
+            &first_cache,
+            Some(&cache_root),
+        )
+        .expect("the installed package icon resolves");
+
+        fs::remove_file(&icon_path).unwrap();
+
+        // Simulate a fresh process: no in-memory result and no source file remain.
+        let empty_index = HashMap::new();
+        let fresh_cache = Mutex::new(HashMap::new());
+        let restored = resolve_direct_stock_icon_with_cache_root(
+            &["firefox", "firefox", "Firefox"],
+            &empty_index,
+            &fresh_cache,
+            Some(&cache_root),
+        )
+        .expect("the persisted icon survives source removal and a different alias list");
+
+        assert_eq!(restored, first);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn persists_appstream_stock_icon_when_name_differs_from_package_aliases() {
+        let root = std::env::temp_dir().join(format!(
+            "nxc-appstream-stock-persist-test-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        let icon_root = root.join("system-icons");
+        let cache_root = root.join("cache");
+        let icon_path = icon_root.join("hicolor/scalable/apps/custom-brand-name.svg");
+        fs::create_dir_all(icon_path.parent().unwrap()).unwrap();
+        fs::write(
+            &icon_path,
+            r#"<svg xmlns="http://www.w3.org/2000/svg"><circle cx="1" cy="1" r="1"/></svg>"#,
+        )
+        .unwrap();
+
+        let candidates = ["com.example.editor"];
+        let appstream_index = HashMap::from([(
+            candidates[0].to_string(),
+            vec!["stock|custom-brand-name".to_string()],
+        )]);
+        let stock_index = build_stock_icon_index_from_roots(std::slice::from_ref(&icon_root));
+        let cache = Mutex::new(HashMap::new());
+        let original = resolve_icon_candidates_from_index(
+            &candidates,
+            MAX_ICON_CANDIDATES,
+            &appstream_index,
+            &stock_index,
+            &cache,
+            Some(&cache_root),
+        )
+        .into_iter()
+        .next()
+        .expect("AppStream stock icon resolves");
+
+        fs::remove_file(&icon_path).unwrap();
+
+        // Simulate a new process: no memory cache remains and the stock source is gone.
+        let empty_stock_index = HashMap::new();
+        let fresh_cache = Mutex::new(HashMap::new());
+        let restored = resolve_icon_candidates_from_index(
+            &candidates,
+            MAX_ICON_CANDIDATES,
+            &appstream_index,
+            &empty_stock_index,
+            &fresh_cache,
+            Some(&cache_root),
+        )
+        .into_iter()
+        .next()
+        .expect("the AppStream stock icon is restored from the package-keyed cache");
+
+        assert_eq!(restored, original);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn persists_shared_appstream_stock_icon_for_each_package() {
+        let root = std::env::temp_dir().join(format!(
+            "nxc-shared-appstream-stock-persist-test-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        let icon_root = root.join("system-icons");
+        let cache_root = root.join("cache");
+        let icon_path = icon_root.join("hicolor/scalable/apps/shared-brand-icon.svg");
+        fs::create_dir_all(icon_path.parent().unwrap()).unwrap();
+        fs::write(
+            &icon_path,
+            r#"<svg xmlns="http://www.w3.org/2000/svg"><circle cx="1" cy="1" r="1"/></svg>"#,
+        )
+        .unwrap();
+
+        let first_package = ["com.example.editor-one"];
+        let second_package = ["com.example.editor-two"];
+        let shared_entry = vec!["stock|shared-brand-icon".to_string()];
+        let appstream_index = HashMap::from([
+            (first_package[0].to_string(), shared_entry.clone()),
+            (second_package[0].to_string(), shared_entry),
+        ]);
+        let stock_index = build_stock_icon_index_from_roots(std::slice::from_ref(&icon_root));
+        let shared_cache = Mutex::new(HashMap::new());
+
+        let first_icon = resolve_icon_candidates_from_index(
+            &first_package,
+            MAX_ICON_CANDIDATES,
+            &appstream_index,
+            &stock_index,
+            &shared_cache,
+            Some(&cache_root),
+        )
+        .into_iter()
+        .next()
+        .expect("the first package resolves the shared stock icon");
+        let second_icon = resolve_icon_candidates_from_index(
+            &second_package,
+            MAX_ICON_CANDIDATES,
+            &appstream_index,
+            &stock_index,
+            &shared_cache,
+            Some(&cache_root),
+        )
+        .into_iter()
+        .next()
+        .expect("the second package reuses the cached stock icon");
+
+        assert_eq!(first_icon, second_icon);
+        assert!(
+            read_persisted_icon_cache(&cache_root, &persisted_icon_cache_key(&first_package),)
+                .is_some(),
+            "the first package has its own persisted cache entry"
+        );
+        assert!(
+            read_persisted_icon_cache(&cache_root, &persisted_icon_cache_key(&second_package),)
+                .is_some(),
+            "a cache hit must also persist the second package's icon entry"
+        );
+
+        fs::remove_file(&icon_path).unwrap();
+
+        // Simulate a new process after the shared source has disappeared.
+        let empty_stock_index = HashMap::new();
+        let fresh_cache = Mutex::new(HashMap::new());
+        let restored_first = resolve_icon_candidates_from_index(
+            &first_package,
+            MAX_ICON_CANDIDATES,
+            &appstream_index,
+            &empty_stock_index,
+            &fresh_cache,
+            Some(&cache_root),
+        )
+        .into_iter()
+        .next()
+        .expect("the first package restores its persisted icon");
+        let restored_second = resolve_icon_candidates_from_index(
+            &second_package,
+            MAX_ICON_CANDIDATES,
+            &appstream_index,
+            &empty_stock_index,
+            &fresh_cache,
+            Some(&cache_root),
+        )
+        .into_iter()
+        .next()
+        .expect("the second package restores its persisted icon");
+
+        assert_eq!(restored_first, first_icon);
+        assert_eq!(restored_second, second_icon);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn persisted_icon_cache_key_is_stable_when_extra_aliases_are_added() {
+        assert_eq!(
+            persisted_icon_cache_key(&["firefox"]),
+            persisted_icon_cache_key(&["firefox", "firefox", "Firefox"]),
+        );
+    }
+
+    #[test]
+    fn persisted_icon_cache_rejects_invalid_data_and_key_mismatches() {
+        let root = std::env::temp_dir().join(format!(
+            "nxc-persisted-icon-validation-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let key = persisted_icon_cache_key(&["firefox"]);
+        let path = root.join(persisted_icon_cache_filename(&key));
+        fs::write(&path, format!("{key}\ndata:text/html;base64,PHNjcmlwdD4=")).unwrap();
+        assert!(read_persisted_icon_cache(&root, &key).is_none());
+
+        fs::write(&path, "direct|6:chrome|\ndata:image/png;base64,aGVsbG8=").unwrap();
+        assert!(read_persisted_icon_cache(&root, &key).is_none());
+
+        let _ = fs::remove_dir_all(root);
     }
 }

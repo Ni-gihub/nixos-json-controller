@@ -65,6 +65,21 @@ function InstallButtonInstance({
     };
   }, [finishInstallRequest, packageId]);
 
+  const notifyPackageInstalled = async (installedPackageId: string) => {
+    // Refresh the backend index before AppIcon requests candidates. This also
+    // covers installs whose active state is confirmed by the follow-up lookup.
+    try {
+      await invoke("refresh_local_icon_cache");
+    } catch {
+      // Icon refresh is best-effort; installation success must remain successful.
+    }
+    window.dispatchEvent(
+      new CustomEvent("nxc:package-installed", {
+        detail: { packageId: installedPackageId },
+      }),
+    );
+  };
+
   const install = async (authPassword: string | null) => {
     setError(null);
     try {
@@ -87,6 +102,7 @@ function InstallButtonInstance({
         // running another Nix evaluation for the same package.
         markPackageActiveVerified(result.package);
         setInstallSucceeded(true);
+        void notifyPackageInstalled(result.package);
       } else {
         // A successful no-op path does not prove that the package is active.
         // Invalidate older lookups and refresh the actual state in the background.
@@ -98,6 +114,7 @@ function InstallButtonInstance({
             if (unmountedRef.current || state === null) return;
             if (state.active === true) {
               setInstallSucceeded(true);
+              void notifyPackageInstalled(result.package);
             } else {
               setError(
                 "処理は完了しましたが、アクティブなシステムでインストール状態を確認できませんでした。",

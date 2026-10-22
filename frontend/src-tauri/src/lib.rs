@@ -42,6 +42,29 @@ async fn install_app(package: String, password: Option<String>) -> Result<Instal
 }
 
 #[tauri::command]
+async fn refresh_local_icon_cache() -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        nixos_json_controller::nixos::appstream::refresh_local_icon_cache();
+    })
+    .await
+    .map_err(|error| format!("icon cache refresh task failed: {error}"))
+}
+
+#[tauri::command]
+async fn get_icon_candidates(package: String, name: String) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        Ok(
+            nixos_json_controller::nixos::appstream::icon_candidates_for_package(&[
+                package.as_str(),
+                name.as_str(),
+            ]),
+        )
+    })
+    .await
+    .map_err(|error| format!("icon candidate lookup task failed: {error}"))?
+}
+
+#[tauri::command]
 async fn prepare_catalog(
     force_refresh: bool,
 ) -> Result<nixos_json_controller::nixos::catalog::CatalogPreparationStatus, String> {
@@ -118,6 +141,8 @@ pub fn run() {
             log_icon_debug,
             sudo_available,
             install_app,
+            refresh_local_icon_cache,
+            get_icon_candidates,
             prepare_catalog,
             search_catalog,
             get_catalog_app,

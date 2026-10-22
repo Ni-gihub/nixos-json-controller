@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-static INDEX: OnceLock<HashMap<String, Vec<String>>> = OnceLock::new();
+static INDEX: OnceLock<Mutex<HashMap<String, Vec<String>>>> = OnceLock::new();
 static ICON_CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
 static STOCK_ICON_INDEX: OnceLock<Mutex<HashMap<String, Vec<PathBuf>>>> = OnceLock::new();
 
@@ -69,7 +69,11 @@ fn resolve_icon_candidates(candidates: &[&str], limit: usize) -> Vec<String> {
         });
     }
 
-    let index = INDEX.get_or_init(load_index);
+    // Lock indexes in AppStream -> stock order, matching refresh_local_icon_cache().
+    let index = INDEX.get_or_init(|| Mutex::new(load_index()));
+    let Ok(index) = index.lock() else {
+        return Vec::new();
+    };
     let cache = ICON_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
     let stock_index = STOCK_ICON_INDEX.get_or_init(|| Mutex::new(build_stock_icon_index()));
     let Ok(stock_index) = stock_index.lock() else {
@@ -79,7 +83,7 @@ fn resolve_icon_candidates(candidates: &[&str], limit: usize) -> Vec<String> {
     resolve_icon_candidates_from_index(
         candidates,
         limit,
-        index,
+        &index,
         &stock_index,
         cache,
         cache_root.as_deref(),
@@ -92,27 +96,43 @@ fn resolve_icon_candidates(candidates: &[&str], limit: usize) -> Vec<String> {
 /// scans. A package install/removal changes the available icon files, so the GUI should call
 /// this after a rebuild has been verified.
 pub fn refresh_local_icon_cache() {
-    // Scan outside the lock so concurrent icon lookups are not blocked during the scan.
-    let new_index = build_stock_icon_index();
+    // Scan outside the locks so normal lookups are not blocked during filesystem traversal.
+    let new_appstream_index = load_index();
+    let new_stock_index = build_stock_icon_index();
+
+    // Always acquire AppStream before the stock index; resolve_icon_candidates uses this order too.
+    let appstream_index = INDEX.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut appstream_index = appstream_index
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
     let stock_index = STOCK_ICON_INDEX.get_or_init(|| Mutex::new(HashMap::new()));
-    // The whole map is replaced, so recovering from a poisoned lock is safe here.
     let mut stock_index = stock_index
         .lock()
         .unwrap_or_else(|error| error.into_inner());
+
     let cache = ICON_CACHE.get();
-    refresh_icon_index_and_cache(&mut stock_index, cache, new_index);
+    refresh_icon_indexes_and_cache(
+        &mut appstream_index,
+        &mut stock_index,
+        cache,
+        new_appstream_index,
+        new_stock_index,
+    );
     clear_persisted_icon_cache_write_keys(
         PERSISTED_ICON_CACHE_FILES.get_or_init(|| Mutex::new(HashSet::new())),
     );
 }
 
-/// Replace the local icon index and invalidate cached hits and misses as one refresh operation.
-fn refresh_icon_index_and_cache(
+/// Replace both local icon indexes and invalidate cached hits and misses as one refresh operation.
+fn refresh_icon_indexes_and_cache(
+    appstream_index: &mut HashMap<String, Vec<String>>,
     stock_index: &mut HashMap<String, Vec<PathBuf>>,
     cache: Option<&Mutex<HashMap<String, Option<String>>>>,
-    new_index: HashMap<String, Vec<PathBuf>>,
+    new_appstream_index: HashMap<String, Vec<String>>,
+    new_stock_index: HashMap<String, Vec<PathBuf>>,
 ) {
-    *stock_index = new_index;
+    *appstream_index = new_appstream_index;
+    *stock_index = new_stock_index;
     if let Some(cache) = cache {
         if let Ok(mut cache) = cache.lock() {
             cache.clear();
@@ -445,7 +465,13 @@ fn write_persisted_icon_cache_once(
     let Ok(mut written_files) = written_files.lock() else {
         return false;
     };
-    if written_files.contains(&tracking_key) || fs::create_dir_all(root).is_err() {
+    if written_files.contains(&tracking_key) && path.is_file() {
+        return false;
+    }
+    // Another process or a cache-cleanup task may remove the persisted file.
+    // Drop stale tracking so the next successful lookup can recreate it.
+    written_files.remove(&tracking_key);
+    if fs::create_dir_all(root).is_err() {
         return false;
     }
     let nonce = SystemTime::now()
@@ -1306,6 +1332,34 @@ mod tests {
     }
 
     #[test]
+    fn recreates_persisted_icon_if_an_external_cleanup_removes_it() {
+        let root = std::env::temp_dir().join(format!(
+            "nxc-persisted-icon-external-delete-test-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        let written_files = Mutex::new(HashSet::new());
+        let key = "persisted|external-delete-test";
+        let icon = "data:image/svg+xml;base64,PHN2Zy8+";
+        let path = root.join(persisted_icon_cache_filename(key));
+
+        assert!(write_persisted_icon_cache_once(&root, key, icon, &written_files));
+        assert!(path.is_file());
+        fs::remove_file(&path).unwrap();
+
+        assert!(
+            write_persisted_icon_cache_once(&root, key, icon, &written_files),
+            "a cache file removed externally must be recreated despite stale tracking"
+        );
+        assert_eq!(read_persisted_icon_cache(&root, key).as_deref(), Some(icon));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn direct_stock_cache_key_distinguishes_candidate_sequences() {
         assert_ne!(
             direct_stock_cache_key(&["firefox", "mozilla"]),
@@ -1709,13 +1763,82 @@ mod tests {
         )
         .unwrap();
         let installed_index = build_stock_icon_index_from_roots(std::slice::from_ref(&root));
-        let mut active_index = empty_index;
-        refresh_icon_index_and_cache(&mut active_index, Some(&cache), installed_index);
+        let mut active_appstream_index = HashMap::new();
+        let mut active_stock_index = empty_index;
+        refresh_icon_indexes_and_cache(
+            &mut active_appstream_index,
+            &mut active_stock_index,
+            Some(&cache),
+            HashMap::new(),
+            installed_index,
+        );
 
         assert!(
-            resolve_direct_stock_icon_with_cache_root(&["firefox"], &active_index, &cache, None,)
+            resolve_direct_stock_icon_with_cache_root(
+                &["firefox"],
+                &active_stock_index,
+                &cache,
+                None,
+            )
                 .is_some(),
             "refresh must invalidate the cached miss and discover the newly installed icon"
+        );
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn refreshes_appstream_stock_candidates_after_catalog_changes() {
+        let root = std::env::temp_dir().join(format!(
+            "nxc-refresh-appstream-index-test-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        let icon_path = root.join("hicolor/scalable/apps/vendor-selected-name.svg");
+        fs::create_dir_all(icon_path.parent().unwrap()).unwrap();
+        fs::write(
+            &icon_path,
+            r#"<svg xmlns="http://www.w3.org/2000/svg"><circle cx="1" cy="1" r="1"/></svg>"#,
+        )
+        .unwrap();
+
+        let package_id = "com.example.special-editor";
+        let stock_icon_name = "vendor-selected-name";
+        let mut appstream_index = HashMap::new();
+        let mut stock_index = HashMap::new();
+        let cache = Mutex::new(HashMap::from([(
+            format!("stock|{stock_icon_name}"),
+            None,
+        )]));
+        let appstream_after_install = HashMap::from([(
+            package_id.to_string(),
+            vec![format!("stock|{stock_icon_name}")],
+        )]);
+        let stock_after_install =
+            build_stock_icon_index_from_roots(std::slice::from_ref(&root));
+
+        refresh_icon_indexes_and_cache(
+            &mut appstream_index,
+            &mut stock_index,
+            Some(&cache),
+            appstream_after_install,
+            stock_after_install,
+        );
+
+        let resolved = resolve_icon_candidates_from_index(
+            &[package_id],
+            MAX_ICON_CANDIDATES,
+            &appstream_index,
+            &stock_index,
+            &cache,
+            None,
+        );
+        assert!(
+            resolved.first().is_some_and(|icon| icon.starts_with("data:image/svg+xml;base64,")),
+            "refresh must load newly available AppStream stock aliases and clear stale negative entries"
         );
 
         let _ = fs::remove_dir_all(root);

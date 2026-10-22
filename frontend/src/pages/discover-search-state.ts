@@ -43,6 +43,18 @@ export function shouldReuseSearchOnReturn(
   );
 }
 
+/** Restore list position only when returning with the same search query. */
+export function shouldRestoreDiscoverScroll(
+  previousPathname: string,
+  savedQuery: string,
+  nextQuery: string,
+): boolean {
+  return (
+    previousPathname !== "/discover" &&
+    savedQuery.trim() === nextQuery.trim()
+  );
+}
+
 /** Ignore results from any search request superseded by a newer action. */
 export function isCurrentSearchRequest(
   requestId: number,

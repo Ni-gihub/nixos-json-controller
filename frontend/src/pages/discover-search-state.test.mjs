@@ -5,6 +5,7 @@ import {
   classifySearchUrlTransition,
   isCurrentSearchRequest,
   shouldReuseSearchOnReturn,
+  shouldRestoreDiscoverScroll,
 } from "./discover-search-state.ts";
 
 test("ignores a stale URL query while a clear operation is pending", () => {
@@ -70,6 +71,21 @@ test("reuses same-query search state after detail navigation", () => {
       "firefox",
       "firefox",
     ),
+    false,
+  );
+});
+
+test("restores scroll only when returning to the same query", () => {
+  assert.equal(
+    shouldRestoreDiscoverScroll("/apps/firefox", "firefox", "firefox"),
+    true,
+  );
+  assert.equal(
+    shouldRestoreDiscoverScroll("/apps/firefox", "firefox", "vscode"),
+    false,
+  );
+  assert.equal(
+    shouldRestoreDiscoverScroll("/discover", "firefox", "firefox"),
     false,
   );
 });

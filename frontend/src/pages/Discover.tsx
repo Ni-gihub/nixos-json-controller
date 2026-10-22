@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   BookOpen,
@@ -157,6 +157,11 @@ function Discover() {
     useState<CatalogPreparationStatus | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const { states, loading, error, refreshPackages } = useAppState();
+  const isDiscoverActive = location.pathname === "/discover";
+  const isDiscoverActiveRef = useRef(isDiscoverActive);
+  useLayoutEffect(() => {
+    isDiscoverActiveRef.current = isDiscoverActive;
+  }, [isDiscoverActive]);
   const searchRequestIdRef = useRef(0);
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
   const loadingMoreRef = useRef(false);
@@ -254,6 +259,7 @@ function Discover() {
   const dispatchQueuedPackageStates = useCallback(() => {
     const scheduleNextBatch = () => {
       if (
+        !isDiscoverActiveRef.current ||
         pendingStateIdsRef.current.size === 0 ||
         stateRefreshTimerRef.current !== null ||
         stateRefreshInFlightRef.current
@@ -263,6 +269,7 @@ function Discover() {
 
       stateRefreshTimerRef.current = setTimeout(() => {
         stateRefreshTimerRef.current = null;
+        if (!isDiscoverActiveRef.current) return;
         const batch = Array.from(pendingStateIdsRef.current).slice(0, 40);
         for (const packageName of batch) {
           pendingStateIdsRef.current.delete(packageName);
@@ -287,6 +294,7 @@ function Discover() {
   /** Queue state checks for packages in the current virtual viewport. */
   const requestVisiblePackageStates = useCallback(
     (packageNames: string[]) => {
+      if (!isDiscoverActiveRef.current) return;
       for (const packageName of packageNames) {
         if (
           states[packageName] !== undefined ||
@@ -301,6 +309,19 @@ function Discover() {
     },
     [dispatchQueuedPackageStates, states],
   );
+
+  useEffect(() => {
+    if (isDiscoverActive) return;
+
+    // Drop queued visibility checks when the page is hidden. An already-running
+    // native request cannot be cancelled here, but it will not schedule another batch.
+    pendingStateIdsRef.current.clear();
+    requestedStateIdsRef.current.clear();
+    if (stateRefreshTimerRef.current !== null) {
+      clearTimeout(stateRefreshTimerRef.current);
+      stateRefreshTimerRef.current = null;
+    }
+  }, [isDiscoverActive]);
 
   useEffect(
     () => () => {
@@ -693,7 +714,6 @@ function Discover() {
             setRecommendationStatus("ready");
             setRecommendationMessage(null);
           }
-          void refreshPackages(combinedApps.map((app) => app.id));
           return;
         }
 
@@ -707,7 +727,6 @@ function Discover() {
           ];
           if (unresolvedMessage) messages.push(unresolvedMessage);
           setRecommendationMessage(messages.join(" "));
-          void refreshPackages(fallbackApps.map((app) => app.id));
         } else {
           setRecommendationStatus("unavailable");
           const messages = [
@@ -727,7 +746,6 @@ function Discover() {
           setRecommendationMessage(
             `Nixpkgsの詳細情報取得に失敗しました: ${String(err)}`,
           );
-          void refreshPackages(fallbackApps.map((app) => app.id));
         } else {
           setRecommendationStatus("unavailable");
           setRecommendationMessage(
@@ -739,7 +757,20 @@ function Discover() {
     return () => {
       cancelled = true;
     };
-  }, [recommendationIds, refreshPackages, recommendationReloadKey]);
+  }, [recommendationIds, recommendationReloadKey]);
+
+  useEffect(() => {
+    if (!isDiscoverActive || recommendedCatalogApps.length === 0) return;
+
+    // Defer recommendation status lookups while Discover is hidden and refresh
+    // only missing state when the retained page becomes visible again.
+    const missingIds = recommendedCatalogApps
+      .map((app) => app.id)
+      .filter((id) => states[id] === undefined);
+    if (missingIds.length > 0) {
+      void refreshPackages(missingIds);
+    }
+  }, [isDiscoverActive, recommendedCatalogApps, refreshPackages, states]);
 
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

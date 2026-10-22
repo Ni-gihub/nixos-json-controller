@@ -349,7 +349,7 @@ GUI 用の Flake package、Desktop Entry、静的なランチャーアイコン�
 - [#102 — PBI: GUIからインストール済みアプリを確認・管理する](https://github.com/Ni-gihub/nixos-json-controller/issues/102)
 - [#134 — Bug: 高速スクロール時にサイドバーの描画が重なる](https://github.com/Ni-gihub/nixos-json-controller/issues/134)
 - [#162 — PBI: インストール制約に合うパッケージをApp Storeで表示する](https://github.com/Ni-gihub/nixos-json-controller/issues/162)
-- [#163 — Bug: アンインストール後もアプリアイコンを表示できる](https://github.com/Ni-gihub/nixos-json-controller/issues/163)
+- [#172 — PBI: 詳細画面から一覧に戻った際に検索結果を再利用する](https://github.com/Ni-gihub/nixos-json-controller/issues/172)
 
 完了済みの改善と対応見送りの履歴は [PBL #167](https://github.com/Ni-gihub/nixos-json-controller/issues/167) を参照してください。
 

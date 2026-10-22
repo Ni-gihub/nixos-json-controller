@@ -1807,19 +1807,13 @@ mod tests {
 
         assert_eq!(first_icon, second_icon);
         assert!(
-            read_persisted_icon_cache(
-                &cache_root,
-                &persisted_icon_cache_key(&first_package),
-            )
-            .is_some(),
+            read_persisted_icon_cache(&cache_root, &persisted_icon_cache_key(&first_package),)
+                .is_some(),
             "the first package has its own persisted cache entry"
         );
         assert!(
-            read_persisted_icon_cache(
-                &cache_root,
-                &persisted_icon_cache_key(&second_package),
-            )
-            .is_some(),
+            read_persisted_icon_cache(&cache_root, &persisted_icon_cache_key(&second_package),)
+                .is_some(),
             "a cache hit must also persist the second package's icon entry"
         );
 

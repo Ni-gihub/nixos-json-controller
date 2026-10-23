@@ -1,10 +1,8 @@
-import packageMap from "../../scripts/recommendation-package-map.json" with { type: "json" };
-
 export type RecommendationRecord = {
   id: string;
   archPackage: string;
   genre: string;
-  popularity: number | null;
+  popularity: number;
   count: number | null;
   samples: number | null;
 };
@@ -32,12 +30,14 @@ export type CachedRecommendations = {
 type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
 const BUNDLED_DATA_URL = "/data/recommendations.json";
+const LATEST_DATA_URL =
+  "https://raw.githubusercontent.com/Ni-gihub/nixos-json-controller/main/frontend/public/data/recommendations.json";
 const RECOMMENDATION_CACHE_KEY = "nxc.app-store.recommendations.v2";
 export const RECOMMENDATION_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 const EMPTY_DATA: RecommendationDocument = {
-  source: "NXC curated recommendations",
-  sourceUrl: "https://github.com/nxc-project/nixos-json-controller",
+  source: "Arch Linux pkgstats",
+  sourceUrl: "https://pkgstats.archlinux.de/api/doc",
   generatedAt: null,
   period: null,
   recommendations: [],
@@ -91,11 +91,10 @@ export function parseRecommendationData(
       typeof item.genre !== "string" ||
       item.genre.trim().length === 0 ||
       item.genre.length > 40 ||
-      (item.popularity !== null &&
-        (typeof item.popularity !== "number" ||
-          !Number.isFinite(item.popularity) ||
-          item.popularity < 0 ||
-          item.popularity > 100)) ||
+      typeof item.popularity !== "number" ||
+      !Number.isFinite(item.popularity) ||
+      item.popularity < 0 ||
+      item.popularity > 100 ||
       (item.count !== null &&
         (typeof item.count !== "number" ||
           !Number.isInteger(item.count) ||
@@ -113,7 +112,7 @@ export function parseRecommendationData(
         id: item.id,
         archPackage: item.archPackage,
         genre: item.genre,
-        popularity: item.popularity as number | null,
+        popularity: item.popularity,
         count: item.count as number | null,
         samples: item.samples as number | null,
       });
@@ -208,7 +207,6 @@ export function writeCachedRecommendations(
   if (
     !storage ||
     data.recommendations.length === 0 ||
-    !data.recommendations.some((item) => item.popularity !== null) ||
     !Number.isFinite(checkedAt) ||
     checkedAt < 0
   ) {
@@ -242,9 +240,7 @@ export function retainUsableRecommendationData(
   candidate: RecommendationDocument,
   existing: RecommendationDocument | null | undefined,
 ): RecommendationDocument {
-  if (candidate.recommendations.some((item) => item.popularity !== null)) {
-    return candidate;
-  }
+  if (candidate.recommendations.length > 0) return candidate;
   if (existing?.recommendations.length) return existing;
   return candidate;
 }
@@ -267,53 +263,25 @@ async function readRecommendationData(
   }
 }
 
-const MAX_CURATED_ITEMS_PER_GENRE = 12;
-
-/**
- * Build an offline-safe recommendation list from NXC's own package/genre map.
- * These records do not contain popularity statistics from a third party.
- */
-export function buildCuratedRecommendationData(): RecommendationDocument {
-  const recommendations: RecommendationRecord[] = [];
-  const includedIds = new Set<string>();
-  const genreCounts = new Map<string, number>();
-
-  for (const item of packageMap) {
-    if (includedIds.has(item.id)) continue;
-    const count = genreCounts.get(item.genre) ?? 0;
-    if (count >= MAX_CURATED_ITEMS_PER_GENRE) continue;
-
-    recommendations.push({
-      id: item.id,
-      archPackage: item.archPackage,
-      genre: item.genre,
-      popularity: null,
-      count: null,
-      samples: null,
-    });
-    includedIds.add(item.id);
-    genreCounts.set(item.genre, count + 1);
-  }
-
-  return {
-    source: "NXC curated recommendations",
-    sourceUrl:
-      "https://github.com/nxc-project/nixos-json-controller/blob/main/frontend/scripts/recommendation-package-map.json",
-    generatedAt: null,
-    period: null,
-    recommendations,
-  };
-}
-
-/**
- * Prefer locally generated distributor data when available. Without it, use NXC's
- * curated map and do not invent or imply third-party popularity statistics.
- */
+/** Read the packaged copy first so initial UI does not depend on the network. */
 export async function loadBundledRecommendations(
   fetcher: typeof fetch = fetch,
 ): Promise<RecommendationDocument> {
   return (
-    (await readRecommendationData(BUNDLED_DATA_URL, fetcher)) ??
-    buildCuratedRecommendationData()
+    (await readRecommendationData(BUNDLED_DATA_URL, fetcher)) ?? EMPTY_DATA
   );
+}
+
+/** Fetch the latest generated JSON; callers decide when the cached value should be refreshed. */
+export async function loadLatestRecommendations(
+  fetcher: typeof fetch = fetch,
+): Promise<RecommendationDocument | undefined> {
+  const separator = LATEST_DATA_URL.includes("?") ? "&" : "?";
+  const latest = await readRecommendationData(
+    `${LATEST_DATA_URL}${separator}t=${Date.now()}`,
+    fetcher,
+  );
+
+  // An empty remote file should not replace the last known usable recommendation list.
+  return latest?.recommendations.length ? latest : undefined;
 }

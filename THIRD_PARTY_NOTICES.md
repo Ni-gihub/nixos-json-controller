@@ -44,10 +44,12 @@ who chooses to generate and bundle this file must independently confirm the
 applicable terms and comply with any conditions. NXC's MIT license does not
 cover or grant additional rights to the statistics.
 
-If the file is not generated, the GUI uses the curated NXC package mapping
-without displaying pkgstats popularity percentages. This keeps the core
-catalog/recommendation UI usable without placing the third-party statistics
-dataset in the source tree.
+Run `pnpm recommendations:generate` in `frontend/` before `pnpm tauri build`
+when a distributor chooses to bundle the generated statistics. The Vite build
+copies the locally generated JSON into the GUI bundle. If the file is not
+generated, the GUI uses the curated NXC package mapping without displaying
+pkgstats popularity percentages. This keeps the core catalog/recommendation UI
+usable without placing the third-party statistics dataset in the source tree.
 
 ## Runtime Iconify icons
 
@@ -74,7 +76,8 @@ Vite output and can accompany a GUI distribution.
 ## Other direct assets and package dependencies
 
 - `frontend/src-tauri/icons/`, `frontend/public/favicon.svg`,
-  `frontend/public/icons.svg`, and `frontend/src/assets/hero.png` contain
+  `frontend/public/icons.svg`, `frontend/src/assets/hero.png`,
+  `frontend/src/assets/react.svg`, and `frontend/src/assets/vite.svg` contain
   binary or SVG assets whose original author/license could not be established
   from the repository metadata during this review. Do not treat those assets as
   confirmed MIT-licensed material until their provenance is recorded.

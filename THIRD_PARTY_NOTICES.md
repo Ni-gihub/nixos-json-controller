@@ -1,4 +1,4 @@
-# Third-party notices and distributor data
+# Third-party notices
 
 The root [MIT License](./LICENSE) applies to NXC-authored code, including the
 CLI/core, GUI source, Nix expressions, scripts, and documentation, except for
@@ -6,9 +6,9 @@ files or portions identified as third-party material below. It does not
 relicense external services, datasets, application icons, trademarks, or
 dependencies.
 
-This is a source inventory and packaging guide, not a blanket permission to
-redistribute third-party material. A distributor must review the actual data
-and dependency versions included in their build and keep any required notices.
+This document records known sources and outstanding checks. It is not a
+blanket permission to redistribute third-party material. A release must be
+reviewed against the exact assets and dependency versions it includes.
 
 ## AppStream data
 
@@ -21,35 +21,28 @@ the upstream repository's MIT license covers its code, not those individual
 records and icons.
 
 The AppStream data is fetched/built from the Flake input rather than committed
-as an NXC source file. The contents of `metadata_license` are not a single
-project-wide license. Build/distribution maintainers should inspect the actual
-generated XML and preserve the applicable attribution and license information.
-Use `python3 scripts/audit-appstream-licenses.py /path/to/appstream-data` to
-summarize the license identifiers in a locally built output.
+as an NXC source file. Individual records can have different metadata licenses.
+The presence of AppStream does not itself prevent NXC distribution; distributors
+must review the actual generated data and retain the notices/attribution that
+apply to the included records and icons.
 
 ## Arch Linux pkgstats recommendation statistics
 
-`frontend/scripts/update-recommendations.mjs` generates
-`frontend/public/data/recommendations.json` from the public
-[Arch Linux pkgstats API](https://pkgstats.archlinux.de/api/doc), using the
-NXC-maintained package mapping in
-`frontend/scripts/recommendation-package-map.json`. The generated JSON is a
-local build/distribution artifact and is intentionally ignored by Git; it is
-not committed or automatically pushed to this repository.
+The current source tree contains
+`frontend/public/data/recommendations.json`, which is generated from the public
+[Arch Linux pkgstats API](https://pkgstats.archlinux.de/api/doc). The workflow
+`.github/workflows/update-recommendations.yml` periodically refreshes and
+commits this snapshot. This PR intentionally does not change the dataset, the
+workflow, or the GUI's current recommendation behavior.
 
-The API documentation inspected for this change does not state a clear
+The API documentation inspected for this change does not establish a clear
 redistribution license for the statistics payload. The server source license
-does not by itself establish the license of API response data. A distributor
-who chooses to generate and bundle this file must independently confirm the
-applicable terms and comply with any conditions. NXC's MIT license does not
-cover or grant additional rights to the statistics.
-
-Run `pnpm recommendations:generate` in `frontend/` before `pnpm tauri build`
-when a distributor chooses to bundle the generated statistics. The Vite build
-copies the locally generated JSON into the GUI bundle. If the file is not
-generated, the GUI uses the curated NXC package mapping without displaying
-pkgstats popularity percentages. This keeps the core catalog/recommendation UI
-usable without placing the third-party statistics dataset in the source tree.
+does not by itself establish the license of API response data. NXC's MIT
+license does not cover or grant additional rights to these statistics. Before
+including the snapshot in a release, confirm the applicable terms and comply
+with any conditions. If those terms cannot be established, handle the
+recommendation-data distribution design in a separate change rather than
+silently treating the data as cleared.
 
 ## Runtime Iconify icons
 
@@ -57,7 +50,7 @@ The GUI can request icon artwork at runtime from Iconify, restricted in code to
 the `logos` and `simple-icons` collections. Iconify's collection list
 identifies `logos` as CC0 and `simple-icons` as CC0 1.0. Those licenses do
 not grant trademark rights in the represented brands. NXC does not package the
-Iconify service; a distributor should retain relevant source/attribution
+Iconify service; distributors should retain relevant source/attribution
 information and review brand-specific terms when redistributing icon artwork.
 
 - [Iconify collection license list](https://github.com/iconify/icon-sets/blob/master/collections.md)
@@ -79,12 +72,13 @@ Vite output and can accompany a GUI distribution.
   `frontend/public/icons.svg`, `frontend/src/assets/hero.png`,
   `frontend/src/assets/react.svg`, and `frontend/src/assets/vite.svg` contain
   binary or SVG assets whose original author/license could not be established
-  from the repository metadata during this review. Do not treat those assets as
-  confirmed MIT-licensed material until their provenance is recorded.
+  from the repository metadata during this review. Their provenance must be
+  recorded before describing them as confirmed MIT-licensed material.
 - Cargo and pnpm dependencies retain their own licenses. Their licenses are
   not changed by NXC's MIT license. Before producing a release, generate a
   dependency-license report from the exact lockfiles and include the license
   texts/notices required for the dependencies actually shipped in the bundle.
 
-The unknown-provenance assets and the pkgstats data terms are release-review
-items; this document intentionally does not mark them as cleared.
+The pkgstats data terms, several direct assets, and the exact notices required
+for release dependencies remain release-review items. This document does not
+mark them as cleared.

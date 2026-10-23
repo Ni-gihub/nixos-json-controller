@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  chunkPackageNames,
   PackageStateRevision,
   PendingRequestCounter,
   withUnknownPackageState,
@@ -84,4 +85,26 @@ test("invalidates a package-state response that started before installation", ()
   assert.equal(revisions.isCurrent("firefox", revisionBeforeInstall), false);
   assert.equal(revisions.isCurrent("firefox", revisions.current("firefox")), true);
   assert.equal(revisions.isCurrent("chromium", revisionBeforeInstall), true);
+});
+
+test("chunks package-state requests at the command limit and preserves order", () => {
+  const packageNames = Array.from({ length: 250 }, (_, index) => `package-${index}`);
+
+  assert.deepEqual(chunkPackageNames([]), []);
+  assert.deepEqual(chunkPackageNames(packageNames.slice(0, 100)).map((batch) => batch.length), [100]);
+  assert.deepEqual(
+    chunkPackageNames(packageNames.slice(0, 101)).map((batch) => batch.length),
+    [100, 1],
+  );
+
+  const batches = chunkPackageNames(packageNames);
+  assert.deepEqual(batches.map((batch) => batch.length), [100, 100, 50]);
+  assert.deepEqual(batches.flat(), packageNames);
+  assert.ok(batches.every((batch) => batch.length <= 100));
+});
+
+test("rejects invalid package-state batch sizes", () => {
+  assert.throws(() => chunkPackageNames(["firefox"], 0), RangeError);
+  assert.throws(() => chunkPackageNames(["firefox"], -1), RangeError);
+  assert.throws(() => chunkPackageNames(["firefox"], 1.5), RangeError);
 });

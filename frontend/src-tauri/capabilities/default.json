@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The local main window only needs its custom title-bar controls.",
+  "description": "The local main window only needs its custom title-bar controls and drag-region double-click behavior.",
   "windows": [
     "main"
   ],
@@ -9,6 +9,7 @@
     "core:window:allow-minimize",
     "core:window:allow-toggle-maximize",
     "core:window:allow-close",
-    "core:window:allow-start-dragging"
+    "core:window:allow-start-dragging",
+    "core:window:allow-internal-toggle-maximize"
   ]
 }

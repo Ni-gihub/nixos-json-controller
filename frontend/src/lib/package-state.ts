@@ -1,3 +1,21 @@
+/** Split package-state IPC requests so each stays within the Rust command's input limit. */
+export const DEFAULT_PACKAGE_STATE_BATCH_SIZE = 100;
+
+export function chunkPackageNames(
+  packageNames: readonly string[],
+  batchSize = DEFAULT_PACKAGE_STATE_BATCH_SIZE,
+): string[][] {
+  if (!Number.isInteger(batchSize) || batchSize < 1) {
+    throw new RangeError("batchSize must be a positive integer");
+  }
+
+  const batches: string[][] = [];
+  for (let offset = 0; offset < packageNames.length; offset += batchSize) {
+    batches.push(packageNames.slice(offset, offset + batchSize));
+  }
+  return batches;
+}
+
 export type PackageState = {
   name: string;
   configured: boolean | null;

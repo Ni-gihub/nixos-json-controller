@@ -24,7 +24,7 @@
       "csp": {
         "default-src": "'self' customprotocol: asset:",
         "base-uri": "'self'",
-        "connect-src": "ipc: http://ipc.localhost https://api.iconify.design",
+        "connect-src": "ipc: http://ipc.localhost https://api.iconify.design https://raw.githubusercontent.com",
         "font-src": "'self'",
         "form-action": "'self'",
         "img-src": "'self' asset: http://asset.localhost data:",
@@ -35,7 +35,7 @@
       "devCsp": {
         "default-src": "'self' customprotocol: asset: http://localhost:5173",
         "base-uri": "'self'",
-        "connect-src": "ipc: http://ipc.localhost https://api.iconify.design http://localhost:5173 ws://localhost:5173",
+        "connect-src": "ipc: http://ipc.localhost https://api.iconify.design https://raw.githubusercontent.com http://localhost:5173 ws://localhost:5173",
         "font-src": "'self'",
         "form-action": "'self'",
         "img-src": "'self' asset: http://asset.localhost data:",

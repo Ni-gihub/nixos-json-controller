@@ -13,6 +13,7 @@ import {
   type InstallRequestPhase,
 } from "./install-request-lock";
 import {
+  chunkPackageNames,
   PackageStateRevision,
   PendingRequestCounter,
   withUnknownPackageState,
@@ -136,9 +137,14 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setLoading(true);
       setError(null);
       try {
-        const result = await invoke<AppState[]>("get_app_states", {
-          packages: packageNames,
-        });
+        const result: AppState[] = [];
+        for (const packageBatch of chunkPackageNames(packageNames)) {
+          result.push(
+            ...(await invoke<AppState[]>("get_app_states", {
+              packages: packageBatch,
+            })),
+          );
+        }
         setStates((current) => {
           const next = { ...current };
           for (const state of result) {

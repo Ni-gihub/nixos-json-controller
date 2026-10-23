@@ -13,23 +13,24 @@ The production CSP is defined in **frontend/src-tauri/tauri.conf.json** and does
 | **script-src** | Allows only local scripts. No remote script host or unsafe-eval is permitted. Tauri injects the required hashes/nonces for bundled assets at build time. |
 | **style-src** | Allows local styles and unsafe-inline for existing React style attributes in the virtualized list and recommendation popularity indicator. This exception is limited to styles; scripts remain restricted. |
 | **img-src** | Allows local app/asset URLs and data: images. Rust-resolved local icons and sanitized Iconify SVGs are represented as data URLs. |
-| **connect-src** | Allows Tauri IPC (ipc: and http://ipc.localhost) and the only external icon metadata host, https://api.iconify.design. |
+| **connect-src** | Allows Tauri IPC (ipc: and http://ipc.localhost), Iconify icon metadata (https://api.iconify.design), and the raw GitHub host (https://raw.githubusercontent.com) used to refresh the recommendation JSON. |
 | **font-src** | Uses locally bundled font assets; no external font host is needed. |
 | **object-src** | Blocks embedded plugin/object content. |
 | **base-uri** and **form-action** | Keep document base URLs and form submission local. |
 
-External icon lookup fetches text from Iconify, accepts only strict brand aliases, sanitizes SVG element/attribute content, then converts it to a data URL. The remote host is therefore present in connect-src, not in img-src; remote scripts are never allowed.
+External icon lookup fetches text from Iconify, accepts only strict brand aliases, sanitizes SVG element/attribute content, then converts it to a data URL. The latest-recommendation refresh separately fetches the validated JSON document from raw.githubusercontent.com. Both hosts are allowed only in connect-src, not img-src; remote scripts are never allowed.
 
-The development-only devCsp separately permits http://localhost:5173 and its Vite WebSocket (ws://localhost:5173). Those development sources are absent from production csp. No wildcard host, unsafe-eval, or remote script allowance is configured.
+The development-only devCsp separately permits http://localhost:5173 and its Vite WebSocket (ws://localhost:5173), while retaining the two production data endpoints required for icons and recommendation refresh. Those development sources are absent from production csp. No wildcard host, unsafe-eval, or remote script allowance is configured.
 
 ## Tauri capabilities
 
-The main window capability no longer uses core:default. It grants only the four core window operations used by the custom title bar:
+The main window capability no longer uses core:default. It grants only the five core window permissions needed by the custom title bar and its drag-region double-click behavior:
 
 - core:window:allow-minimize
 - core:window:allow-toggle-maximize
 - core:window:allow-close
 - core:window:allow-start-dragging
+- core:window:allow-internal-toggle-maximize
 
 No filesystem, shell, dialog, HTTP, tray, menu, image, or WebView plugin permissions are requested. The application commands available to the local frontend remain explicitly enumerated in the Rust invoke_handler; those commands have their own input checks as described below. Capability restrictions do not replace validation inside application-defined commands.
 
@@ -55,7 +56,7 @@ install_app is the only GUI command accepting a sudo password. The frontend clea
 
 ## Verification status and remaining release gate
 
-Automated Rust unit tests cover boundary size/NUL checks, batch limits, surrounding whitespace, and password line-delimiter handling. GitHub Actions must still confirm the Rust/Frontend/Tauri checks after this branch is pushed.
+Automated Rust unit tests cover boundary size/NUL checks, batch limits, surrounding whitespace, and password line-delimiter handling. Frontend unit tests also verify that up to 250 package-state IDs are split into sequential batches of at most 100 items. GitHub Actions must confirm the Rust/Frontend/Tauri checks after this branch is updated.
 
 A built application still needs manual verification on NixOS with the actual WebKitGTK runtime:
 

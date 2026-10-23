@@ -15,8 +15,11 @@ on:
           - apply-backfill
 
 # Serialize backfills and issue events so they do not race each other.
+# Queue multiple pending runs; the default single-pending behavior can replace
+# earlier issue events and leave some Issues unclassified.
 concurrency:
   group: issue-type-sync-${{ github.repository }}
+  queue: max
   cancel-in-progress: false
 
 # The REST API requires repository push access to set an Issue Type.

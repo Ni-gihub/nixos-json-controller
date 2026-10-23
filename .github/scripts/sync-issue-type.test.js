@@ -32,13 +32,23 @@ test("infers Task from an Issue Form title prefix", () => {
   );
 });
 
-test("keeps Spike investigations as Tasks while retaining the SPIKE label", () => {
+test("uses the independent Spike Issue Type even when the generic bug label is present", () => {
   assert.equal(
     inferIssueType({
       title: "[SPIKE] Investigate icon instability",
       labels: [{ name: "bug" }, { name: "SPIKE" }, { name: "gui" }],
     }).type,
-    "Task",
+    "Spike",
+  );
+});
+
+test("infers Spike from the title prefix when the SPIKE label is absent", () => {
+  assert.equal(
+    inferIssueType({
+      title: "[SPIKE] Investigate a new behavior",
+      labels: [{ name: "gui" }],
+    }).type,
+    "Spike",
   );
 });
 

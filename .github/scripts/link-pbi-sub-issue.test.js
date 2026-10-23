@@ -45,13 +45,34 @@ test("reads both common GitHub Issue Type payload shapes", () => {
   assert.equal(currentIssueType({ type: null }), null);
 });
 
+
+test("does not let an untrusted author mutate issue hierarchy", async () => {
+  const core = makeCore();
+  const result = await linkIssueToPbi({
+    github: { rest: { issues: { get: async () => { throw new Error("unexpected API call"); } } } },
+    context: {
+      repo: { owner: "nxc-project", repo: "nixos-json-controller" },
+      payload: {
+        issue: {
+          author_association: "NONE",
+          number: 20,
+          body: "### Parent PBI number (optional)\\n177",
+        },
+      },
+    },
+    core,
+  });
+  assert.equal(result.reason, "untrusted-author");
+  assert.equal(core.logs.warnings.length, 1);
+});
+
 test("does not call GitHub when no parent was requested", async () => {
   const core = makeCore();
   const result = await linkIssueToPbi({
     github: { rest: { issues: { get: async () => { throw new Error("unexpected API call"); } } } },
     context: {
       repo: { owner: "nxc-project", repo: "nixos-json-controller" },
-      payload: { issue: { number: 10, body: "### Parent PBI number (optional)\n" } },
+      payload: { issue: { author_association: "COLLABORATOR", number: 10, body: "### Parent PBI number (optional)\n" } },
     },
     core,
   });
@@ -64,7 +85,7 @@ test("does not link when the parent number is invalid", async () => {
     github: { rest: { issues: { get: async () => { throw new Error("unexpected API call"); } } } },
     context: {
       repo: { owner: "nxc-project", repo: "nixos-json-controller" },
-      payload: { issue: { number: 10, body: "### Parent PBI number (optional)\n177 extra" } },
+      payload: { issue: { author_association: "COLLABORATOR", number: 10, body: "### Parent PBI number (optional)\n177 extra" } },
     },
     core,
   });
@@ -100,7 +121,7 @@ test("links a supported child when the parent is a PBI and no current parent exi
     context: {
       repo: { owner: "nxc-project", repo: "nixos-json-controller" },
       payload: {
-        issue: { number: 20, body: "### Parent PBI number (optional)\n177" },
+        issue: { author_association: "COLLABORATOR", number: 20, body: "### Parent PBI number (optional)\n177" },
       },
     },
     core,
@@ -128,7 +149,7 @@ test("refuses a parent whose Issue Type is not PBI", async () => {
     github,
     context: {
       repo: { owner: "nxc-project", repo: "nixos-json-controller" },
-      payload: { issue: { number: 20, body: "### Parent PBI number (optional)\n177" } },
+      payload: { issue: { author_association: "COLLABORATOR", number: 20, body: "### Parent PBI number (optional)\n177" } },
     },
     core,
   });
@@ -152,7 +173,7 @@ test("never silently replaces a different existing parent", async () => {
     github,
     context: {
       repo: { owner: "nxc-project", repo: "nixos-json-controller" },
-      payload: { issue: { number: 20, body: "### Parent PBI number (optional)\n177" } },
+      payload: { issue: { author_association: "COLLABORATOR", number: 20, body: "### Parent PBI number (optional)\n177" } },
     },
     core,
   });

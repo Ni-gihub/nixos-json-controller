@@ -118,7 +118,7 @@ test("uses the current API body, not a stale edited-event snapshot", async () =>
   });
 
   assert.deepEqual(result, { action: "linked", parentNumber: 180, childNumber: 20 });
-  assert.deepEqual(calls.filter((call) => call[0] === "get-issue").map((call) => call[1]), [20, 180, 20]);
+  assert.deepEqual(calls.filter((call) => call[0] === "get-issue").map((call) => call[1]), [20, 180, 20, 20]);
   const post = calls.find((call) => call[0].startsWith("POST "));
   assert.equal(post[1].issue_number, 180);
   assert.equal(post[1].sub_issue_id, 2020);

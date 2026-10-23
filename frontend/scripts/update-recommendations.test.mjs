@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -181,3 +182,31 @@ test("treats malformed existing recommendation data as changed", () => {
   );
 });
 
+
+test("keeps corrected Nixpkgs IDs synchronized between mapping and bundled recommendations", async () => {
+  const packageMap = JSON.parse(
+    await readFile(new URL("./recommendation-package-map.json", import.meta.url), "utf8"),
+  );
+  const bundled = JSON.parse(
+    await readFile(new URL("../public/data/recommendations.json", import.meta.url), "utf8"),
+  );
+  const expected = [
+    ["dbeaver", "dbeaver-bin"],
+    ["falkon", "kdePackages.falkon"],
+    ["onlyoffice-bin", "onlyoffice-desktopeditors"],
+    ["krusader", "krusader"],
+  ];
+
+  for (const [archPackage, id] of expected) {
+    assert.equal(
+      packageMap.find((entry) => entry.archPackage === archPackage)?.id,
+      id,
+      `mapping for ${archPackage}`,
+    );
+    assert.equal(
+      bundled.recommendations.find((entry) => entry.archPackage === archPackage)?.id,
+      id,
+      `bundled recommendation for ${archPackage}`,
+    );
+  }
+});

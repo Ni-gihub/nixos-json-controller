@@ -376,7 +376,7 @@
   },
   {
     "archPackage": "falkon",
-    "id": "falkon",
+    "id": "kdePackages.falkon",
     "genre": "ブラウザ"
   },
   {
@@ -591,7 +591,7 @@
   },
   {
     "archPackage": "krusader",
-    "id": "kdePackages.krusader",
+    "id": "krusader",
     "genre": "ファイル管理"
   },
   {
@@ -601,7 +601,7 @@
   },
   {
     "archPackage": "onlyoffice-bin",
-    "id": "onlyoffice-bin",
+    "id": "onlyoffice-desktopeditors",
     "genre": "オフィス"
   },
   {
@@ -671,7 +671,7 @@
   },
   {
     "archPackage": "dbeaver",
-    "id": "dbeaver",
+    "id": "dbeaver-bin",
     "genre": "開発ツール"
   },
   {

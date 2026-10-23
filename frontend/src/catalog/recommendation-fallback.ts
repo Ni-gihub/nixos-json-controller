@@ -458,7 +458,7 @@ const FALLBACK_METADATA: Record<string, FallbackMetadata> = {
     category: "ブラウザ",
     tags: ["ブラウザ", "キーボード操作"],
   },
-  falkon: {
+  "kdePackages.falkon": {
     name: "Falkon",
     description: "KDE向けの軽量なWebブラウザー",
     category: "ブラウザ",
@@ -716,7 +716,7 @@ const FALLBACK_METADATA: Record<string, FallbackMetadata> = {
     category: "ファイル管理",
     tags: ["ファイル管理", "軽量"],
   },
-  "kdePackages.krusader": {
+  krusader: {
     name: "Krusader",
     description: "2ペイン操作に対応したファイルマネージャー",
     category: "ファイル管理",
@@ -728,7 +728,7 @@ const FALLBACK_METADATA: Record<string, FallbackMetadata> = {
     category: "ファイル管理",
     tags: ["ファイル管理", "MATE"],
   },
-  "onlyoffice-bin": {
+  "onlyoffice-desktopeditors": {
     name: "ONLYOFFICE",
     description: "文書、表計算、プレゼンテーションを編集するオフィススイート",
     category: "オフィス",
@@ -812,7 +812,7 @@ const FALLBACK_METADATA: Record<string, FallbackMetadata> = {
     category: "開発",
     tags: ["エディター", "KDE"],
   },
-  dbeaver: {
+  "dbeaver-bin": {
     name: "DBeaver",
     description: "複数のデータベースを管理するGUIクライアント",
     category: "開発",

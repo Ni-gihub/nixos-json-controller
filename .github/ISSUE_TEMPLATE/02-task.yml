@@ -5,7 +5,7 @@ title: "[TASK] "
 body:
   - type: markdown
     attributes:
-      value: "記述ルール: [Issueの書き方](https://github.com/nxc-project/nixos-json-controller/blob/main/docs/project-management/issue-writing.md)。Taskは、目的のある独立した作業単位です。細かい関数単位へ機械的に分割せず、実装方針が未確定でも調査を始められます。特定PBIの成果に寄与するTaskでは「Parent PBI number (optional)」に親PBI番号だけを入力してください。Issue作成後、GitHub Actionsが親子関係を設定します。既存Taskは親PBIのSub-issuesから追加できます。"
+      value: "記述ルール: [Issueの書き方](https://github.com/nxc-project/nixos-json-controller/blob/main/docs/project-management/issue-writing.md)。Taskは、目的のある独立した作業単位です。細かい関数単位へ機械的に分割せず、実装方針が未確定でも調査を始められます。特定PBIの成果に寄与するTaskでは「Parent PBI number (optional)」に親PBI番号だけを入力してください。Owner / Member / Collaboratorが作成したIssueでは、GitHub ActionsがIssue作成後に親子関係を設定します。外部ユーザーのIssueや既存Taskは、レビュー後に親PBIのSub-issuesから追加できます。"
   - type: textarea
     id: why
     attributes:

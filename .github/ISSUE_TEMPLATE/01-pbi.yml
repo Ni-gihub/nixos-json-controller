@@ -1,10 +1,11 @@
 name: PBI（ユーザー価値）
 description: 利用者に提供する価値・体験を定義する
+type: PBI
 title: "[PBI] "
 body:
   - type: markdown
     attributes:
-      value: "記述ルール: [Issueの書き方](https://github.com/Ni-gihub/nixos-json-controller/blob/main/docs/project-management/issue-writing.md)。誰が何をできるようになり、なぜ必要かを中心に書きます。"
+      value: "記述ルール: [Issueの書き方](https://github.com/nxc-project/nixos-json-controller/blob/main/docs/project-management/issue-writing.md)。誰が何をできるようになり、なぜ必要かを中心に書きます。"
   - type: textarea
     id: story
     attributes:

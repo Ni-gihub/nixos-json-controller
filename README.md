@@ -267,12 +267,6 @@ Nix Flake の開発シェルを用意しています。**Wayland では WebKitGT
     cd frontend
     pnpm install --frozen-lockfile
 
-おすすめの人気度表示が必要な場合は、Tauri を起動・ビルドする前に、配布者の環境で推薦データを生成します。
-
-    pnpm recommendations:generate
-
-このコマンドは Arch Linux pkgstats API から統計を取得し、`frontend/public/data/recommendations.json` を生成します。このファイルは Git 管理対象外であり、NXC のソースリポジトリにはコミットしません。生成したデータを配布物に含める場合、配布者は元データの利用・再配布条件を確認し、必要な条件を満たしてください。生成を行わなかった場合も GUI は NXC が管理する基本おすすめリストで動作しますが、pkgstats の人気度は表示されません。
-
 その後、リポジトリの Flake を使って AppStream データを用意し、Tauri の開発環境を起動します。
 
     pnpm tauri dev

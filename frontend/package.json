@@ -10,8 +10,7 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx}\"",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types --test",
-    "recommendations:generate": "node scripts/update-recommendations.mjs"
+    "test": "node --experimental-strip-types --test"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

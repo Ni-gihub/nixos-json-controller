@@ -773,7 +773,12 @@ function Discover() {
     return () => {
       cancelled = true;
     };
-  }, [isDiscoverActive, recommendationIds, recommendationHasStatistics, recommendationReloadKey]);
+  }, [
+    isDiscoverActive,
+    recommendationIds,
+    recommendationHasStatistics,
+    recommendationReloadKey,
+  ]);
 
   useEffect(() => {
     if (!isDiscoverActive || recommendedCatalogApps.length === 0) return;

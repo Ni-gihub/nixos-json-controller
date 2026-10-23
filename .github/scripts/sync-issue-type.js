@@ -11,7 +11,8 @@ const TYPE_LABELS = Object.freeze({
   pbl: "PBL",
   pbi: "PBI",
   task: "Task",
-  spike: "Spike",
+  // Spike is a work subtype in this repository, represented by Task + the SPIKE label.
+  spike: "Task",
 });
 
 const TITLE_PREFIX_TYPES = Object.freeze({
@@ -20,7 +21,7 @@ const TITLE_PREFIX_TYPES = Object.freeze({
   PBI: "PBI",
   TASK: "Task",
   BUG: "Bug",
-  SPIKE: "Spike",
+  SPIKE: "Task",
 });
 
 function issueLabels(issue) {

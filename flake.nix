@@ -70,7 +70,7 @@
           pnpmDeps = pkgs.fetchPnpmDeps {
             inherit (finalAttrs) pname version src;
             inherit (finalAttrs) pnpm;
-            sourceRoot = "${finalAttrs.src.name}/frontend";
+            sourceRoot = "source/frontend";
             fetcherVersion = 4;
             hash = pkgs.lib.fakeHash;
           };

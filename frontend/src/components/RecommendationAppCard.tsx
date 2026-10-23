@@ -27,7 +27,7 @@ export default function RecommendationAppCard({
   statusLoading,
 }: RecommendationAppCardProps) {
   const detailPath = `/apps/${app.id}`;
-  const popularity = recommendation.popularity?.toFixed(2) ?? null;
+  const popularity = recommendation.popularity.toFixed(2);
 
   if (featured) {
     return (
@@ -52,9 +52,7 @@ export default function RecommendationAppCard({
             <div className="min-w-0 flex-1">
               <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary">
                 <Star className="size-4" />
-                {popularity === null
-                  ? "おすすめアプリ"
-                  : `総合ランキング ${rank}位`}
+                総合ランキング {rank}位
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <Link
@@ -89,43 +87,32 @@ export default function RecommendationAppCard({
           </div>
 
           <aside className="border-t border-primary/10 bg-primary/5 px-5 py-5 sm:px-7 sm:py-6 lg:border-l lg:border-l-primary/10 lg:border-t-0">
-            {popularity === null ? (
-              <div className="space-y-2">
-                <div className="text-xs font-medium text-muted-foreground">
-                  人気度データは未生成です
-                </div>
-                <p className="text-sm leading-6 text-muted-foreground">
-                  この配布版には外部統計が含まれていません。配布者が生成データを用意すると、人気度を表示できます。
-                </p>
-              </div>
-            ) : (
-              <>
-                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                  <TrendingUp className="size-4 text-primary" />
-                  Arch Linuxでの人気度
-                </div>
-                <div className="mt-2 flex items-baseline gap-1">
-                  <span className="text-3xl font-bold tracking-tight tabular-nums text-primary">
-                    {popularity}
-                  </span>
-                  <span className="text-sm text-muted-foreground">%</span>
-                </div>
-                <div
-                  aria-label={`Arch Linux pkgstats popularity ${popularity}%`}
-                  role="img"
-                  className="mt-3 h-1.5 overflow-hidden rounded-full bg-primary/15"
-                >
-                  <div
-                    className="h-full rounded-full bg-primary"
-                    style={{ width: `${popularity}%` }}
-                  />
-                </div>
-                <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                  Arch
-                  Linuxの公開統計（pkgstats）に基づく割合です。NixOSでの利用率ではありません。
-                </p>
-              </>
-            )}
+            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+              <TrendingUp className="size-4 text-primary" />
+              Arch Linuxでの人気度
+            </div>
+            <div className="mt-2 flex items-baseline gap-1">
+              <span className="text-3xl font-bold tracking-tight tabular-nums text-primary">
+                {popularity}
+              </span>
+              <span className="text-sm text-muted-foreground">%</span>
+            </div>
+            <div
+              aria-label={`Arch Linux pkgstats popularity ${popularity}%`}
+              role="img"
+              className="mt-3 h-1.5 overflow-hidden rounded-full bg-primary/15"
+            >
+              <div
+                className="h-full rounded-full bg-primary"
+                style={{
+                  width: `${Math.min(100, Math.max(0, recommendation.popularity))}%`,
+                }}
+              />
+            </div>
+            <p className="mt-3 text-xs leading-5 text-muted-foreground">
+              Arch
+              Linuxの公開統計（pkgstats）に基づく割合です。NixOSでの利用率ではありません。
+            </p>
             <div className="mt-5 flex flex-wrap gap-2">
               <Link
                 to={detailPath}
@@ -157,12 +144,10 @@ export default function RecommendationAppCard({
           <span className="text-2xl font-bold leading-none tracking-tight tabular-nums text-primary">
             {String(rank).padStart(2, "0")}
           </span>
-          <span className="text-xs text-muted-foreground">
-            {popularity === null ? "件目" : "位"}
-          </span>
+          <span className="text-xs text-muted-foreground">位</span>
         </div>
         <span className="rounded-md bg-primary/10 px-2 py-1 text-xs font-semibold tabular-nums text-primary">
-          {popularity === null ? "おすすめ" : `${popularity}%`}
+          {popularity}%
         </span>
       </div>
 

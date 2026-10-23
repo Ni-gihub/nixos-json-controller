@@ -1,16 +1,17 @@
 "use strict";
 
 const CHILD_TYPES = new Set(["Task", "Bug", "Spike"]);
+const TRUSTED_ASSOCIATIONS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 
 function extractParentPbiValue(body) {
   const match = String(body || "").match(
-    /^### Parent PBI number \(optional\)[ \t]*\r?\n([^\r\n]*)/m,
+    /^### Parent PBI number \\(optional\\)[ \\t]*\\r?\\n([^\\r\\n]*)/m,
   );
   return match ? match[1].trim() : null;
 }
 
 function parseIssueNumber(value) {
-  if (typeof value !== "string" || !/^[1-9]\d*$/.test(value)) {
+  if (typeof value !== "string" || !/^[1-9]\\d*$/.test(value)) {
     return null;
   }
   const number = Number(value);
@@ -25,6 +26,28 @@ function currentIssueType(issue) {
     return issue.type.name.trim() || null;
   }
   return null;
+}
+
+function requestedParentNumber(issue, core) {
+  const rawParent = extractParentPbiValue(issue.body);
+  if (!rawParent) {
+    return { parentNumber: null, reason: "no-parent-requested" };
+  }
+
+  const parentNumber = parseIssueNumber(rawParent);
+  if (!parentNumber) {
+    core.warning(
+      'Parent PBI number must contain only a positive issue number (for example, "177"). No parent was linked.',
+    );
+    return { parentNumber: null, reason: "invalid-parent-number" };
+  }
+
+  if (parentNumber === issue.number) {
+    core.warning("An issue cannot be its own parent. No parent was linked.");
+    return { parentNumber: null, reason: "self-parent" };
+  }
+
+  return { parentNumber, reason: null };
 }
 
 async function getExistingParent({ github, owner, repo, issueNumber }) {
@@ -44,9 +67,10 @@ async function getExistingParent({ github, owner, repo, issueNumber }) {
 
 /**
  * Link a Task, Bug, or Spike to a PBI through GitHub's native Sub-issues API.
- * The optional form field is only a request; the issue Types and current parent
- * are verified before any write. Existing parent relationships are never
- * silently replaced.
+ * Always read the current Issue body from GitHub instead of trusting an event
+ * snapshot. Re-read it immediately before the write so an edit during this run
+ * cannot knowingly attach the Issue to an obsolete PBI. Existing parent links
+ * are never silently replaced.
  */
 async function linkIssueToPbi({ github, context, core }) {
   const eventIssue = context.payload?.issue;
@@ -54,31 +78,11 @@ async function linkIssueToPbi({ github, context, core }) {
     return { action: "skip", reason: "not-an-issue" };
   }
 
-  const trustedAssociations = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
-  if (!trustedAssociations.has(eventIssue.author_association)) {
+  if (!TRUSTED_ASSOCIATIONS.has(eventIssue.author_association)) {
     core.warning(
       "Automatic parent linking is limited to repository owners, members, and collaborators. A maintainer can add this Issue from the parent's Sub-issues menu.",
     );
     return { action: "skip", reason: "untrusted-author" };
-  }
-
-  const rawParent = extractParentPbiValue(eventIssue.body);
-  if (!rawParent) {
-    core.info("No Parent PBI number provided; leaving the issue standalone.");
-    return { action: "skip", reason: "no-parent-requested" };
-  }
-
-  const parentNumber = parseIssueNumber(rawParent);
-  if (!parentNumber) {
-    core.warning(
-      'Parent PBI number must contain only a positive issue number (for example, "177"). No parent was linked.',
-    );
-    return { action: "skip", reason: "invalid-parent-number" };
-  }
-
-  if (parentNumber === eventIssue.number) {
-    core.warning("An issue cannot be its own parent. No parent was linked.");
-    return { action: "skip", reason: "self-parent" };
   }
 
   const { owner, repo } = context.repo;
@@ -91,6 +95,15 @@ async function linkIssueToPbi({ github, context, core }) {
   if (child.pull_request) {
     return { action: "skip", reason: "pull-request" };
   }
+
+  const initialRequest = requestedParentNumber(child, core);
+  if (!initialRequest.parentNumber) {
+    if (initialRequest.reason === "no-parent-requested") {
+      core.info("No Parent PBI number is currently provided; leaving the issue standalone.");
+    }
+    return { action: "skip", reason: initialRequest.reason };
+  }
+  const parentNumber = initialRequest.parentNumber;
 
   const childType = currentIssueType(child);
   if (!CHILD_TYPES.has(childType)) {
@@ -128,6 +141,34 @@ async function linkIssueToPbi({ github, context, core }) {
     return { action: "skip", reason: "parent-is-not-pbi" };
   }
 
+  // An edit may have changed or cleared the Parent PBI number while the
+  // parent Issue was being fetched. Re-read the child before linking.
+  const { data: latestChild } = await github.rest.issues.get({
+    owner,
+    repo,
+    issue_number: child.number,
+  });
+  if (latestChild.pull_request || !CHILD_TYPES.has(currentIssueType(latestChild))) {
+    core.warning("The child Issue Type changed during processing; no parent was linked.");
+    return { action: "skip", reason: "child-type-changed" };
+  }
+
+  const latestRequest = requestedParentNumber(latestChild, core);
+  if (!latestRequest.parentNumber) {
+    if (latestRequest.reason === "no-parent-requested") {
+      core.info("Parent PBI number was cleared during processing; no parent was linked.");
+    }
+    return { action: "skip", reason: latestRequest.reason };
+  }
+  if (latestRequest.parentNumber !== parentNumber) {
+    core.info(
+      `Parent PBI number changed from #${parentNumber} to #${latestRequest.parentNumber} during processing; a newer edited event can handle the current value.`,
+    );
+    return { action: "skip", reason: "parent-request-changed" };
+  }
+
+  // Check current hierarchy as late as possible and never replace an existing
+  // parent. The workflow also cancels superseded runs for this Issue.
   const existingParent = await getExistingParent({
     github,
     owner,
@@ -153,18 +194,19 @@ async function linkIssueToPbi({ github, context, core }) {
       owner,
       repo,
       issue_number: parentNumber,
-      sub_issue_id: child.id,
+      sub_issue_id: latestChild.id,
       headers: { "X-GitHub-Api-Version": "2022-11-28" },
     },
   );
 
-  core.info(`Linked #${child.number} as a sub-issue of PBI #${parentNumber}.`);
-  return { action: "linked", parentNumber, childNumber: child.number };
+  core.info(`Linked #${latestChild.number} as a sub-issue of PBI #${parentNumber}.`);
+  return { action: "linked", parentNumber, childNumber: latestChild.number };
 }
 
 module.exports = {
   extractParentPbiValue,
   parseIssueNumber,
   currentIssueType,
+  requestedParentNumber,
   linkIssueToPbi,
 };

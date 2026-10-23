@@ -657,7 +657,9 @@ function Discover() {
         return;
       }
 
-      if (currentData.recommendations.some((item) => item.popularity !== null)) {
+      if (
+        currentData.recommendations.some((item) => item.popularity !== null)
+      ) {
         writeCachedRecommendations(currentData);
       } else {
         setRecommendationStatus("fallback");

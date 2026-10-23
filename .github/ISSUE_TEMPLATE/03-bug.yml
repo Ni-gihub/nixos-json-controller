@@ -66,7 +66,7 @@ body:
     id: parent_pbi
     attributes:
       label: Parent PBI number (optional)
-      description: 親PBIがある場合はIssue番号だけを入力してください（例: 177）。空欄なら親子関係を設定せず、独立Issueとして作成します。
+      description: "親PBIがある場合はIssue番号だけを入力してください（例: 177）。空欄なら親子関係を設定せず、独立Issueとして作成します。"
       placeholder: "177"
     validations:
       required: false

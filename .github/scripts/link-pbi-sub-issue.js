@@ -54,6 +54,14 @@ async function linkIssueToPbi({ github, context, core }) {
     return { action: "skip", reason: "not-an-issue" };
   }
 
+  const trustedAssociations = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
+  if (!trustedAssociations.has(eventIssue.author_association)) {
+    core.warning(
+      "Automatic parent linking is limited to repository owners, members, and collaborators. A maintainer can add this Issue from the parent's Sub-issues menu.",
+    );
+    return { action: "skip", reason: "untrusted-author" };
+  }
+
   const rawParent = extractParentPbiValue(eventIssue.body);
   if (!rawParent) {
     core.info("No Parent PBI number provided; leaving the issue standalone.");

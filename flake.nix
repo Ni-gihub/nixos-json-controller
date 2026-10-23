@@ -82,6 +82,7 @@
             pkg-config
             pnpm
             pnpmConfigHook
+            makeWrapper
             wrapGAppsHook4
           ];
 
@@ -99,6 +100,10 @@
           # the stable package command name independently from that crate name.
           postInstall = ''
             mv "$out/bin/app" "$out/bin/nxc-app"
+            find "$out/share/applications" -type f -name '*.desktop' \
+              -exec sed -i 's/^Exec=app$/Exec=nxc-app/' {} +
+            wrapProgram "$out/bin/nxc-app" \
+              --set NXC_APPSTREAM_DATA ${appstreamData}
           '';
 
           doCheck = false;

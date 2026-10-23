@@ -608,7 +608,7 @@
       "samples": 304746
     },
     {
-      "id": "falkon",
+      "id": "kdePackages.falkon",
       "archPackage": "falkon",
       "genre": "ブラウザ",
       "popularity": 9.83,
@@ -744,7 +744,7 @@
       "samples": 304746
     },
     {
-      "id": "dbeaver",
+      "id": "dbeaver-bin",
       "archPackage": "dbeaver",
       "genre": "開発ツール",
       "popularity": 7.31,
@@ -848,7 +848,7 @@
       "samples": 304746
     },
     {
-      "id": "onlyoffice-bin",
+      "id": "onlyoffice-desktopeditors",
       "archPackage": "onlyoffice-bin",
       "genre": "オフィス",
       "popularity": 5.81,
@@ -1016,7 +1016,7 @@
       "samples": 304746
     },
     {
-      "id": "kdePackages.krusader",
+      "id": "krusader",
       "archPackage": "krusader",
       "genre": "ファイル管理",
       "popularity": 3.45,

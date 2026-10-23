@@ -1,0 +1,71 @@
+version: 2
+updates:
+  # Root Rust CLI.
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 4
+    groups:
+      non-major:
+        update-types:
+          - minor
+          - patch
+
+  # Tauri Rust application has its own Cargo.toml and Cargo.lock.
+  - package-ecosystem: cargo
+    directory: "/frontend/src-tauri"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 4
+    groups:
+      non-major:
+        update-types:
+          - minor
+          - patch
+
+  # Vite/React frontend (pnpm is managed by Dependabot via the npm ecosystem).
+  - package-ecosystem: npm
+    directory: "/frontend"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 5
+    groups:
+      non-major:
+        update-types:
+          - minor
+          - patch
+
+  # Actions referenced from workflows under .github/workflows.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 3
+    groups:
+      non-major:
+        update-types:
+          - minor
+          - patch
+
+  # Track pinned flake inputs in flake.lock (version updates only).
+  - package-ecosystem: nix
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 3

@@ -74,6 +74,8 @@ jobs:
 
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: nxc-cli-tests
 
       - name: Test
         run: cargo test --all-targets
@@ -138,6 +140,9 @@ jobs:
 
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: nxc-cli-tests
+          save-if: false
 
       - name: Run Nix-dependent smoke test
         run: cargo test nix_command_is_available -- --ignored

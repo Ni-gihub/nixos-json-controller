@@ -117,16 +117,12 @@ export default function RecommendationAppCard({
                 >
                   <div
                     className="h-full rounded-full bg-primary"
-                    style={{
-                      width: `${Math.min(
-                        100,
-                        Math.max(0, recommendation.popularity ?? 0),
-                      )}%`,
-                    }}
+                    style={{ width: `${popularity}%` }}
                   />
                 </div>
                 <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                  Arch Linuxの公開統計（pkgstats）に基づく割合です。NixOSでの利用率ではありません。
+                  Arch
+                  Linuxの公開統計（pkgstats）に基づく割合です。NixOSでの利用率ではありません。
                 </p>
               </>
             )}

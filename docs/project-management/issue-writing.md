@@ -4,8 +4,8 @@
 
 関連文書:
 - [Backlog / プロジェクト構成](./backlog-management.md)
-- [プロジェクト憲章 #166](https://github.com/Ni-gihub/nixos-json-controller/issues/166)
-- [Product Backlog #167](https://github.com/Ni-gihub/nixos-json-controller/issues/167)
+- [プロジェクト憲章 #166](https://github.com/nxc-project/nixos-json-controller/issues/166)
+- [Product Backlog #167](https://github.com/nxc-project/nixos-json-controller/issues/167)
 
 ## 基本方針：Why から始める
 
@@ -21,22 +21,22 @@ Issue は、担当者が問題と期待する結果を理解し、必要な調�
 
 ## Issue の種類
 
-NXC は個人所有リポジトリでも利用できるよう、タイトル接頭辞で作業の種類を明示する。領域ラベル（`gui`、`safety`、`performance`、`packaging`、`testing` など）は担当領域を表し、Issue の種類とは区別する。
+Issue Form は GitHub Organization の Issue Type を直接設定する。タイトル接頭辞は一覧で種類を見分けやすくする補助として残すが、分類の正本は Type であり、タイトル文字列やラベルだけに依存しない。空の Issue から起票した場合は、作成後に右サイドバーの Type を手動設定する。ラベルは対象領域・技術的観点を示し、Type と同じ意味のラベルは付けない。
 
-| 種類 | タイトル | 目的 | 本文の中心 |
+| Type | タイトルの慣例 | 目的 | 本文の中心 |
 | --- | --- | --- | --- |
-| プロジェクト | `[PROJECT] ...` | プロダクト全体または大きな取り組みの目的・スコープ・成果を定義する | 背景、目的、対象範囲、成功基準、リリースゲート |
+| Project | `[PROJECT] ...` | プロダクト全体または大きな取り組みの目的・スコープ・成果を定義する | 背景、目的、対象範囲、成功基準、リリースゲート |
 | PBL | `[PBL] ...` | 優先順位付きバックログと履歴の索引を維持する | PBIへのリンク、優先度、状態、依存関係、完了／見送り履歴 |
 | PBI | `[PBI] ...` | 利用者や運用者に提供する価値・体験を管理する | ユーザーストーリー、Why、観察可能な成果、受け入れ条件 |
 | Task | `[TASK] ...` | PBIの成果に寄与する、独立して実行・レビューできる作業を管理する | なぜ必要か、対象・方針、作業完了条件、検証 |
 | Bug | `[BUG] ...` | 現在の動作と期待する動作の差を修正する | 実際の挙動、期待する挙動、再現条件、影響、修正後の確認 |
-| 相談・調査 | `[相談]` / `[SPIKE]` | 方針・原因・実現可能性など、まだ決定していないことを明らかにする | 何を決めたいか、既知の事実、調査範囲、成果物 |
+| Spike | `[SPIKE] ...` | 原因・実現可能性・設計方針など、未確定事項を証拠に基づいて明らかにする | 調査したい問い、確認済みの事実と仮説、調査範囲、成果物 |
 
-タイトルは何を解決するか、またはどういう結果を得るかを具体的に書く。「UI改善」「調査する」「対応する」のような目的が読み取れない表現だけにしない。既存Issueの接頭辞を変更する場合は、PBL側のリンクと検索性を確認する。
+タイトルは何を実現・修正するか、またはどういう判断材料を得るかを具体的に書く。「UI改善」「調査する」「対応する」のように目的が読み取れない表現だけにしない。Issue Form は対応する Type を設定済みなので、タイトル接頭辞は Type の代用ではない。既存Issueの接頭辞を変更する場合は、PBL側のリンクと検索性を確認する。
 
 ### Project / PBL は専用フォームと正本構造を使う
 
-- Project憲章は [#166](https://github.com/Ni-gihub/nixos-json-controller/issues/166)、PBLは [#167](https://github.com/Ni-gihub/nixos-json-controller/issues/167) を正本とし、それぞれ専用の Issue Form（`05-project.yml` / `06-pbl.yml`）で項目構成を定義する。GitHub Issue Form の送信は既存Issueの編集ではなく新規Issue作成になるため、正本を更新するときは #166 / #167 を直接編集し、フォームを送信しない。新規のProject/PBL作成は明示的に必要と判断された場合に限る。
+- Project憲章は [#166](https://github.com/nxc-project/nixos-json-controller/issues/166)、PBLは [#167](https://github.com/nxc-project/nixos-json-controller/issues/167) を正本とし、それぞれ専用の Issue Form（`05-project.yml` / `06-pbl.yml`）で Type を `Project` / `PBL` として設定している。GitHub Issue Form の送信は既存Issueの編集ではなく新規Issue作成になるため、正本を更新するときは #166 / #167 を直接編集し、フォームを送信しない。新規のProject/PBL作成は明示的に必要と判断された場合に限る。
 - Projectは目的・スコープ・成功基準・リリースゲートを管理し、PBLは優先順位付きの現在バックログと完了／見送り履歴の索引を管理する。通常のPBI / Task / Bugフォームで代替しない。
 - これらの正本は複数カテゴリの情報、優先順位表、集計スナップショットを持つため、既存内容を移行する際は表や履歴を保持し、項目を無理に単一の節へ統合しない。専用フォームと既存構造の粒度が合わない場合は「補足・詳細記録」へ保持する。
 
@@ -219,9 +219,9 @@ PBLでは `completed`、`not planned`、`duplicate` などの終了理由を区�
 
 ## 起票後の流れ
 
-1. Issue Form または空Issueで起票する。
+1. 対応する Issue Form から起票する（Type はフォームが設定する）。空Issueから起票した場合は、右サイドバーで Type を設定し、必要な領域ラベルだけを付ける。
 2. 既存Issue・PR・コード・ログを確認し、事実と仮説を整える。
-3. [PBL #167](https://github.com/Ni-gihub/nixos-json-controller/issues/167) にリンクし、優先度と依存関係を更新する。
+3. [PBL #167](https://github.com/nxc-project/nixos-json-controller/issues/167) にリンクし、優先度と依存関係を更新する。
 4. 着手後に必要なHow・設計判断・受け入れ条件を追記する。
 5. PRはWhy、変更内容、検証結果、未確認と残るリスクを説明し、関連Issueをリンクする。テンプレートに当てはまらない既存の設計詳細・根本原因・比較経緯・レビュー対応は「補足・設計詳細」に保持する。
 6. 完了または見送りの理由に応じてIssueをクローズする。

@@ -13,14 +13,14 @@ The production CSP is defined in **frontend/src-tauri/tauri.conf.json** and does
 | **script-src** | Allows only local scripts. No remote script host or unsafe-eval is permitted. Tauri injects the required hashes/nonces for bundled assets at build time. |
 | **style-src** | Allows local styles and unsafe-inline for existing React style attributes in the virtualized list and recommendation popularity indicator. This exception is limited to styles; scripts remain restricted. |
 | **img-src** | Allows local app/asset URLs and data: images. Rust-resolved local icons and sanitized Iconify SVGs are represented as data URLs. |
-| **connect-src** | Allows Tauri IPC (ipc: and http://ipc.localhost), Iconify icon metadata (https://api.iconify.design), and the raw GitHub host (https://raw.githubusercontent.com) used to refresh the recommendation JSON. |
+| **connect-src** | Allows same-origin requests ('self'), Tauri IPC (ipc: and http://ipc.localhost), Iconify icon metadata (https://api.iconify.design), and the raw GitHub host (https://raw.githubusercontent.com) used to refresh the recommendation JSON. |
 | **font-src** | Uses locally bundled font assets; no external font host is needed. |
 | **object-src** | Blocks embedded plugin/object content. |
 | **base-uri** and **form-action** | Keep document base URLs and form submission local. |
 
-External icon lookup fetches text from Iconify, accepts only strict brand aliases, sanitizes SVG element/attribute content, then converts it to a data URL. The latest-recommendation refresh separately fetches the validated JSON document from raw.githubusercontent.com. Both hosts are allowed only in connect-src, not img-src; remote scripts are never allowed.
+The bundled recommendation loader fetches the local `/data/recommendations.json` file, so `connect-src` explicitly allows same-origin requests via `'self'`. External icon lookup fetches text from Iconify, accepts only strict brand aliases, sanitizes SVG element/attribute content, then converts it to a data URL. The latest-recommendation refresh separately fetches the validated JSON document from raw.githubusercontent.com. Both external hosts are allowed only in connect-src, not img-src; remote scripts are never allowed.
 
-The development-only devCsp separately permits http://localhost:5173 and its Vite WebSocket (ws://localhost:5173), while retaining the two production data endpoints required for icons and recommendation refresh. Those development sources are absent from production csp. No wildcard host, unsafe-eval, or remote script allowance is configured.
+The development-only devCsp separately permits http://localhost:5173 and its Vite WebSocket (ws://localhost:5173), while retaining same-origin requests and the two production data endpoints required for the bundled recommendation file, icons, and recommendation refresh. Those development sources are absent from production csp. No wildcard host, unsafe-eval, or remote script allowance is configured.
 
 ## Tauri capabilities
 

@@ -46,7 +46,7 @@ GitHubのネイティブな **Sub-issues** を使い、1つのPBIと、それを
 ### 新しい子Issueを作る
 
 1. Task / Bug / Spikeの対応フォームで、`Parent PBI number (optional)` に親PBIの**番号だけ**を入力する。
-2. Issue作成後、GitHub Actionsが親IssueのTypeが `PBI`、子IssueのTypeが `Task` / `Bug` / `Spike` であることを確認し、ネイティブなSub-issues関係を設定する。
+2. Owner / Member / Collaboratorが作成したIssueでは、GitHub Actionsが親IssueのTypeが `PBI`、子IssueのTypeが `Task` / `Bug` / `Spike` であることを確認し、ネイティブなSub-issues関係を設定する。外部ユーザーが作成したIssueは自動で親子関係を変更せず、メンテナーがレビュー後に親PBIのSub-issuesから追加する。
 3. 親PBI番号を空欄にした場合は独立Issueとなる。後から紐づける場合は、親PBIのページにある **Sub-issues → Add existing issue** を使う。
 
 本文中の `PBI: #177` や `Related: #177` は参照リンクであり、ネイティブな親子関係の代わりにはならない。親がすでに別のIssueに設定されている場合、自動処理は勝手に置き換えない。親を変更する必要があるときは、GitHub上で既存の親子関係を整理してから紐づけ直す。

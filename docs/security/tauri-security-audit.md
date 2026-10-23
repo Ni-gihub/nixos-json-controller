@@ -56,13 +56,13 @@ install_app is the only GUI command accepting a sudo password. The frontend clea
 
 ## Verification status and remaining release gate
 
-Automated Rust unit tests cover boundary size/NUL checks, batch limits, surrounding whitespace, and password line-delimiter handling. Frontend unit tests also verify that up to 250 package-state IDs are split into sequential batches of at most 100 items. GitHub Actions must confirm the Rust/Frontend/Tauri checks after this branch is updated.
+Automated Rust unit tests cover boundary size/NUL checks, batch limits, surrounding whitespace, and password line-delimiter handling. Frontend unit tests also verify that up to 250 package-state IDs are split into sequential batches of at most 100 items. GitHub Actions [CI #806](https://github.com/Ni-gihub/nixos-json-controller/actions/runs/39886746313) for commit `e2c6a8840bb44998bc0702f85fb664fe52dc33c3` completed successfully: all 10 jobs passed, including Rust tests, Tauri Rust check, Clippy, formatting, frontend build, and CLI Nix package checks.
 
-A built application still needs manual verification on NixOS with the actual WebKitGTK runtime:
+The remaining release gate is manual verification on NixOS with the actual WebKitGTK runtime and the packaged GUI. CI success does not prove desktop/WebView behavior, live sudo prompting, or a successful nixos-rebuild switch. Verify the following before release:
 
 - confirm search, package detail, local icon, Iconify fallback, and installation with production CSP enabled;
 - inspect WebView console output and ensure no unexpected CSP violation remains;
 - check password-required and password-free install paths and confirm no secret appears in the terminal/logs;
 - validate launch and window controls from the packaged app.
 
-CI does not prove live sudo prompting, a successful nixos-rebuild switch, or desktop/WebView behavior. The identifier is set here for #170 to reuse; packaging/desktop-launch verification remains under #101/#170.
+The identifier is set here for #170 to reuse; packaging/desktop-launch verification remains under #101/#170.

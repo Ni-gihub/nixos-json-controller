@@ -112,7 +112,7 @@ test("rejects invalid package-state batch sizes", () => {
 
 test("retries only a failed package-state batch and preserves successful results", async () => {
   const packageNames = Array.from({ length: 250 }, (_, index) => `package-${index}`);
-  const requestedBatchStarts: string[] = [];
+  const requestedBatchStarts = [];
   let failSecondBatchOnce = true;
 
   const result = await fetchPackageStateBatches(packageNames, async (batch) => {
@@ -137,7 +137,7 @@ test("retries only a failed package-state batch and preserves successful results
 
 test("keeps successful package states when a batch fails after its retry", async () => {
   const packageNames = Array.from({ length: 250 }, (_, index) => `package-${index}`);
-  const requestedBatchStarts: string[] = [];
+  const requestedBatchStarts = [];
 
   const result = await fetchPackageStateBatches(packageNames, async (batch) => {
     requestedBatchStarts.push(batch[0]);

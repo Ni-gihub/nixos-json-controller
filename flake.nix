@@ -68,9 +68,9 @@
           # fixed-output store, then installed offline inside the build sandbox.
           pnpm = pkgs.pnpm_11;
           pnpmDeps = pkgs.fetchPnpmDeps {
-            inherit (finalAttrs) pname version src;
+            inherit (finalAttrs) pname version;
+            src = ./frontend;
             inherit (finalAttrs) pnpm;
-            sourceRoot = "frontend";
             fetcherVersion = 4;
             hash = pkgs.lib.fakeHash;
           };

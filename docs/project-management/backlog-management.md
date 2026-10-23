@@ -24,7 +24,7 @@ PBI: 1つのユーザー価値を管理する親Issue
 
 親子関係としてGitHubのSub-issuesに登録するのは、PBIと、その成果を実現するTask / Bug / Spikeの組み合わせである。Project #166とPBL #167は目的・索引の役割を持ち、すべてのPBIをぶら下げる親Issueにはしない。PBLはPBIへのリンク、優先順位、状態、依存関係、完了・見送り履歴を保つ。
 
-新規のTask / Bug / SpikeをPBIの子にする場合は各フォームの `Parent PBI number (optional)` に親PBI番号を入力する。Issue作成後のGitHub Actionsは、親がType `PBI`、子がType `Task` / `Bug` / `Spike` であることを確認してSub-issues関係を設定する。既存Issueは親PBIのページで **Sub-issues → Add existing issue** を使って紐づける。本文中の番号リンクやPBLの一覧だけでは、ネイティブな親子関係が設定済みとはみなさない。
+新規のTask / Bug / SpikeをPBIの子にする場合は各フォームの `Parent PBI number (optional)` に親PBI番号を入力する。Owner / Member / Collaboratorが作成したIssueでは、GitHub Actionsが親がType `PBI`、子がType `Task` / `Bug` / `Spike` であることを確認してSub-issues関係を設定する。外部ユーザーが作成したIssueは自動変更せず、メンテナーがレビュー後に親PBIのSub-issuesから追加する。既存Issueは親PBIのページで **Sub-issues → Add existing issue** を使って紐づける。本文中の番号リンクやPBLの一覧だけでは、ネイティブな親子関係が設定済みとはみなさない。
 
 ## PBI・Task・Bugの使い分け
 

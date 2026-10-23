@@ -1,11 +1,11 @@
 name: Bug（不具合）
 description: 想定と異なる挙動や回帰を記録する
+type: Bug
 title: "[BUG] "
-labels: bug
 body:
   - type: markdown
     attributes:
-      value: "原因を決めつけず、実際に観察した挙動と期待値を分けてください。再現条件が完全でなくても、確認済みの症状があれば起票できます。"
+      value: "記述ルール: [Issueの書き方](https://github.com/nxc-project/nixos-json-controller/blob/main/docs/project-management/issue-writing.md)。原因を決めつけず、実際に観察した挙動と期待値を分けてください。再現条件が完全でなくても、確認済みの症状があれば起票できます。"
   - type: textarea
     id: why
     attributes:

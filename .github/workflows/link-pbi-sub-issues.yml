@@ -10,7 +10,7 @@ permissions:
 
 concurrency:
   group: pbi-sub-issue-${{ github.repository }}-${{ github.event.issue.number }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   link:

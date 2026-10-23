@@ -34,6 +34,25 @@ Issue Form は GitHub Organization の Issue Type を直接設定する。タイ
 
 タイトルは何を実現・修正するか、またはどういう判断材料を得るかを具体的に書く。「UI改善」「調査する」「対応する」のように目的が読み取れない表現だけにしない。Issue Form は対応する Type を設定済みなので、タイトル接頭辞は Type の代用ではない。既存Issueの接頭辞を変更する場合は、PBL側のリンクと検索性を確認する。
 
+## 親子Issue：PBIを親にする
+
+GitHubのネイティブな **Sub-issues** を使い、1つのPBIと、それを実現する具体的な作業を紐づける。Issue Typeと親子関係は別の情報であり、フォームの `type:` はTypeだけを設定する。
+
+- **親Issue:** 1つのユーザー価値を表すPBI。
+- **子Issue:** そのPBIの成果に直接寄与するTask、達成を妨げるBug、またはそのPBIに必要な調査Spike。
+- **親にしないもの:** Project #166はプロダクト憲章、PBL #167はPBIへのリンク・優先順位・履歴の索引であり、すべてのPBIの親Issueにはしない。
+- **独立Issue:** 特定PBIに直接紐づかない横断的なBugや調査は、親を推測して付けず独立Issueとして扱う。
+
+### 新しい子Issueを作る
+
+1. Task / Bug / Spikeの対応フォームで、`Parent PBI number (optional)` に親PBIの**番号だけ**を入力する。
+2. Issue作成後、GitHub Actionsが親IssueのTypeが `PBI`、子IssueのTypeが `Task` / `Bug` / `Spike` であることを確認し、ネイティブなSub-issues関係を設定する。
+3. 親PBI番号を空欄にした場合は独立Issueとなる。後から紐づける場合は、親PBIのページにある **Sub-issues → Add existing issue** を使う。
+
+本文中の `PBI: #177` や `Related: #177` は参照リンクであり、ネイティブな親子関係の代わりにはならない。親がすでに別のIssueに設定されている場合、自動処理は勝手に置き換えない。親を変更する必要があるときは、GitHub上で既存の親子関係を整理してから紐づけ直す。
+
+1つの子Issueに複数の親を設定するのではなく、中心となる成果のPBIを親にし、関連する他のPBIは本文の関連リンクに記載する。複数PBIに関係するものの独立して完了判断できる作業は、分割できるか検討する。
+
 ### Project / PBL は専用フォームと正本構造を使う
 
 - Project憲章は [#166](https://github.com/nxc-project/nixos-json-controller/issues/166)、PBLは [#167](https://github.com/nxc-project/nixos-json-controller/issues/167) を正本とし、それぞれ専用の Issue Form（`05-project.yml` / `06-pbl.yml`）で Type を `Project` / `PBL` として設定している。GitHub Issue Form の送信は既存Issueの編集ではなく新規Issue作成になるため、正本を更新するときは #166 / #167 を直接編集し、フォームを送信しない。新規のProject/PBL作成は明示的に必要と判断された場合に限る。
@@ -219,7 +238,7 @@ PBLでは `completed`、`not planned`、`duplicate` などの終了理由を区�
 
 ## 起票後の流れ
 
-1. 対応する Issue Form から起票する（Type はフォームが設定する）。空Issueから起票した場合は、右サイドバーで Type を設定し、必要な領域ラベルだけを付ける。
+1. 対応する Issue Form から起票する（Type はフォームが設定する）。Task / Bug / SpikeをPBIの子にする場合は、フォームの「Parent PBI number (optional)」へ親PBI番号を入力する。空Issueから起票した場合は、右サイドバーでTypeを設定し、必要な領域ラベルだけを付ける。
 2. 既存Issue・PR・コード・ログを確認し、事実と仮説を整える。
 3. [PBL #167](https://github.com/nxc-project/nixos-json-controller/issues/167) にリンクし、優先度と依存関係を更新する。
 4. 着手後に必要なHow・設計判断・受け入れ条件を追記する。

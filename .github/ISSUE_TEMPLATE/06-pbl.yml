@@ -1,10 +1,11 @@
 name: PBL / Product Backlog List
 description: "PBL #167 の項目定義を参照する（送信すると新しいIssueが作成されます）"
+type: PBL
 title: "[PBL] "
 body:
   - type: markdown
     attributes:
-      value: "このフォームの送信は既存Issue #167 を更新せず、新しいIssueを作成します。PBLの正本は #167 です。更新時は #167 を直接編集してください。このフォームは項目構成の参照用であり、#167 の更新目的で送信しないでください。新しいPBLを別途作成する判断が明示的にある場合に限り、新規Issueとして使用します。本文中の集計は取得日と状態内訳を明記してください。"
+      value: "記述ルール: [Issueの書き方](https://github.com/nxc-project/nixos-json-controller/blob/main/docs/project-management/issue-writing.md)。このフォームの送信は既存Issue #167 を更新せず、新しいIssueを作成します。PBLの正本は #167 です。更新時は #167 を直接編集してください。このフォームは項目構成の参照用であり、#167 の更新目的で送信しないでください。新しいPBLを別途作成する判断が明示的にある場合に限り、新規Issueとして使用します。本文中の集計は取得日と状態内訳を明記してください。"
   - type: textarea
     id: current_backlog
     attributes:

@@ -240,6 +240,61 @@ test("refuses a parent whose Issue Type is not PBI", async () => {
   assert.equal(result.reason, "parent-is-not-pbi");
 });
 
+test("does not link if the parent number changes while checking the current parent", async () => {
+  const core = makeCore();
+  const currentBody = "### Parent PBI number (optional)\\n177";
+  const updatedBody = "### Parent PBI number (optional)\\n180";
+  let body = currentBody;
+  let childReads = 0;
+  const calls = [];
+  const issues = {
+    177: { id: 1770, number: 177, type: { name: "PBI" } },
+    180: { id: 1800, number: 180, type: { name: "PBI" } },
+  };
+  const github = {
+    rest: {
+      issues: {
+        get: async ({ issue_number }) => {
+          calls.push(["get-issue", issue_number]);
+          if (issue_number === 20) {
+            childReads += 1;
+            return {
+              data: {
+                id: 2020,
+                number: 20,
+                body,
+                type: { name: "Task" },
+              },
+            };
+          }
+          return { data: issues[issue_number] };
+        },
+      },
+    },
+    request: async (route, params) => {
+      calls.push([route, params]);
+      if (route.startsWith("GET ")) {
+        // Simulate editing the Issue while waiting for GitHub's parent lookup.
+        body = updatedBody;
+        const error = new Error("no parent");
+        error.status = 404;
+        throw error;
+      }
+      return { data: {} };
+    },
+  };
+
+  const result = await linkIssueToPbi({
+    github,
+    context: contextFor(20, currentBody),
+    core,
+  });
+
+  assert.equal(result.reason, "parent-request-changed-after-parent-check");
+  assert.equal(calls.some((call) => call[0].startsWith("POST ")), false);
+  assert.equal(childReads, 3);
+});
+
 test("never silently replaces a different existing parent", async () => {
   const core = makeCore();
   const issues = {

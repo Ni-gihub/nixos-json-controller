@@ -199,31 +199,6 @@ jobs:
       - name: Build CLI Flake package
         run: nix build .#default --no-link --print-out-paths
 
-  nxc-app-review-validation:
-    name: Temporary nxc-app review validation
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          persist-credentials: false
-
-      - name: Install Nix
-        uses: cachix/install-nix-action@v31
-        with:
-          nix_path: nixpkgs=channel:nixos-unstable
-
-      - name: Build GUI Flake package
-        shell: bash
-        run: |
-          output="$(nix build .#nxc-app --no-link --print-out-paths)"
-          test -x "$output/bin/nxc-app"
-          desktop="$(find "$output/share/applications" -type f -name '*.desktop' -print -quit)"
-          test -n "$desktop"
-          grep -Fx 'Exec=nxc-app' "$desktop"
-          grep -Fq 'NXC_APPSTREAM_DATA' "$output/bin/nxc-app"
-
   clippy:
     name: Clippy
     runs-on: ubuntu-latest

@@ -5,7 +5,7 @@ title: "[BUG] "
 body:
   - type: markdown
     attributes:
-      value: "記述ルール: [Issueの書き方](https://github.com/nxc-project/nixos-json-controller/blob/main/docs/project-management/issue-writing.md)。原因を決めつけず、実際に観察した挙動と期待値を分けてください。再現条件が完全でなくても、確認済みの症状があれば起票できます。"
+      value: "記述ルール: [Issueの書き方](https://github.com/nxc-project/nixos-json-controller/blob/main/docs/project-management/issue-writing.md)。原因を決めつけず、実際に観察した挙動と期待値を分けてください。再現条件が完全でなくても、確認済みの症状があれば起票できます。特定PBIの達成を妨げるBugは「Parent PBI number (optional)」に親PBI番号だけを入力してください。Issue作成後、GitHub Actionsが親子関係を設定します。横断的なBugは空欄のまま独立Issueにできます。"
   - type: textarea
     id: why
     attributes:
@@ -60,6 +60,14 @@ body:
       label: 関連Issue・PR
       description: Project #166、PBL #167、関連する過去IssueやPRを記載してください。
       placeholder: "- Project: #166\n- PBL: #167\n- Related: #番号"
+    validations:
+      required: false
+  - type: input
+    id: parent_pbi
+    attributes:
+      label: Parent PBI number (optional)
+      description: 親PBIがある場合はIssue番号だけを入力してください（例: 177）。空欄なら親子関係を設定せず、独立Issueとして作成します。
+      placeholder: "177"
     validations:
       required: false
   - type: textarea

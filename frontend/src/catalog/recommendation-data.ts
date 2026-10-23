@@ -242,13 +242,11 @@ export function retainUsableRecommendationData(
   candidate: RecommendationDocument,
   existing: RecommendationDocument | null | undefined,
 ): RecommendationDocument {
-  if (
-    candidate.recommendations.some((item) => item.popularity !== null) ||
-    !existing?.recommendations.length
-  ) {
+  if (candidate.recommendations.some((item) => item.popularity !== null)) {
     return candidate;
   }
-  return existing;
+  if (existing?.recommendations.length) return existing;
+  return candidate;
 }
 
 /** Fetch and validate one recommendation document, treating network errors as unavailable data. */
@@ -299,7 +297,8 @@ export function buildCuratedRecommendationData(): RecommendationDocument {
 
   return {
     source: "NXC curated recommendations",
-    sourceUrl: "https://github.com/nxc-project/nixos-json-controller/blob/main/frontend/scripts/recommendation-package-map.json",
+    sourceUrl:
+      "https://github.com/nxc-project/nixos-json-controller/blob/main/frontend/scripts/recommendation-package-map.json",
     generatedAt: null,
     period: null,
     recommendations,

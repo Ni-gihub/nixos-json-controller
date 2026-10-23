@@ -1,0 +1,57 @@
+name: Sync Issue Types
+
+on:
+  issues:
+    types: [opened, edited, reopened, labeled, unlabeled]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Preview untyped issues or apply the inferred types"
+        required: true
+        type: choice
+        default: preview-backfill
+        options:
+          - preview-backfill
+          - apply-backfill
+
+# Serialize backfills and issue events so they do not race each other.
+concurrency:
+  group: issue-type-sync-${{ github.repository }}
+  cancel-in-progress: false
+
+# The REST API requires repository push access to set an Issue Type.
+# This workflow does not write repository contents; contents:write is needed
+# for the actor to satisfy GitHub's push-access check for type updates.
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  sync-issue-type:
+    name: Infer and synchronize Issue Type
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Synchronize Issue Type
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          MODE: ${{ github.event.inputs.mode || 'preview-backfill' }}
+        with:
+          script: |
+            const sync = require("./.github/scripts/sync-issue-type.js");
+
+            if (context.eventName === "workflow_dispatch") {
+              const mode = process.env.MODE;
+              const apply = mode === "apply-backfill";
+              core.info(apply
+                ? "Applying inferred types to currently untyped Issues."
+                : "Preview mode only; no Issue Types will be changed.");
+              await sync.syncBacklog({ github, context, core, apply });
+            } else {
+              await sync.syncTriggeredIssue({ github, context, core });
+            }

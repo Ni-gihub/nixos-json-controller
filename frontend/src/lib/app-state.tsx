@@ -160,18 +160,22 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
           return next;
         });
 
-        const currentFailures = failures.filter(({ packageNames: failedNames }) =>
-          failedNames.some((name) => {
-            const revision = requestRevisions.get(name);
-            return (
-              revision !== undefined &&
-              packageStateRevision.isCurrent(name, revision)
-            );
-          }),
+        const currentFailures = failures.filter(
+          ({ packageNames: failedNames }) =>
+            failedNames.some((name) => {
+              const revision = requestRevisions.get(name);
+              return (
+                revision !== undefined &&
+                packageStateRevision.isCurrent(name, revision)
+              );
+            }),
         );
         if (currentFailures.length > 0) {
           setError(
-            `Some package states could not be refreshed after retry: ${String(currentFailures[0].error)}`,
+            [
+              "Some package states could not be refreshed after retry:",
+              String(currentFailures[0].error),
+            ].join(" "),
           );
         }
       } catch (err) {

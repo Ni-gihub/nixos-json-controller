@@ -233,6 +233,24 @@ jobs:
       - name: Test Issue Type inference
         run: node --test .github/scripts/sync-issue-type.test.js
 
+  issue-hierarchy-tests:
+    name: Issue hierarchy automation tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+
+      - name: Test PBI parent number parsing and issue type guards
+        run: node --test .github/scripts/link-pbi-sub-issue.test.js
+
   issue-template-validation:
     name: Issue template YAML
     runs-on: ubuntu-latest
@@ -279,6 +297,11 @@ jobs:
               end
               abort("#{path}: type must be #{expected_types.fetch(path).inspect}") unless data["type"] == expected_types.fetch(path)
               abort("#{path}: body must be an array") unless data["body"].is_a?(Array)
+              child_forms = %w[.github/ISSUE_TEMPLATE/02-task.yml .github/ISSUE_TEMPLATE/03-bug.yml .github/ISSUE_TEMPLATE/04-investigation.yml]
+              if child_forms.include?(path)
+                parent_field = data["body"].find { |item| item["id"] == "parent_pbi" }
+                abort("#{path}: missing optional Parent PBI number input") unless parent_field && parent_field["type"] == "input" && parent_field.dig("attributes", "label") == "Parent PBI number (optional)"
+              end
               type_labels = %w[project pbl pbi task bug spike]
               if (data["labels"] || []).any? { |label| type_labels.include?(label.downcase) }
                 abort("#{path}: do not assign a Type-equivalent label; use the top-level type field")

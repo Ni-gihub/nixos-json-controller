@@ -53,6 +53,63 @@
       packages.${system} = {
         appstream-data = appstreamData;
 
+        nxc-app = pkgs.rustPlatform.buildRustPackage (finalAttrs: {
+          pname = "nxc-app";
+          version = "0.1.0";
+
+          src = ./.;
+
+          # The Tauri crate has its own lockfile and depends on the root CLI crate.
+          cargoRoot = "frontend/src-tauri";
+          buildAndTestSubdir = "frontend/src-tauri";
+          cargoLock.lockFile = ./frontend/src-tauri/Cargo.lock;
+
+          # pnpm dependencies are fetched from the frontend lockfile into a
+          # fixed-output store, then installed offline inside the build sandbox.
+          pnpm = pkgs.pnpm_11;
+          pnpmDeps = pkgs.fetchPnpmDeps {
+            inherit (finalAttrs) pname version src;
+            inherit (finalAttrs) pnpm;
+            sourceRoot = "${finalAttrs.src.name}/frontend";
+            fetcherVersion = 4;
+            hash = pkgs.lib.fakeHash;
+          };
+          pnpmRoot = "frontend";
+
+          nativeBuildInputs = with pkgs; [
+            cargo-tauri.hook
+            nodejs
+            pkg-config
+            pnpm
+            pnpmConfigHook
+            wrapGAppsHook4
+          ];
+
+          buildInputs = with pkgs; [
+            glib
+            glib-networking
+            gtk3
+            librsvg
+            libsoup_3
+            openssl
+            webkitgtk_4_1
+          ];
+
+          # Cargo names the executable after the Rust package ("app"); expose
+          # the stable package command name independently from that crate name.
+          postInstall = ''
+            mv "$out/bin/app" "$out/bin/nxc-app"
+          '';
+
+          doCheck = false;
+
+          meta = {
+            description = "nxc App Store GUI";
+            mainProgram = "nxc-app";
+            platforms = [ "x86_64-linux" ];
+          };
+        });
+
         default = pkgs.rustPlatform.buildRustPackage {
           pname = "nixos-json-controller";
           version = "0.1.0";

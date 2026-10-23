@@ -188,19 +188,45 @@ async function linkIssueToPbi({ github, context, core }) {
     return { action: "skip", reason: "different-parent-exists" };
   }
 
+  // The existing-parent lookup is an API round-trip too. Re-read the
+  // current request immediately after that wait, before creating the relation.
+  const { data: finalChild } = await github.rest.issues.get({
+    owner,
+    repo,
+    issue_number: child.number,
+  });
+  if (finalChild.pull_request || !CHILD_TYPES.has(currentIssueType(finalChild))) {
+    core.warning("The child Issue Type changed during the final check; no parent was linked.");
+    return { action: "skip", reason: "child-type-changed" };
+  }
+
+  const finalRequest = requestedParentNumber(finalChild, core);
+  if (!finalRequest.parentNumber) {
+    if (finalRequest.reason === "no-parent-requested") {
+      core.info("Parent PBI number was cleared before linking; no parent was linked.");
+    }
+    return { action: "skip", reason: finalRequest.reason };
+  }
+  if (finalRequest.parentNumber !== parentNumber) {
+    core.info(
+      `Parent PBI number changed from #${parentNumber} to #${finalRequest.parentNumber} during the existing-parent lookup; no parent was linked.`,
+    );
+    return { action: "skip", reason: "parent-request-changed-after-parent-check" };
+  }
+
   await github.request(
     "POST /repos/{owner}/{repo}/issues/{issue_number}/sub_issues",
     {
       owner,
       repo,
       issue_number: parentNumber,
-      sub_issue_id: latestChild.id,
+      sub_issue_id: finalChild.id,
       headers: { "X-GitHub-Api-Version": "2022-11-28" },
     },
   );
 
-  core.info(`Linked #${latestChild.number} as a sub-issue of PBI #${parentNumber}.`);
-  return { action: "linked", parentNumber, childNumber: latestChild.number };
+  core.info(`Linked #${finalChild.number} as a sub-issue of PBI #${parentNumber}.`);
+  return { action: "linked", parentNumber, childNumber: finalChild.number };
 }
 
 module.exports = {

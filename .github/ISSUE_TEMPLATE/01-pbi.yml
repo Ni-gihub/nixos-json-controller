@@ -5,7 +5,7 @@ title: "[PBI] "
 body:
   - type: markdown
     attributes:
-      value: "記述ルール: [Issueの書き方](https://github.com/nxc-project/nixos-json-controller/blob/main/docs/project-management/issue-writing.md)。誰が何をできるようになり、なぜ必要かを中心に書きます。実装・調査へ分ける場合は、このPBIを親Issueにし、Task・Bug・SpikeをGitHubのSub-issuesとして子Issueにします。新規の子Issueは各フォームの「Parent PBI number (optional)」へこのPBI番号を入力すると自動で紐づきます。既存Issueは親PBIのSub-issuesから追加します。PBL #167は索引であり、PBIの親Issueにはしません。"
+      value: "記述ルール: [Issueの書き方](https://github.com/nxc-project/nixos-json-controller/blob/main/docs/project-management/issue-writing.md)。誰が何をできるようになり、なぜ必要かを中心に書きます。実装・調査へ分ける場合は、このPBIを親Issueにし、Task・Bug・SpikeをGitHubのSub-issuesとして子Issueにします。リポジトリのOwner / Member / Collaboratorが新規の子Issueを作る場合は、各フォームの「Parent PBI number (optional)」へこのPBI番号を入力すると自動で紐づきます。外部ユーザーが作成したIssueは自動変更せず、レビュー後にメンテナーが親PBIのSub-issuesから追加します。既存Issueも同じメニューから追加します。PBL #167は索引であり、PBIの親Issueにはしません。"
   - type: textarea
     id: story
     attributes:

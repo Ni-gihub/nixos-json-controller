@@ -5,13 +5,13 @@ const TRUSTED_ASSOCIATIONS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 
 function extractParentPbiValue(body) {
   const match = String(body || "").match(
-    /^### Parent PBI number \\(optional\\)[ \\t]*\\r?\\n([^\\r\\n]*)/m,
+    /^### Parent PBI number \(optional\)[ \t]*\r?\n([^\r\n]*)/m,
   );
   return match ? match[1].trim() : null;
 }
 
 function parseIssueNumber(value) {
-  if (typeof value !== "string" || !/^[1-9]\\d*$/.test(value)) {
+  if (typeof value !== "string" || !/^[1-9]\d*$/.test(value)) {
     return null;
   }
   const number = Number(value);

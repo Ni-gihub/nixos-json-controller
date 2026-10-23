@@ -95,8 +95,7 @@ export default function RecommendationAppCard({
                   人気度データは未生成です
                 </div>
                 <p className="text-sm leading-6 text-muted-foreground">
-                  この配布版には外部統計が含まれていません。
-                  配布者が生成データを用意すると、人気度を表示できます。
+                  この配布版には外部統計が含まれていません。配布者が生成データを用意すると、人気度を表示できます。
                 </p>
               </div>
             ) : (

@@ -38,3 +38,21 @@ test("describes recommendation IDs that have no fallback metadata", () => {
     "表示用の情報がないため表示できないアプリ: unknown-app",
   );
 });
+
+test("provides fallback metadata for corrected Nixpkgs recommendation IDs", () => {
+  const ids = [
+    "dbeaver-bin",
+    "kdePackages.falkon",
+    "onlyoffice-desktopeditors",
+    "krusader",
+  ];
+  const apps = buildRecommendationFallbackApps(ids);
+
+  assert.deepEqual(apps.map((app) => app.id), ids);
+  assert.deepEqual(apps.map((app) => app.name), [
+    "DBeaver",
+    "Falkon",
+    "ONLYOFFICE",
+    "Krusader",
+  ]);
+});

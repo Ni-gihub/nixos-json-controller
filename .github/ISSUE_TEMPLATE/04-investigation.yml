@@ -1,10 +1,11 @@
 name: 技術調査（SPIKE）
 description: 原因・実現可能性・設計判断を根拠に基づいて明らかにする
+type: Spike
 title: "[SPIKE] "
 body:
   - type: markdown
     attributes:
-      value: "調査の開始時点で原因や結論を決める必要はありません。確認済みの事実と仮説を区別し、何を判断できれば調査完了かを記載してください。"
+      value: "記述ルール: [Issueの書き方](https://github.com/nxc-project/nixos-json-controller/blob/main/docs/project-management/issue-writing.md)。調査の開始時点で原因や結論を決める必要はありません。確認済みの事実と仮説を区別し、何を判断できれば調査完了かを記載してください。特定PBIの実現に向けた調査では「Parent PBI number (optional)」に親PBI番号だけを入力してください。Owner / Member / Collaboratorが作成したIssueでは、GitHub ActionsがIssue作成後に親子関係を設定します。外部ユーザーのIssueはメンテナーがレビュー後に追加します。横断的な調査は空欄のまま独立Issueにできます。"
   - type: textarea
     id: question
     attributes:
@@ -51,6 +52,14 @@ body:
       label: 関連Issue・PR・資料
       description: Project #166、PBL #167、親PBIやブロッカー、参考資料を記載してください。
       placeholder: "- Project: #166\n- PBL: #167\n- PBI / Related: #番号"
+    validations:
+      required: false
+  - type: input
+    id: parent_pbi
+    attributes:
+      label: Parent PBI number (optional)
+      description: "親PBIがある場合はIssue番号だけを入力してください（例: 177）。空欄なら親子関係を設定せず、独立Issueとして作成します。"
+      placeholder: "177"
     validations:
       required: false
   - type: textarea

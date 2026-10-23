@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Created locally by a distributor before packaging; never commit API-derived statistics.
+public/data/recommendations.json

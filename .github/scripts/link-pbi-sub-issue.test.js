@@ -242,8 +242,8 @@ test("refuses a parent whose Issue Type is not PBI", async () => {
 
 test("does not link if the parent number changes while checking the current parent", async () => {
   const core = makeCore();
-  const currentBody = "### Parent PBI number (optional)\\n177";
-  const updatedBody = "### Parent PBI number (optional)\\n180";
+  const currentBody = "### Parent PBI number (optional)\n177";
+  const updatedBody = "### Parent PBI number (optional)\n180";
   let body = currentBody;
   let childReads = 0;
   const calls = [];

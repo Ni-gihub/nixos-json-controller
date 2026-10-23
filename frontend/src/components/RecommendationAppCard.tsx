@@ -162,7 +162,9 @@ export default function RecommendationAppCard({
           <span className="text-2xl font-bold leading-none tracking-tight tabular-nums text-primary">
             {String(rank).padStart(2, "0")}
           </span>
-          <span className="text-xs text-muted-foreground">{popularity === null ? "件目" : "位"}</span>
+          <span className="text-xs text-muted-foreground">
+            {popularity === null ? "件目" : "位"}
+          </span>
         </div>
         <span className="rounded-md bg-primary/10 px-2 py-1 text-xs font-semibold tabular-nums text-primary">
           {popularity === null ? "おすすめ" : `${popularity}%`}

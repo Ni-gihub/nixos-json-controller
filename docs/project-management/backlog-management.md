@@ -4,8 +4,8 @@
 
 ## 正本となるIssue
 
-- **Project / プロジェクト憲章:** [#166 — NXC：安全で再現可能な NixOS パッケージ管理と App Store](https://github.com/Ni-gihub/nixos-json-controller/issues/166)
-- **PBL / Product Backlog List:** [#167 — NXC Product Backlog](https://github.com/Ni-gihub/nixos-json-controller/issues/167)
+- **Project / プロジェクト憲章:** [#166 — NXC：安全で再現可能な NixOS パッケージ管理と App Store](https://github.com/nxc-project/nixos-json-controller/issues/166)
+- **PBL / Product Backlog List:** [#167 — NXC Product Backlog](https://github.com/nxc-project/nixos-json-controller/issues/167)
 
 #166はプロダクト全体の目的、スコープ、成功基準、リリースゲートを定義する。#167は現在のPBI、優先順位、依存関係、完了・見送り履歴への索引である。PBLは作業の詳細を重複保管せず、個々のIssueを参照する。
 

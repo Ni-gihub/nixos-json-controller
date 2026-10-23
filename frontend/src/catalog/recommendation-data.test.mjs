@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   isRecommendationCacheFresh,
   loadBundledRecommendations,
+  loadLatestRecommendations,
   parseRecommendationData,
   readCachedRecommendations,
   retainUsableRecommendationData,
@@ -86,17 +87,20 @@ test("uses bundled data when it can be read", async () => {
   assert.equal(data.recommendations.length, 1);
 });
 
-test("uses NXC-curated recommendations when distributor data is unavailable", async () => {
+test("returns an empty safe value when the bundled resource is unavailable", async () => {
   const data = await loadBundledRecommendations(async () => {
     throw new Error("offline");
   });
-  assert.ok(data.recommendations.length > 0);
-  assert.equal(data.source, "NXC curated recommendations");
-  assert.equal(data.recommendations[0]?.popularity, null);
-  assert.equal(data.recommendations[0]?.count, null);
+  assert.equal(data.recommendations.length, 0);
 });
 
-
+test("does not replace existing data with an empty remote list", async () => {
+  const emptyData = { ...validData, recommendations: [] };
+  const data = await loadLatestRecommendations(async () =>
+    mockResponse(emptyData),
+  );
+  assert.equal(data, undefined);
+});
 
 
 test("prefers non-empty bundled recommendations over retained data", () => {
@@ -116,18 +120,6 @@ test("uses empty bundled data when no usable existing data is available", () => 
   const emptyBundled = { ...validData, recommendations: [] };
 
   assert.equal(retainUsableRecommendationData(emptyBundled, null), emptyBundled);
-});
-
-test("keeps cached popularity data when the bundled candidate has only curated entries", () => {
-  const curated = {
-    ...validData,
-    source: "NXC curated recommendations",
-    generatedAt: null,
-    period: null,
-    recommendations: [{ ...validData.recommendations[0], popularity: null, count: null, samples: null }],
-  };
-
-  assert.equal(retainUsableRecommendationData(curated, validData), validData);
 });
 
 function createMemoryStorage() {
@@ -181,19 +173,5 @@ test("does not persist empty recommendation data", () => {
     storage,
   );
 
-  assert.equal(storage.getItem("nxc.app-store.recommendations.v2"), null);
-});
-
-test("does not persist curated data that has no external popularity statistics", () => {
-  const storage = createMemoryStorage();
-  const curated = {
-    ...validData,
-    source: "NXC curated recommendations",
-    generatedAt: null,
-    period: null,
-    recommendations: [{ ...validData.recommendations[0], popularity: null, count: null, samples: null }],
-  };
-
-  writeCachedRecommendations(curated, 1_800_000_000_000, storage);
   assert.equal(storage.getItem("nxc.app-store.recommendations.v2"), null);
 });

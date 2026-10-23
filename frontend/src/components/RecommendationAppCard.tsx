@@ -52,7 +52,9 @@ export default function RecommendationAppCard({
             <div className="min-w-0 flex-1">
               <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary">
                 <Star className="size-4" />
-                {popularity === null ? "おすすめアプリ" : `総合ランキング ${rank}位`}
+                {popularity === null
+                  ? "おすすめアプリ"
+                  : `総合ランキング ${rank}位`}
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <Link
@@ -93,7 +95,8 @@ export default function RecommendationAppCard({
                   人気度データは未生成です
                 </div>
                 <p className="text-sm leading-6 text-muted-foreground">
-                  この配布版には外部統計が含まれていません。配布者が生成データを用意すると、人気度を表示できます。
+                  この配布版には外部統計が含まれていません。
+                  配布者が生成データを用意すると、人気度を表示できます。
                 </p>
               </div>
             ) : (
@@ -116,7 +119,10 @@ export default function RecommendationAppCard({
                   <div
                     className="h-full rounded-full bg-primary"
                     style={{
-                      width: `${Math.min(100, Math.max(0, recommendation.popularity ?? 0))}%`,
+                      width: `${Math.min(
+                        100,
+                        Math.max(0, recommendation.popularity ?? 0),
+                      )}%`,
                     }}
                   />
                 </div>

@@ -13,7 +13,7 @@ import {
   type InstallRequestPhase,
 } from "./install-request-lock";
 import {
-  chunkPackageNames,
+  fetchPackageStateBatches,
   PackageStateRevision,
   PendingRequestCounter,
   withUnknownPackageState,
@@ -137,17 +137,18 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setLoading(true);
       setError(null);
       try {
-        const result: AppState[] = [];
-        for (const packageBatch of chunkPackageNames(packageNames)) {
-          result.push(
-            ...(await invoke<AppState[]>("get_app_states", {
+        const { results, failures } = await fetchPackageStateBatches(
+          packageNames,
+          (packageBatch) =>
+            invoke<AppState[]>("get_app_states", {
               packages: packageBatch,
-            })),
-          );
-        }
+            }),
+        );
+
+        // Apply every successful batch even if another batch still failed after retry.
         setStates((current) => {
           const next = { ...current };
-          for (const state of result) {
+          for (const state of results) {
             const revision = requestRevisions.get(state.name);
             if (
               revision !== undefined &&
@@ -158,6 +159,21 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
           }
           return next;
         });
+
+        const currentFailures = failures.filter(({ packageNames: failedNames }) =>
+          failedNames.some((name) => {
+            const revision = requestRevisions.get(name);
+            return (
+              revision !== undefined &&
+              packageStateRevision.isCurrent(name, revision)
+            );
+          }),
+        );
+        if (currentFailures.length > 0) {
+          setError(
+            `Some package states could not be refreshed after retry: ${String(currentFailures[0].error)}`,
+          );
+        }
       } catch (err) {
         // A stale request must not replace the error state of newer requests.
         const hasCurrentPackage = [...requestRevisions].some(

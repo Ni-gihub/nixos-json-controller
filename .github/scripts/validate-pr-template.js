@@ -1,5 +1,63 @@
 "use strict";
 
+function maskInlineCodeSpans(markdown) {
+  const characters = Array.from(String(markdown || ""));
+  const masked = [...characters];
+
+  for (let index = 0; index < characters.length;) {
+    if (characters[index] !== "\`") {
+      index += 1;
+      continue;
+    }
+
+    let openingEnd = index;
+    while (characters[openingEnd] === "\`") {
+      openingEnd += 1;
+    }
+    const delimiterLength = openingEnd - index;
+    let search = openingEnd;
+    let closingStart = -1;
+    let closingEnd = -1;
+
+    while (search < characters.length) {
+      if (characters[search] !== "\`") {
+        search += 1;
+        continue;
+      }
+
+      let runEnd = search;
+      while (characters[runEnd] === "\`") {
+        runEnd += 1;
+      }
+
+      if (runEnd - search === delimiterLength) {
+        closingStart = search;
+        closingEnd = runEnd;
+        break;
+      }
+
+      search = runEnd;
+    }
+
+    if (closingStart < 0) {
+      // An unmatched backtick run is literal Markdown, not an inline code span.
+      index = openingEnd;
+      continue;
+    }
+
+    // Mask code content so literal HTML comment markers and heading-like text
+    // are not interpreted by the subsequent Markdown cleanup stages.
+    for (let cursor = index; cursor < closingEnd; cursor += 1) {
+      if (characters[cursor] !== "\n" && characters[cursor] !== "\r") {
+        masked[cursor] = " ";
+      }
+    }
+    index = closingEnd;
+  }
+
+  return masked.join("");
+}
+
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -37,8 +95,9 @@ function withoutCommentsAndCode(markdown) {
     visibleLines.push(line);
   }
 
+  const withoutInlineCode = maskInlineCodeSpans(visibleLines.join("\n"));
   return withoutRawHtmlBlocks(
-    visibleLines.join("\n").replace(/<!--[\s\S]*?(?:-->|$)/g, ""),
+    withoutInlineCode.replace(/<!--[\\s\\S]*?(?:-->|$)/g, ""),
   );
 }
 

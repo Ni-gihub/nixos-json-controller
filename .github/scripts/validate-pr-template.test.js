@@ -368,8 +368,15 @@ test("indented code blocks close paragraph state before type 7 HTML blocks", () 
   }
 });
 
-test("block quotes and list markers close paragraphs before type 7 HTML blocks", () => {
-  for (const marker of ["> quote", "- list item", "1. ordered item"]) {
+test("block quotes and ordered list markers including leading zeros close paragraphs before type 7 HTML blocks", () => {
+  for (const marker of [
+    "> quote",
+    "- list item",
+    "1. ordered item",
+    "01. ordered item",
+    "001) ordered item",
+    "000000001. ordered item",
+  ]) {
     const result = validatePullRequestBody(
       template,
       [

@@ -222,6 +222,14 @@ function withoutRawHtmlBlocks(markdown) {
       continue;
     }
 
+    // Block quote and list item markers start block containers and close
+    // a paragraph at the current nesting level.
+    if (/^>/.test(content) || /^(?:[-+*][ \\t]+|[1-9][0-9]{0,8}[.)][ \\t]+)/.test(content)) {
+      visibleLines.push(line);
+      paragraphOpen = false;
+      continue;
+    }
+
     const rawTag = content.match(/^<(script|pre|style)(?=[ \t/>])/i);
     if (rawTag) {
       const tagEnd = new RegExp("</" + rawTag[1] + "\\s*>", "i");

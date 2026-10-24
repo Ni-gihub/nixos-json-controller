@@ -641,3 +641,48 @@ test("reports missing template sections", () => {
   assert.equal(result.ok, false);
   assert.deepEqual(result.missingHeadings, ["変更内容"]);
 });
+
+
+test("indented continuation lines do not interrupt an open paragraph before type 7 HTML blocks", () => {
+  for (const indentedLine of ["    continuation", "\tcontinuation"]) {
+    const body = [
+      "## Why",
+      "Reason.",
+      indentedLine,
+      "<custom-tag>",
+      "## 変更内容",
+      "Changed.",
+      "## 受け入れ条件との対応",
+      "Done.",
+    ].join("\n");
+    const result = validatePullRequestBody(template, body);
+
+    assert.equal(result.ok, true, JSON.stringify(indentedLine));
+    assert.deepEqual(result.missingHeadings, [], JSON.stringify(indentedLine));
+    assert.deepEqual(extractH2Headings(body), [
+      "Why",
+      "変更内容",
+      "受け入れ条件との対応",
+    ], JSON.stringify(indentedLine));
+  }
+});
+
+test("blank lines made of spaces or tabs close paragraphs before type 7 HTML blocks", () => {
+  for (const blankLine of ["", "    ", "\t"]) {
+    const body = [
+      "## Why",
+      "Reason.",
+      blankLine,
+      "<custom-tag>",
+      "## 変更内容",
+      "Still inside the raw HTML block.",
+      "",
+      "## 受け入れ条件との対応",
+      "Done.",
+    ].join("\n");
+    const result = validatePullRequestBody(template, body);
+
+    assert.equal(result.ok, false, JSON.stringify(blankLine));
+    assert.deepEqual(result.missingHeadings, ["変更内容"], JSON.stringify(blankLine));
+  }
+});

@@ -241,12 +241,20 @@ function withoutRawHtmlBlocks(markdown) {
       }
     }
 
-    // An indented code block starts outside an open paragraph with four
-    // or more spaces (or a leading tab). It is not paragraph text, and its
-    // contents must not keep the following HTML-block check in paragraph mode.
-    if (!paragraphOpen && /^(?: {4,}|\t)/.test(line)) {
+    // Blank lines always close paragraphs, including lines made only of
+    // spaces or tabs. Check this before indentation so they are not mistaken
+    // for indented code.
+    if (line.trim() === "") {
       visibleLines.push(line);
       paragraphOpen = false;
+      continue;
+    }
+
+    // Indented code blocks cannot interrupt an open paragraph. Keep the
+    // existing paragraph state for indented nonblank lines; when no paragraph
+    // is open, the state remains closed and the line is treated as code.
+    if (/^(?: {4,}|\t)/.test(line)) {
+      visibleLines.push(line);
       continue;
     }
 

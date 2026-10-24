@@ -271,7 +271,7 @@ Nix Flake の開発シェルを用意しています。**Wayland では WebKitGT
 
     pnpm tauri dev
 
-frontend/package.json の tauri スクリプトは、リポジトリルートの Nix Flake から appstream-data 出力をビルドし、そのパスを NXC_APPSTREAM_DATA として渡して Tauri CLI を実行します。開発シェルは GTK / GSettings のスキーマを XDG_DATA_DIRS に追加し、Wayland 上で WebKitGTK の表示倍率が異常な値になる問題を避けます。したがって、GUI の開発起動にはリポジトリの Nix Flake と Nix が必要です。
+frontend/package.json の tauri スクリプトは、リポジトリルートの Nix Flake から appstream-data 出力をビルドし、そのパスを NXC_APPSTREAM_DATA として渡して Tauri CLI を実行します。開発シェルは GTK / GSettings のスキーマを XDG_DATA_DIRS に追加し、Wayland 上で WebKitGTK の表示倍率が異常な値になる問題を避けます。AppStream データはソースに同梱せず、Nix Flake の入力から取得・ビルドします。したがって、GUI の開発起動にはリポジトリの Nix Flake と Nix が必要です。
 
 ## Frontend の確認コマンド
 
@@ -357,4 +357,8 @@ GUI 用の Flake package、Desktop Entry、静的なランチャーアイコン�
 
 # ライセンス
 
-現在、リポジトリには利用者向けライセンスがまだ設定されていません。採用するライセンスの決定、利用・改変・再配布条件の明示、外部由来の資産に関する条件確認は [Issue #139](https://github.com/Ni-gihub/nixos-json-controller/issues/139) で管理しています。
+NXC が作成した CLI / コア機能、GUI のソースコード、Nix 定義、スクリプトおよびドキュメントは、特別な記載がない限りルートの [MIT License](./LICENSE) の対象です。改変・再配布にあたり、MIT ライセンス本文と著作権表示を保持してください。NXC を利用した派生ソフトウェアを同じライセンスにする義務はありません。
+
+このライセンスは、外部 API サービス、API から得られるデータ、AppStream の個別メタデータやアイコン、Iconify のアイコン、フォント、依存ライブラリ、商標などに一律適用されません。NXC のソースコードに含まれる外部サービス呼び出しのコードと、外部サービスやそのデータ自体は区別してください。
+
+第三者資産の出典・ライセンスの確認方法と、配布者が生成するデータの扱いは [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) にまとめています。外部資産や依存ライブラリを含む GUI 配布物を作成する場合は、個別の条件と必要なライセンス文・帰属表示を確認してください。

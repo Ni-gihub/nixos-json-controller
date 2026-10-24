@@ -42,6 +42,45 @@ function withoutCommentsAndCode(markdown) {
   );
 }
 
+function isCompleteHtmlTag(content) {
+  const tagStart = content.match(/^<(\/?)([A-Za-z][A-Za-z0-9-]*)/);
+  if (!tagStart) {
+    return false;
+  }
+
+  let index = tagStart[0].length;
+  if (tagStart[1] === "/") {
+    return /^[ \t]*>[ \t]*$/.test(content.slice(index));
+  }
+
+  let quote = null;
+  for (; index < content.length; index += 1) {
+    const character = content[index];
+
+    if (quote) {
+      if (character === quote) {
+        quote = null;
+      }
+      continue;
+    }
+
+    if (character === '"' || character === "'") {
+      quote = character;
+      continue;
+    }
+
+    if (character === "<") {
+      return false;
+    }
+
+    if (character === ">") {
+      return /^[ \t]*$/.test(content.slice(index + 1));
+    }
+  }
+
+  return false;
+}
+
 function withoutRawHtmlBlocks(markdown) {
   const lines = String(markdown || "").split(/\r?\n/);
   const visibleLines = [];
@@ -101,9 +140,9 @@ function withoutRawHtmlBlocks(markdown) {
       continue;
     }
 
-    // CommonMark raw HTML block type 7: a complete open or closing tag at line start.
-    const completeTag = /^<\/?[A-Za-z][A-Za-z0-9-]*(?:[ \t]+[^<>]*?)?[ \t]*\/?>[ \t]*$/;
-    if (completeTag.test(content)) {
+    // CommonMark raw HTML block type 7: recognize a complete tag while
+    // ignoring greater-than characters inside quoted attribute values.
+    if (isCompleteHtmlTag(content)) {
       activeBlock = { untilBlank: true };
       continue;
     }

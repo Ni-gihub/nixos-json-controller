@@ -103,6 +103,28 @@ test("raw HTML blocks cannot satisfy required PR sections", () => {
   assert.deepEqual(divResult.missingHeadings, ["変更内容"]);
 });
 
+
+test("raw HTML blocks with quoted greater-than attribute values cannot satisfy required sections", () => {
+  for (const tag of ['<custom-tag title="a > b">', "<custom-tag title='a > b'>"]) {
+    const result = validatePullRequestBody(
+      template,
+      [
+        "## Why",
+        "Reason.",
+        tag,
+        "## 変更内容",
+        "Still inside the raw HTML block.",
+        "",
+        "## 受け入れ条件との対応",
+        "Done.",
+      ].join("\n"),
+    );
+
+    assert.equal(result.ok, false, tag);
+    assert.deepEqual(result.missingHeadings, ["変更内容"], tag);
+  }
+});
+
 test("unclosed HTML comments cannot satisfy required PR sections", () => {
   const result = validatePullRequestBody(
     template,

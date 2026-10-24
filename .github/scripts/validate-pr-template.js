@@ -15,12 +15,27 @@ function withoutInlineCodeAndHtmlComments(markdown) {
     output.push(masked);
   }
 
+  function isEscapedBacktick(index) {
+    let backslashCount = 0;
+    for (let cursor = index - 1; cursor >= 0 && source[cursor] === "\\"; cursor -= 1) {
+      backslashCount += 1;
+    }
+    return backslashCount % 2 === 1;
+  }
+
   for (let index = 0; index < source.length;) {
     if (source[index] === backtick) {
       let openingEnd = index;
       while (source[openingEnd] === backtick) {
         openingEnd += 1;
       }
+
+      if (isEscapedBacktick(index)) {
+        output.push(source.slice(index, openingEnd));
+        index = openingEnd;
+        continue;
+      }
+
       const delimiterLength = openingEnd - index;
       let search = openingEnd;
       let closingEnd = -1;
@@ -36,7 +51,7 @@ function withoutInlineCodeAndHtmlComments(markdown) {
           runEnd += 1;
         }
 
-        if (runEnd - search === delimiterLength) {
+        if (runEnd - search === delimiterLength && !isEscapedBacktick(search)) {
           closingEnd = runEnd;
           break;
         }

@@ -212,6 +212,7 @@ test("fence-like lines inside raw HTML blocks do not expose fake headings", () =
     "## 変更内容",
     "Still inside the raw HTML block.",
     "</div>",
+    "",
     "## 受け入れ条件との対応",
     "Done.",
   ].join("\n");

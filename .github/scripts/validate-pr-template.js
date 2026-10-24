@@ -214,7 +214,7 @@ function withoutRawHtmlBlocks(markdown) {
 
     // Thematic breaks and setext underlines close the current paragraph too.
     if (
-      /^(?:(?:\\*[ \\t]*){3,}|(?:-[ \\t]*){3,}|(?:_[ \\t]*){3,})$/.test(content) ||
+      /^(?:(?:\*[ \\t]*){3,}|(?:-[ \\t]*){3,}|(?:_[ \\t]*){3,})$/.test(content) ||
       /^(?:=+[ \\t]*|-{1,2}[ \\t]*)$/.test(content)
     ) {
       visibleLines.push(line);

@@ -224,7 +224,7 @@ test("raw HTML blocks with quoted greater-than attribute values cannot satisfy r
 });
 
 test("indented code blocks close paragraph state before type 7 HTML blocks", () => {
-  for (const codeLine of ["    example", "\\texample"]) {
+  for (const codeLine of ["    example", "\texample"]) {
     const result = validatePullRequestBody(
       template,
       [
@@ -238,7 +238,7 @@ test("indented code blocks close paragraph state before type 7 HTML blocks", () 
         "",
         "## 受け入れ条件との対応",
         "Done.",
-      ].join("\\n"),
+      ].join("\n"),
     );
 
     assert.equal(result.ok, false, JSON.stringify(codeLine));

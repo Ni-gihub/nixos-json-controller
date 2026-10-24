@@ -1,65 +1,74 @@
 "use strict";
 
-function maskInlineCodeSpans(markdown) {
-  const characters = Array.from(String(markdown || ""));
-  const masked = [...characters];
+function withoutInlineCodeAndHtmlComments(markdown) {
+  const source = String(markdown || "");
+  const output = [];
+  const backtick = String.fromCharCode(96);
 
-  for (let index = 0; index < characters.length;) {
-    if (characters[index] !== "`") {
-      index += 1;
-      continue;
+  function maskRange(start, end) {
+    let masked = "";
+    for (let cursor = start; cursor < end; cursor += 1) {
+      masked += source[cursor] === "\n" || source[cursor] === "\r"
+        ? source[cursor]
+        : " ";
     }
-
-    let openingEnd = index;
-    while (characters[openingEnd] === "`") {
-      openingEnd += 1;
-    }
-    const delimiterLength = openingEnd - index;
-    let search = openingEnd;
-    let closingStart = -1;
-    let closingEnd = -1;
-
-    while (search < characters.length) {
-      if (characters[search] !== "`") {
-        search += 1;
-        continue;
-      }
-
-      let runEnd = search;
-      while (characters[runEnd] === "`") {
-        runEnd += 1;
-      }
-
-      if (runEnd - search === delimiterLength) {
-        closingStart = search;
-        closingEnd = runEnd;
-        break;
-      }
-
-      search = runEnd;
-    }
-
-    if (closingStart < 0) {
-      // An unmatched backtick run is literal Markdown, not an inline code span.
-      index = openingEnd;
-      continue;
-    }
-
-    // Mask code content so literal HTML comment markers and heading-like text
-    // are not interpreted by the subsequent Markdown cleanup stages.
-    for (let cursor = index; cursor < closingEnd; cursor += 1) {
-      if (characters[cursor] !== "\n" && characters[cursor] !== "\r") {
-        masked[cursor] = " ";
-      }
-    }
-    index = closingEnd;
+    output.push(masked);
   }
 
-  return masked.join("");
-}
+  for (let index = 0; index < source.length;) {
+    if (source[index] === backtick) {
+      let openingEnd = index;
+      while (source[openingEnd] === backtick) {
+        openingEnd += 1;
+      }
+      const delimiterLength = openingEnd - index;
+      let search = openingEnd;
+      let closingEnd = -1;
 
-const fs = require("node:fs");
-const path = require("node:path");
+      while (search < source.length) {
+        if (source[search] !== backtick) {
+          search += 1;
+          continue;
+        }
+
+        let runEnd = search;
+        while (source[runEnd] === backtick) {
+          runEnd += 1;
+        }
+
+        if (runEnd - search === delimiterLength) {
+          closingEnd = runEnd;
+          break;
+        }
+
+        search = runEnd;
+      }
+
+      if (closingEnd >= 0) {
+        maskRange(index, closingEnd);
+        index = closingEnd;
+      } else {
+        // An unmatched backtick run is literal Markdown, not an inline code span.
+        output.push(source.slice(index, openingEnd));
+        index = openingEnd;
+      }
+      continue;
+    }
+
+    if (source.startsWith("<!--", index)) {
+      const commentClose = source.indexOf("-->", index + 4);
+      const commentEnd = commentClose < 0 ? source.length : commentClose + 3;
+      maskRange(index, commentEnd);
+      index = commentEnd;
+      continue;
+    }
+
+    output.push(source[index]);
+    index += 1;
+  }
+
+  return output.join("");
+}
 
 function withoutCommentsAndCode(markdown) {
   const lines = String(markdown || "").split(/\r?\n/);
@@ -95,10 +104,7 @@ function withoutCommentsAndCode(markdown) {
     visibleLines.push(line);
   }
 
-  const withoutInlineCode = maskInlineCodeSpans(visibleLines.join("\n"));
-  return withoutRawHtmlBlocks(
-    withoutInlineCode.replace(/<!--[\\s\\S]*?(?:-->|$)/g, ""),
-  );
+  return withoutRawHtmlBlocks(withoutInlineCodeAndHtmlComments(visibleLines.join("\n")));
 }
 
 function isCompleteHtmlTag(content) {

@@ -168,7 +168,15 @@ function isCompleteHtmlTag(content) {
     }
 
     if (character === ">") {
+      const tagName = tagStart[2].toLowerCase();
+      const isSelfClosingRawTextTag =
+        ["pre", "script", "style", "textarea"].includes(tagName) &&
+        content.slice(tagStart[0].length, index).trimEnd().endsWith("/");
+      if (isSelfClosingRawTextTag) {
+        return false;
+      }
       return /^[ \t]*$/.test(content.slice(index + 1));
+    }
     }
   }
 
@@ -277,7 +285,7 @@ function withoutRawHtmlBlocks(markdown) {
       continue;
     }
 
-    const rawTag = content.match(/^<(script|pre|style|textarea)(?=[ \t/>]|$)/i);
+    const rawTag = content.match(/^<(script|pre|style|textarea)(?=[ \t>]|$)/i);
     if (rawTag) {
       // CommonMark type 1 ends at any of these close tags, not only the tag
       // corresponding to the opening element.

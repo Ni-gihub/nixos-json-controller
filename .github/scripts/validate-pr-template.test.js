@@ -62,7 +62,7 @@ test("escaped backticks do not open or close inline code spans", () => {
       "Use `code` in the example.",
       "## 受け入れ条件との対応",
       "Done.",
-    ].join("\\n"),
+    ].join("\n"),
   );
 
   assert.equal(result.ok, true);

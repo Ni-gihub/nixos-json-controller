@@ -261,6 +261,31 @@ test("type 1 HTML block opening tags may end a line before the closing angle bra
   }
 });
 
+test("self-closing type 1 tag names do not open raw HTML blocks", () => {
+  for (const tag of ["pre", "script", "style", "textarea"]) {
+    const body = [
+      "## Why",
+      "Reason.",
+      "",
+      "<" + tag + "/>",
+      "## 変更内容",
+      "Changed.",
+      "## 受け入れ条件との対応",
+      "Done.",
+    ].join("\\n");
+
+    const result = validatePullRequestBody(template, body);
+
+    assert.equal(result.ok, true, tag);
+    assert.deepEqual(result.missingHeadings, [], tag);
+    assert.deepEqual(extractH2Headings(body), [
+      "Why",
+      "変更内容",
+      "受け入れ条件との対応",
+    ], tag);
+  }
+});
+
 test("fence-like lines inside raw HTML blocks do not expose fake headings", () => {
   const body = [
     "## Why",

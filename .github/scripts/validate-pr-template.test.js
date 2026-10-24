@@ -206,6 +206,48 @@ test("raw HTML blocks with quoted greater-than attribute values cannot satisfy r
   }
 });
 
+test("thematic breaks close paragraphs before type 7 HTML blocks", () => {
+  const result = validatePullRequestBody(
+    template,
+    [
+      "## Why",
+      "Reason.",
+      "***",
+      "<custom-tag>",
+      "## 変更内容",
+      "Still inside the raw HTML block.",
+      "",
+      "## 受け入れ条件との対応",
+      "Done.",
+    ].join("\n"),
+  );
+
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.missingHeadings, ["変更内容"]);
+});
+
+test("fenced code blocks separate paragraphs before type 7 HTML blocks", () => {
+  const result = validatePullRequestBody(
+    template,
+    [
+      "## Why",
+      "Reason.",
+      "```text",
+      "This is an example fence.",
+      "```",
+      "<custom-tag>",
+      "## 変更内容",
+      "Still inside the raw HTML block.",
+      "",
+      "## 受け入れ条件との対応",
+      "Done.",
+    ].join("\n"),
+  );
+
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.missingHeadings, ["変更内容"]);
+});
+
 test("unclosed HTML comments cannot satisfy required PR sections", () => {
   const result = validatePullRequestBody(
     template,

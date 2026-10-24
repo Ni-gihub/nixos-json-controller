@@ -50,6 +50,24 @@ test("headings in multiline HTML comments cannot satisfy required PR sections", 
   assert.deepEqual(result.missingHeadings, ["変更内容"]);
 });
 
+test("inline HTML followed by a valid heading does not hide the heading", () => {
+  const result = validatePullRequestBody(
+    template,
+    [
+      "## Why",
+      "Reason.",
+      "<span>説明</span>",
+      "## 変更内容",
+      "Changed.",
+      "## 受け入れ条件との対応",
+      "Done.",
+    ].join("\n"),
+  );
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.missingHeadings, []);
+});
+
 test("raw HTML blocks cannot satisfy required PR sections", () => {
   const preResult = validatePullRequestBody(
     template,

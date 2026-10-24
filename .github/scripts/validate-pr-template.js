@@ -102,7 +102,7 @@ function withoutRawHtmlBlocks(markdown) {
     }
 
     // CommonMark raw HTML block type 7: a complete open or closing tag at line start.
-    const completeTag = /^<\/?[A-Za-z][A-Za-z0-9-]*(?:[ \t]+[^<>]*?)?[ \t]*\/?>/;
+    const completeTag = /^<\/?[A-Za-z][A-Za-z0-9-]*(?:[ \t]+[^<>]*?)?[ \t]*\/?>[ \t]*$/;
     if (completeTag.test(content)) {
       activeBlock = { untilBlank: true };
       continue;

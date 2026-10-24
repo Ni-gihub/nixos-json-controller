@@ -176,7 +176,7 @@ test("raw HTML blocks cannot satisfy required PR sections", () => {
       "</textarea>",
       "## 受け入れ条件との対応",
       "Done.",
-    ].join("\\n"),
+    ].join("\n"),
   );
 
   assert.equal(textareaResult.ok, false);

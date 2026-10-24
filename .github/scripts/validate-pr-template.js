@@ -4,10 +4,40 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 function withoutCommentsAndCode(markdown) {
-  const fence = String.fromCharCode(96).repeat(3);
-  return String(markdown || "")
-    .replace(new RegExp(fence + "[\\s\\S]*?" + fence, "g"), "")
-    .replace(/<!--[\s\S]*?-->/g, "");
+  const lines = String(markdown || "").split(/\r?\n/);
+  const visibleLines = [];
+  const grave = String.fromCharCode(96);
+  let activeFence = null;
+
+  for (const line of lines) {
+    if (activeFence) {
+      const closing = line.match(new RegExp("^ {0,3}(" + grave + "+|~+)[ \\t]*$"));
+      if (
+        closing &&
+        closing[1][0] === activeFence.character &&
+        closing[1].length >= activeFence.length
+      ) {
+        activeFence = null;
+      }
+      continue;
+    }
+
+    const opening = line.match(new RegExp("^ {0,3}(" + grave + "{3,}|~{3,})(.*)$"));
+    if (opening) {
+      const character = opening[1][0];
+      const length = opening[1].length;
+      const info = opening[2];
+      // CommonMark does not allow backticks in a backtick fence info string.
+      if (!(character === grave && info.includes(grave))) {
+        activeFence = { character, length };
+        continue;
+      }
+    }
+
+    visibleLines.push(line);
+  }
+
+  return visibleLines.join("\n").replace(/<!--[\\s\\S]*?-->/g, "");
 }
 
 function extractH2Headings(markdown) {

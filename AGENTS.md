@@ -21,3 +21,9 @@ PBI Issues represent user value and are not themselves children of another PBI. 
 6. After creating or updating the PR, fetch the PR again and verify the saved body contains every heading from the current base-branch template and that the Issue/PBI links are correct.
 
 The dedicated PR-template validation workflow checks that PR bodies contain each H2 section from the base-branch template. This automated check complements, but does not replace, reading the template and completing its sections.
+
+## When reviewing a pull request
+
+1. Read `.github/AI_REVIEW_GUIDELINES.md` before reviewing. Inspect the full PR diff, relevant code and Issues, tests, and CI results for the current head commit.
+2. For an actionable finding that can be tied to a changed diff line, post an inline review comment on that line. A top-level review summary alone is not enough for line-specific code findings. Use the review body for the overall assessment, CI/test results, and findings that cannot be reliably anchored to a changed line.
+3. When responding to review feedback, inspect all existing review threads, make the required changes, verify the resulting diff and tests/CI, and reply in the relevant threads. Resolve a thread only after verifying that the reported issue has actually been addressed.

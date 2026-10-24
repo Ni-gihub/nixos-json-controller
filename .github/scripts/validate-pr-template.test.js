@@ -11,21 +11,43 @@ const template = [
   "## 受け入れ条件との対応",
 ].join("\n");
 
-test("extracts H2 headings and ignores comments and code fences", () => {
-  const fence = String.fromCharCode(96).repeat(3);
+test("extracts H2 headings and ignores HTML comments and both fence styles", () => {
+  const backticks = String.fromCharCode(96).repeat(3);
+  const tildes = "~~~";
   const headings = extractH2Headings(
     [
       "## Why",
-      "<!-- ## hidden -->",
-      fence + "markdown",
-      "## also hidden",
-      fence,
+      "<!-- ## hidden comment -->",
+      backticks + "markdown",
+      "## hidden in backtick fence",
+      backticks,
+      tildes + "markdown",
+      "## hidden in tilde fence",
+      "~~~~",
       "### not an H2",
       "## 検証結果",
     ].join("\n"),
   );
 
   assert.deepEqual(headings, ["Why", "検証結果"]);
+});
+
+test("tilde-fenced headings cannot satisfy required PR sections", () => {
+  const result = validatePullRequestBody(
+    template,
+    [
+      "## Why",
+      "Reason.",
+      "~~~markdown",
+      "## 変更内容",
+      "~~~",
+      "## 受け入れ条件との対応",
+      "Done.",
+    ].join("\n"),
+  );
+
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.missingHeadings, ["変更内容"]);
 });
 
 test("accepts a PR body that includes all template sections", () => {

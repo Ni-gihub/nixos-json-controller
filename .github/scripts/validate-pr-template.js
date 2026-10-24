@@ -4,13 +4,14 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 function withoutCommentsAndCode(markdown) {
+  const fence = String.fromCharCode(96).repeat(3);
   return String(markdown || "")
-    .replace(/```[\\s\\S]*?```/g, "")
+    .replace(new RegExp(fence + "[\\s\\S]*?" + fence, "g"), "")
     .replace(/<!--[\\s\\S]*?-->/g, "");
 }
 
 function extractH2Headings(markdown) {
-  return [...withoutCommentsAndCode(markdown).matchAll(/^##[ \\t]+(.+?)[ \\t]*$/gm)]
+  return [...withoutCommentsAndCode(markdown).matchAll(/^##[ \t]+(.+?)[ \t]*$/gm)]
     .map((match) => match[1].trim())
     .filter(Boolean);
 }
@@ -33,7 +34,7 @@ function validateEvent(eventPath, templatePath) {
   }
 
   const event = JSON.parse(fs.readFileSync(eventPath, "utf8"));
-  const body = event.pull_request?.body;
+  const body = event.pull_request && event.pull_request.body;
   if (typeof body !== "string") {
     throw new Error("The GitHub event does not contain a pull request body.");
   }
@@ -52,28 +53,25 @@ function validateEvent(eventPath, templatePath) {
     process.stderr.write(
       [
         "PR body is missing sections from .github/pull_request_template.md:",
-        ...result.missingHeadings.map((heading) => `- ## ${heading}`),
+        ...result.missingHeadings.map((heading) => "- ## " + heading),
         "",
         "Fill every template section. Use '該当なし' when a section does not apply.",
-      ].join("\\n") + "\\n",
+      ].join("\n") + "\n",
     );
     return false;
   }
 
   process.stdout.write(
-    `PR body contains all ${result.requiredHeadings.length} required template sections.\\n`,
+    "PR body contains all " + result.requiredHeadings.length + " required template sections.\n",
   );
   return true;
 }
 
 if (require.main === module) {
   try {
-    process.exitCode = validateEvent(
-      process.argv[2],
-      process.argv[3],
-    ) ? 0 : 1;
+    process.exitCode = validateEvent(process.argv[2], process.argv[3]) ? 0 : 1;
   } catch (error) {
-    process.stderr.write(`${error.message}\\n`);
+    process.stderr.write(error.message + "\n");
     process.exitCode = 1;
   }
 }

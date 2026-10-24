@@ -214,7 +214,7 @@ test("fence-like lines inside raw HTML blocks do not expose fake headings", () =
     "</div>",
     "## 受け入れ条件との対応",
     "Done.",
-  ].join("\\n");
+  ].join("\n");
 
   const result = validatePullRequestBody(template, body);
 

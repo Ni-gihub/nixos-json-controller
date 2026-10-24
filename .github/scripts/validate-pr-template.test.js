@@ -88,6 +88,43 @@ test("backslashes inside code spans do not prevent closing delimiters", () => {
   assert.deepEqual(result.missingHeadings, []);
 });
 
+test("unmatched backticks cannot mask headings across Markdown block boundaries", () => {
+  const tick = String.fromCharCode(96);
+  const bodies = [
+    [
+      "## Why",
+      "Reason with an unmatched backtick " + tick,
+      "",
+      "## 変更内容",
+      "Changed.",
+      "",
+      "Another unmatched backtick " + tick,
+      "## 受け入れ条件との対応",
+      "Done.",
+    ].join("\n"),
+    [
+      "## Why",
+      "Reason with an unmatched backtick " + tick,
+      "## 変更内容",
+      "Changed.",
+      "Another unmatched backtick " + tick,
+      "## 受け入れ条件との対応",
+      "Done.",
+    ].join("\n"),
+  ];
+
+  for (const body of bodies) {
+    const result = validatePullRequestBody(template, body);
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.missingHeadings, []);
+    assert.deepEqual(extractH2Headings(body), [
+      "Why",
+      "変更内容",
+      "受け入れ条件との対応",
+    ]);
+  }
+});
+
 test("inline code containing HTML comment start markers does not hide subsequent headings", () => {
   const result = validatePullRequestBody(
     template,

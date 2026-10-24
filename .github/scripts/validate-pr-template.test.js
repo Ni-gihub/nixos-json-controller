@@ -201,6 +201,28 @@ test("raw HTML blocks cannot satisfy required PR sections", () => {
 });
 
 
+test("fence-like lines inside raw HTML blocks do not expose fake headings", () => {
+  const body = [
+    "## Why",
+    "Reason.",
+    "<div>",
+    "```markdown",
+    "Example.",
+    "```",
+    "## 変更内容",
+    "Still inside the raw HTML block.",
+    "</div>",
+    "## 受け入れ条件との対応",
+    "Done.",
+  ].join("\\n");
+
+  const result = validatePullRequestBody(template, body);
+
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.missingHeadings, ["変更内容"]);
+  assert.deepEqual(extractH2Headings(body), ["Why", "受け入れ条件との対応"]);
+});
+
 test("backticks inside raw HTML blocks cannot mask valid headings outside the block", () => {
   const result = validatePullRequestBody(
     template,

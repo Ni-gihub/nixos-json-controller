@@ -1,0 +1,38 @@
+name: PR template validation
+
+permissions:
+  contents: read
+  pull-requests: read
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - edited
+      - reopened
+      - ready_for_review
+
+jobs:
+  validate-pr-template:
+    name: PR template sections
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the base-branch rules
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Test PR template validator
+        run: node --test .github/scripts/validate-pr-template.test.js
+
+      - name: Validate PR body against the base-branch template
+        run: node .github/scripts/validate-pr-template.js "$GITHUB_EVENT_PATH"

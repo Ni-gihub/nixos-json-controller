@@ -223,6 +223,29 @@ test("raw HTML blocks with quoted greater-than attribute values cannot satisfy r
   }
 });
 
+test("indented code blocks close paragraph state before type 7 HTML blocks", () => {
+  for (const codeLine of ["    example", "\\texample"]) {
+    const result = validatePullRequestBody(
+      template,
+      [
+        "## Why",
+        "Reason.",
+        "",
+        codeLine,
+        "<custom-tag>",
+        "## 変更内容",
+        "Still inside the raw HTML block.",
+        "",
+        "## 受け入れ条件との対応",
+        "Done.",
+      ].join("\\n"),
+    );
+
+    assert.equal(result.ok, false, JSON.stringify(codeLine));
+    assert.deepEqual(result.missingHeadings, ["変更内容"], JSON.stringify(codeLine));
+  }
+});
+
 test("block quotes and list markers close paragraphs before type 7 HTML blocks", () => {
   for (const marker of ["> quote", "- list item", "1. ordered item"]) {
     const result = validatePullRequestBody(

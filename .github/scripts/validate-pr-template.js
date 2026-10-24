@@ -70,6 +70,9 @@ function withoutInlineCodeAndHtmlComments(markdown) {
   return output.join("");
 }
 
+const fs = require("node:fs");
+const path = require("node:path");
+
 function withoutCommentsAndCode(markdown) {
   const lines = String(markdown || "").split(/\r?\n/);
   const visibleLines = [];

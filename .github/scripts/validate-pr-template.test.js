@@ -165,6 +165,23 @@ test("raw HTML blocks cannot satisfy required PR sections", () => {
   assert.equal(preResult.ok, false);
   assert.deepEqual(preResult.missingHeadings, ["変更内容"]);
 
+  const textareaResult = validatePullRequestBody(
+    template,
+    [
+      "## Why",
+      "Reason.",
+      "<textarea>",
+      "",
+      "## 変更内容",
+      "</textarea>",
+      "## 受け入れ条件との対応",
+      "Done.",
+    ].join("\\n"),
+  );
+
+  assert.equal(textareaResult.ok, false);
+  assert.deepEqual(textareaResult.missingHeadings, ["変更内容"]);
+
   const divResult = validatePullRequestBody(
     template,
     [

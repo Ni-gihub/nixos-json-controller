@@ -7,7 +7,7 @@ function withoutCommentsAndCode(markdown) {
   const fence = String.fromCharCode(96).repeat(3);
   return String(markdown || "")
     .replace(new RegExp(fence + "[\\s\\S]*?" + fence, "g"), "")
-    .replace(/<!--[\\s\\S]*?-->/g, "");
+    .replace(/<!--[\s\S]*?-->/g, "");
 }
 
 function extractH2Headings(markdown) {

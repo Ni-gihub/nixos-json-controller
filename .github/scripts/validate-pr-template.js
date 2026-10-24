@@ -126,7 +126,12 @@ function withoutCommentsAndCode(markdown) {
     visibleLines.push(line);
   }
 
-  return withoutRawHtmlBlocks(withoutInlineCodeAndHtmlComments(visibleLines.join("\n")));
+  // Block-level HTML parsing must run before inline code-span parsing:
+  // backticks inside raw HTML blocks are literal and must not pair with
+  // delimiters elsewhere in the PR body.
+  return withoutInlineCodeAndHtmlComments(
+    withoutRawHtmlBlocks(visibleLines.join("\n")),
+  );
 }
 
 function isCompleteHtmlTag(content) {
@@ -252,6 +257,7 @@ function withoutRawHtmlBlocks(markdown) {
     }
 
     const specialBlocks = [
+      { start: /^<!--/, end: /-->/ },
       { start: /^<\?/, end: /\?>/ },
       { start: /^<!\[CDATA\[/, end: /\]\]>/ },
       { start: /^<![A-Z]/i, end: />/ },

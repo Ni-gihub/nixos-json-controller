@@ -20,10 +20,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check out the base-branch rules
+      - name: Check out the PR code for validator tests
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pr
+          persist-credentials: false
+
+      - name: Check out the base-branch PR template
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: ${{ github.repository }}
           ref: ${{ github.event.pull_request.base.sha }}
+          path: base
           persist-credentials: false
 
       - name: Set up Node.js
@@ -32,7 +42,7 @@ jobs:
           node-version: 24
 
       - name: Test PR template validator
-        run: node --test .github/scripts/validate-pr-template.test.js
+        run: node --test pr/.github/scripts/validate-pr-template.test.js
 
       - name: Validate PR body against the base-branch template
-        run: node .github/scripts/validate-pr-template.js "$GITHUB_EVENT_PATH"
+        run: node pr/.github/scripts/validate-pr-template.js "$GITHUB_EVENT_PATH" base/.github/pull_request_template.md

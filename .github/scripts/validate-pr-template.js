@@ -196,6 +196,15 @@ function withoutRawHtmlBlocks(markdown) {
       continue;
     }
 
+    // An indented code block starts outside an open paragraph with four
+    // or more spaces (or a leading tab). It is not paragraph text, and its
+    // contents must not keep the following HTML-block check in paragraph mode.
+    if (!paragraphOpen && /^(?: {4,}|\\t)/.test(line)) {
+      visibleLines.push(line);
+      paragraphOpen = false;
+      continue;
+    }
+
     const contentMatch = line.match(/^ {0,3}(.*)$/);
     if (!contentMatch || !contentMatch[1]) {
       visibleLines.push(line);

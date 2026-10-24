@@ -212,7 +212,7 @@ function withoutRawHtmlBlocks(markdown) {
     const content = contentMatch[1];
 
     // ATX headings interrupt paragraphs.
-    if (/^#{1,6}(?:[ \\t]+|$)/.test(content)) {
+    if (/^#{1,6}(?:[ \t]+|$)/.test(content)) {
       visibleLines.push(line);
       paragraphOpen = false;
       continue;
@@ -220,8 +220,8 @@ function withoutRawHtmlBlocks(markdown) {
 
     // Thematic breaks and setext underlines close the current paragraph too.
     if (
-      /^(?:(?:\*[ \\t]*){3,}|(?:-[ \\t]*){3,}|(?:_[ \\t]*){3,})$/.test(content) ||
-      /^(?:=+[ \\t]*|-{1,2}[ \\t]*)$/.test(content)
+      /^(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})$/.test(content) ||
+      /^(?:=+[ \t]*|-{1,2}[ \t]*)$/.test(content)
     ) {
       visibleLines.push(line);
       paragraphOpen = false;
@@ -230,7 +230,7 @@ function withoutRawHtmlBlocks(markdown) {
 
     // Block quote and list item markers start block containers and close
     // a paragraph at the current nesting level.
-    if (/^>/.test(content) || /^(?:[-+*][ \\t]+|[1-9][0-9]{0,8}[.)][ \\t]+)/.test(content)) {
+    if (/^>/.test(content) || /^(?:[-+*][ \t]+|[1-9][0-9]{0,8}[.)][ \t]+)/.test(content)) {
       visibleLines.push(line);
       paragraphOpen = false;
       continue;

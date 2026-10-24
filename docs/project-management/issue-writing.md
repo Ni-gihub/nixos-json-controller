@@ -36,18 +36,18 @@ Issue Form は GitHub Organization の Issue Type を直接設定する。タイ
 
 ## 親子Issue：PBIを親にする
 
-GitHubのネイティブな **Sub-issues** を使い、1つのPBIと、それを実現する具体的な作業を紐づける。Issue Typeと親子関係は別の情報であり、フォームの `type:` はTypeだけを設定する。
+GitHubのネイティブな **Sub-issues** を使い、1つのPBIと、それを実現する具体的な作業を紐づける。**運用のデフォルトは、PBIの成果に寄与するTask / Bug / Spikeを、対応するPBIの子Issueとして作成すること**とする。起票前に既存PBIを検索し、該当するPBIがなければ、独立したユーザー価値を表すPBIを先に作成する。Issue Typeと親子関係は別の情報であり、フォームの `type:` はTypeだけを設定する。
 
 - **親Issue:** 1つのユーザー価値を表すPBI。
 - **子Issue:** そのPBIの成果に直接寄与するTask、達成を妨げるBug、またはそのPBIに必要な調査Spike。
 - **親にしないもの:** Project #166はプロダクト憲章、PBL #167はPBIへのリンク・優先順位・履歴の索引であり、すべてのPBIの親Issueにはしない。
-- **独立Issue:** 特定PBIに直接紐づかない横断的なBugや調査は、親を推測して付けず独立Issueとして扱う。
+- **独立Issueの例外:** 特定のPBIに直接寄与せず、横断的・運用的に独立して管理する必要がある作業だけは独立Issueにできる。その場合は、本文に「なぜ単一のPBIに紐づかないか」を記載し、関連PBIがあれば本文から参照する。単に親PBIが未確認・未作成という理由では空欄にしない。
 
 ### 新しい子Issueを作る
 
-1. Task / Bug / Spikeの対応フォームで、`Parent PBI number (optional)` に親PBIの**番号だけ**を入力する。
+1. まず対応する既存PBIを検索する。成果に寄与するPBIがある場合は、Task / Bug / Spikeの対応フォームで `Parent PBI number (optional)` に親PBIの**番号だけ**を入力する。適切なPBIがなければ、独立したユーザー価値を表すPBIを先に作成する。独立Issueの例外に該当する場合のみ空欄にできる。
 2. Owner / Member / Collaboratorが作成したIssueでは、GitHub Actionsが親IssueのTypeが `PBI`、子IssueのTypeが `Task` / `Bug` / `Spike` であることを確認し、ネイティブなSub-issues関係を設定する。外部ユーザーが作成したIssueは自動で親子関係を変更せず、メンテナーがレビュー後に親PBIのSub-issuesから追加する。
-3. 親PBI番号を空欄にした場合は独立Issueとなる。後から紐づける場合は、親PBIのページにある **Sub-issues → Add existing issue** を使う。
+3. 親PBI番号を空欄にした場合は独立Issueとなるため、原則として空欄にしない。例外として空欄にする場合は、本文の「関連Issue・PR」または「補足・詳細記録」に理由を残す。後から紐づける場合は、親PBIのページにある **Sub-issues → Add existing issue** を使う。
 
 本文中の `PBI: #177` や `Related: #177` は参照リンクであり、ネイティブな親子関係の代わりにはならない。親がすでに別のIssueに設定されている場合、自動処理は勝手に置き換えない。親を変更する必要があるときは、GitHub上で既存の親子関係を整理してから紐づけ直す。
 
@@ -116,7 +116,7 @@ NixOS の利用者として、インストールしていないアプリも識�
 
 ## Task：必要な理由と完了条件を書く
 
-TaskはPBIの成果へどう寄与するかが分かる範囲にする。PBIとの紐づけが確定していない段階でも、調査や作業は開始できる。目的の似たTaskが複数ある場合は、同じ成果に寄与するか確認してから統合する。関数・ファイルごとに機械的にIssueを分割しない。
+TaskはPBIの成果へどう寄与するかが分かる範囲にする。起票時に対応PBIを特定し、原則としてそのPBIの子Issueにする。PBIとの対応が未確定なら、既存PBIを調べるか、別のユーザー価値を扱うPBIを先に整理する。単一のPBIに属さない横断的・運用的な作業のみ独立Issueの例外とし、その理由を本文に残す。目的の似たTaskが複数ある場合は、同じ成果に寄与するか確認してから統合する。関数・ファイルごとに機械的にIssueを分割しない。
 
 ```markdown
 ## Why
@@ -238,7 +238,7 @@ PBLでは `completed`、`not planned`、`duplicate` などの終了理由を区�
 
 ## 起票後の流れ
 
-1. 対応する Issue Form から起票する（Type はフォームが設定する）。Task / Bug / SpikeをPBIの子にする場合は、フォームの「Parent PBI number (optional)」へ親PBI番号を入力する。空Issueから起票した場合は、右サイドバーでTypeを設定し、必要な領域ラベルだけを付ける。
+1. 対応する Issue Form から起票する（Type はフォームが設定する）。Task / Bug / Spikeは原則として親PBIを設定するため、先に既存PBIを探し、見つかったPBIの番号を「Parent PBI number (optional)」に入力する。適切なPBIがなければ独立したユーザー価値を表すPBIを先に作成する。単一のPBIに紐づかない例外だけ空欄にし、その理由を本文に記載する。空Issueから起票した場合は、右サイドバーでTypeを設定し、必要な領域ラベルだけを付ける。
 2. 既存Issue・PR・コード・ログを確認し、事実と仮説を整える。
 3. [PBL #167](https://github.com/nxc-project/nixos-json-controller/issues/167) にリンクし、優先度と依存関係を更新する。
 4. 着手後に必要なHow・設計判断・受け入れ条件を追記する。

@@ -56,7 +56,7 @@ test("inline code containing HTML comment start markers does not hide subsequent
     template,
     [
       "## Why",
-      "Use the literal token \`<!--\` in the example; it is not an HTML comment.",
+      "Use the literal token `<!--` in the example; it is not an HTML comment.",
       "## 変更内容",
       "Changed.",
       "## 受け入れ条件との対応",
@@ -66,7 +66,7 @@ test("inline code containing HTML comment start markers does not hide subsequent
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.missingHeadings, []);
-  assert.deepEqual(extractH2Headings("Text with \`## not a heading\` here\n## Why"), [
+  assert.deepEqual(extractH2Headings("Text with `## not a heading` here\n## Why"), [
     "Why",
   ]);
 });

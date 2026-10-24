@@ -5,13 +5,13 @@ function maskInlineCodeSpans(markdown) {
   const masked = [...characters];
 
   for (let index = 0; index < characters.length;) {
-    if (characters[index] !== "\`") {
+    if (characters[index] !== "`") {
       index += 1;
       continue;
     }
 
     let openingEnd = index;
-    while (characters[openingEnd] === "\`") {
+    while (characters[openingEnd] === "`") {
       openingEnd += 1;
     }
     const delimiterLength = openingEnd - index;
@@ -20,13 +20,13 @@ function maskInlineCodeSpans(markdown) {
     let closingEnd = -1;
 
     while (search < characters.length) {
-      if (characters[search] !== "\`") {
+      if (characters[search] !== "`") {
         search += 1;
         continue;
       }
 
       let runEnd = search;
-      while (characters[runEnd] === "\`") {
+      while (characters[runEnd] === "`") {
         runEnd += 1;
       }
 

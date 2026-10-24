@@ -272,7 +272,7 @@ test("self-closing type 1 tag names do not open raw HTML blocks", () => {
       "Changed.",
       "## 受け入れ条件との対応",
       "Done.",
-    ].join("\\n");
+    ].join("\n");
 
     const result = validatePullRequestBody(template, body);
 

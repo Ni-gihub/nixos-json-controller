@@ -37,9 +37,82 @@ function withoutCommentsAndCode(markdown) {
     visibleLines.push(line);
   }
 
-  return visibleLines.join("\n").replace(/<!--[\s\S]*?(?:-->|$)/g, "");
+  return withoutRawHtmlBlocks(
+    visibleLines.join("\n").replace(/<!--[\\s\\S]*?(?:-->|$)/g, ""),
+  );
 }
 
+function withoutRawHtmlBlocks(markdown) {
+  const lines = String(markdown || "").split(/\r?\n/);
+  const visibleLines = [];
+  let activeBlock = null;
+  const blockTags =
+    "address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|" +
+    "dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|" +
+    "frameset|h1|h2|h3|h4|h5|h6|head|header|hr|html|iframe|legend|li|link|main|" +
+    "menu|menuitem|meta|nav|noframes|ol|optgroup|option|p|param|search|section|" +
+    "summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul";
+
+  for (const line of lines) {
+    if (activeBlock) {
+      const closes = activeBlock.endPattern && activeBlock.endPattern.test(line);
+      const endsAtBlank = activeBlock.untilBlank && line.trim() === "";
+      if (closes) {
+        activeBlock = null;
+      } else if (endsAtBlank) {
+        activeBlock = null;
+        visibleLines.push(line);
+      }
+      continue;
+    }
+
+    const contentMatch = line.match(/^ {0,3}(.*)$/);
+    if (!contentMatch || !contentMatch[1]) {
+      visibleLines.push(line);
+      continue;
+    }
+
+    const content = contentMatch[1];
+    const rawTag = content.match(/^<(script|pre|style)(?=[ \t/>])/i);
+    if (rawTag) {
+      const tagEnd = new RegExp("</" + rawTag[1] + "\\s*>", "i");
+      if (!tagEnd.test(content)) {
+        activeBlock = { endPattern: tagEnd };
+      }
+      continue;
+    }
+
+    const specialBlocks = [
+      { start: /^<\?/, end: /\?>/ },
+      { start: /^<!\[CDATA\[/, end: /\]\]>/ },
+      { start: /^<![A-Z]/i, end: />/ },
+    ];
+    const special = specialBlocks.find((block) => block.start.test(content));
+    if (special) {
+      if (!special.end.test(content)) {
+        activeBlock = { endPattern: special.end };
+      }
+      continue;
+    }
+
+    const blockTag = new RegExp("^(?:</?(?:" + blockTags + ")(?=[ \t/>]|$))", "i");
+    if (blockTag.test(content)) {
+      activeBlock = { untilBlank: true };
+      continue;
+    }
+
+    // CommonMark raw HTML block type 7: a complete open or closing tag at line start.
+    const completeTag = /^<\/?[A-Za-z][A-Za-z0-9-]*(?:[ \t]+[^<>]*?)?[ \t]*\/?>/;
+    if (completeTag.test(content)) {
+      activeBlock = { untilBlank: true };
+      continue;
+    }
+
+    visibleLines.push(line);
+  }
+
+  return visibleLines.join("\n");
+}
 function extractH2Headings(markdown) {
   return [...withoutCommentsAndCode(markdown).matchAll(/^##[ \t]+(.+?)[ \t]*$/gm)]
     .map((match) => match[1].trim())

@@ -104,6 +104,9 @@ function withoutCommentsAndCode(markdown) {
       ) {
         activeFence = null;
       }
+      // Keep a blank separator so code fences close the surrounding paragraph
+      // without exposing code contents to heading detection.
+      visibleLines.push("");
       continue;
     }
 
@@ -115,6 +118,7 @@ function withoutCommentsAndCode(markdown) {
       // CommonMark does not allow backticks in a backtick fence info string.
       if (!(character === grave && info.includes(grave))) {
         activeFence = { character, length };
+        visibleLines.push("");
         continue;
       }
     }
@@ -201,9 +205,18 @@ function withoutRawHtmlBlocks(markdown) {
 
     const content = contentMatch[1];
 
-    // ATX headings interrupt paragraphs, so the next line is no longer in
-    // the paragraph context that prevents a type 7 HTML block from starting.
-    if (/^#{1,6}(?:[ \t]+|$)/.test(content)) {
+    // ATX headings interrupt paragraphs.
+    if (/^#{1,6}(?:[ \\t]+|$)/.test(content)) {
+      visibleLines.push(line);
+      paragraphOpen = false;
+      continue;
+    }
+
+    // Thematic breaks and setext underlines close the current paragraph too.
+    if (
+      /^(?:(?:\\*[ \\t]*){3,}|(?:-[ \\t]*){3,}|(?:_[ \\t]*){3,})$/.test(content) ||
+      /^(?:=+[ \\t]*|-{1,2}[ \\t]*)$/.test(content)
+    ) {
       visibleLines.push(line);
       paragraphOpen = false;
       continue;

@@ -166,12 +166,12 @@ test("normalizes valid ATX H2 indentation and optional closing hashes", () => {
       "Changed.",
       "   ## 受け入れ条件との対応   ###",
       "Done.",
-    ].join("\\n"),
+    ].join("\n"),
   );
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.missingHeadings, []);
-  assert.deepEqual(extractH2Headings("  ## Why\\n## 変更内容 ##"), [
+  assert.deepEqual(extractH2Headings("  ## Why\n## 変更内容 ##"), [
     "Why",
     "変更内容",
   ]);

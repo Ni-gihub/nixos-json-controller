@@ -116,15 +116,15 @@ function withoutRawHtmlBlocks(markdown) {
 function extractH2Headings(markdown) {
   const headings = [];
 
-  for (const line of withoutCommentsAndCode(markdown).split(/\\r?\\n/)) {
+  for (const line of withoutCommentsAndCode(markdown).split(/\r?\n/)) {
     // CommonMark ATX headings allow up to three leading spaces and an optional
     // closing sequence of hash characters preceded by whitespace.
-    const match = line.match(/^ {0,3}##[ \\t]+(.+?)[ \\t]*$/);
+    const match = line.match(/^ {0,3}##[ \t]+(.+?)[ \t]*$/);
     if (!match) {
       continue;
     }
 
-    const heading = match[1].replace(/[ \\t]+#+[ \\t]*$/, "").trim();
+    const heading = match[1].replace(/[ \t]+#+[ \t]*$/, "").trim();
     if (heading) {
       headings.push(heading);
     }

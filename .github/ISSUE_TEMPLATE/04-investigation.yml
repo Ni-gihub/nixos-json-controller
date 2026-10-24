@@ -5,7 +5,7 @@ title: "[SPIKE] "
 body:
   - type: markdown
     attributes:
-      value: "記述ルール: [Issueの書き方](https://github.com/nxc-project/nixos-json-controller/blob/main/docs/project-management/issue-writing.md)。調査の開始時点で原因や結論を決める必要はありません。確認済みの事実と仮説を区別し、何を判断できれば調査完了かを記載してください。特定PBIの実現に向けた調査では「Parent PBI number (optional)」に親PBI番号だけを入力してください。Owner / Member / Collaboratorが作成したIssueでは、GitHub ActionsがIssue作成後に親子関係を設定します。外部ユーザーのIssueはメンテナーがレビュー後に追加します。横断的な調査は空欄のまま独立Issueにできます。"
+      value: "記述ルール: [Issueの書き方](https://github.com/nxc-project/nixos-json-controller/blob/main/docs/project-management/issue-writing.md)。調査の開始時点で原因や結論を決める必要はありません。確認済みの事実と仮説を区別し、何を判断できれば調査完了かを記載してください。まず調査対象に関係する既存PBIを検索し、原則としてそのPBIの子Issueにしてください。適切なPBIがなければ、調査が必要なユーザー価値を表すPBIを先に作成します。特定のPBIに直接寄与しない横断的な調査だけ独立Issueにでき、その理由を本文に記載してください。Owner / Member / Collaboratorが作成したIssueでは、GitHub ActionsがIssue作成後に親子関係を設定します。外部ユーザーのIssueはメンテナーがレビュー後に追加します。"
   - type: textarea
     id: question
     attributes:
@@ -58,7 +58,7 @@ body:
     id: parent_pbi
     attributes:
       label: Parent PBI number (optional)
-      description: "親PBIがある場合はIssue番号だけを入力してください（例: 177）。空欄なら親子関係を設定せず、独立Issueとして作成します。"
+      description: "原則として関連する親PBIのIssue番号だけを入力してください（例: 177）。特定PBIに直接寄与しない横断的な調査だけ空欄にでき、その理由を本文に記載してください。"
       placeholder: "177"
     validations:
       required: false

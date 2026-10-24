@@ -377,15 +377,15 @@ test("tab whitespace in ATX headings, thematic breaks, and setext underlines clo
   const cases = [
     {
       name: "tab after ATX heading markers",
-      separator: ["##\\tSubheading"],
+      separator: ["##\tSubheading"],
     },
     {
       name: "tabs between thematic break markers",
-      separator: ["*\\t*\\t*"],
+      separator: ["*\t*\t*"],
     },
     {
       name: "tab after setext underline",
-      separator: ["Setext heading", "===\\t"],
+      separator: ["Setext heading", "===\t"],
     },
   ];
 
@@ -400,7 +400,7 @@ test("tab whitespace in ATX headings, thematic breaks, and setext underlines clo
       "",
       "## 受け入れ条件との対応",
       "Done.",
-    ].join("\\n");
+    ].join("\n");
     const result = validatePullRequestBody(template, body);
 
     assert.equal(result.ok, false, item.name);

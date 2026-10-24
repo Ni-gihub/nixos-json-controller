@@ -51,7 +51,7 @@ function withoutInlineCodeAndHtmlComments(markdown) {
           runEnd += 1;
         }
 
-        if (runEnd - search === delimiterLength && !isEscapedBacktick(search)) {
+        if (runEnd - search === delimiterLength) {
           closingEnd = runEnd;
           break;
         }

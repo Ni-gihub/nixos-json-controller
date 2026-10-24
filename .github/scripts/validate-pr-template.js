@@ -177,7 +177,6 @@ function isCompleteHtmlTag(content) {
       }
       return /^[ \t]*$/.test(content.slice(index + 1));
     }
-    }
   }
 
   return false;

@@ -238,6 +238,29 @@ test("raw HTML blocks cannot satisfy required PR sections", () => {
 });
 
 
+test("type 1 HTML block opening tags may end a line before the closing angle bracket", () => {
+  for (const tag of ["pre", "script", "style", "textarea"]) {
+    const body = [
+      "## Why",
+      "Reason.",
+      "<" + tag,
+      ">",
+      "## 変更内容",
+      "</" + tag + ">",
+      "## 受け入れ条件との対応",
+      "Done.",
+    ].join("\n");
+    const result = validatePullRequestBody(template, body);
+
+    assert.equal(result.ok, false, tag);
+    assert.deepEqual(result.missingHeadings, ["変更内容"], tag);
+    assert.deepEqual(extractH2Headings(body), [
+      "Why",
+      "受け入れ条件との対応",
+    ], tag);
+  }
+});
+
 test("fence-like lines inside raw HTML blocks do not expose fake headings", () => {
   const body = [
     "## Why",

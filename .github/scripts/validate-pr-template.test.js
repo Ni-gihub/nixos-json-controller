@@ -206,6 +206,28 @@ test("raw HTML blocks with quoted greater-than attribute values cannot satisfy r
   }
 });
 
+test("block quotes and list markers close paragraphs before type 7 HTML blocks", () => {
+  for (const marker of ["> quote", "- list item", "1. ordered item"]) {
+    const result = validatePullRequestBody(
+      template,
+      [
+        "## Why",
+        "Reason.",
+        marker,
+        "<custom-tag>",
+        "## 変更内容",
+        "Still inside the raw HTML block.",
+        "",
+        "## 受け入れ条件との対応",
+        "Done.",
+      ].join("\n"),
+    );
+
+    assert.equal(result.ok, false, marker);
+    assert.deepEqual(result.missingHeadings, ["変更内容"], marker);
+  }
+});
+
 test("thematic breaks close paragraphs before type 7 HTML blocks", () => {
   const result = validatePullRequestBody(
     template,

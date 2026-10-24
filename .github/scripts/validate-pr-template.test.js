@@ -155,6 +155,28 @@ test("accepts a PR body that includes all template sections", () => {
   assert.deepEqual(result.missingHeadings, []);
 });
 
+
+test("normalizes valid ATX H2 indentation and optional closing hashes", () => {
+  const result = validatePullRequestBody(
+    template,
+    [
+      "  ## Why",
+      "Reason.",
+      "## 変更内容 ##",
+      "Changed.",
+      "   ## 受け入れ条件との対応   ###",
+      "Done.",
+    ].join("\\n"),
+  );
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.missingHeadings, []);
+  assert.deepEqual(extractH2Headings("  ## Why\\n## 変更内容 ##"), [
+    "Why",
+    "変更内容",
+  ]);
+});
+
 test("reports missing template sections", () => {
   const result = validatePullRequestBody(
     template,

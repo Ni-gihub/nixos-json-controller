@@ -114,11 +114,24 @@ function withoutRawHtmlBlocks(markdown) {
   return visibleLines.join("\n");
 }
 function extractH2Headings(markdown) {
-  return [...withoutCommentsAndCode(markdown).matchAll(/^##[ \t]+(.+?)[ \t]*$/gm)]
-    .map((match) => match[1].trim())
-    .filter(Boolean);
-}
+  const headings = [];
 
+  for (const line of withoutCommentsAndCode(markdown).split(/\\r?\\n/)) {
+    // CommonMark ATX headings allow up to three leading spaces and an optional
+    // closing sequence of hash characters preceded by whitespace.
+    const match = line.match(/^ {0,3}##[ \\t]+(.+?)[ \\t]*$/);
+    if (!match) {
+      continue;
+    }
+
+    const heading = match[1].replace(/[ \\t]+#+[ \\t]*$/, "").trim();
+    if (heading) {
+      headings.push(heading);
+    }
+  }
+
+  return headings;
+}
 function validatePullRequestBody(template, body) {
   const requiredHeadings = extractH2Headings(template);
   const presentHeadings = new Set(extractH2Headings(body));

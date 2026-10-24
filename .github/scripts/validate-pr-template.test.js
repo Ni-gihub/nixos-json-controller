@@ -390,6 +390,31 @@ test("block quotes and list markers close paragraphs before type 7 HTML blocks",
   }
 });
 
+test("ordered list markers other than 1 do not interrupt an open paragraph", () => {
+  const body = [
+    "## Why",
+    "Reason.",
+    "2. this is still paragraph text",
+    "<custom-tag>",
+    "## 変更内容",
+    "Changed.",
+    "3) this is still paragraph text",
+    "<custom-tag>",
+    "## 受け入れ条件との対応",
+    "Done.",
+  ].join("\n");
+
+  const result = validatePullRequestBody(template, body);
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.missingHeadings, []);
+  assert.deepEqual(extractH2Headings(body), [
+    "Why",
+    "変更内容",
+    "受け入れ条件との対応",
+  ]);
+});
+
 test("thematic breaks close paragraphs before type 7 HTML blocks", () => {
   const result = validatePullRequestBody(
     template,

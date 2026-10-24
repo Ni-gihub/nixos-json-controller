@@ -89,49 +89,10 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 function withoutCommentsAndCode(markdown) {
-  const lines = String(markdown || "").split(/\r?\n/);
-  const visibleLines = [];
-  const grave = String.fromCharCode(96);
-  let activeFence = null;
-
-  for (const line of lines) {
-    if (activeFence) {
-      const closing = line.match(new RegExp("^ {0,3}(" + grave + "+|~+)[ \\t]*$"));
-      if (
-        closing &&
-        closing[1][0] === activeFence.character &&
-        closing[1].length >= activeFence.length
-      ) {
-        activeFence = null;
-      }
-      // Keep a blank separator so code fences close the surrounding paragraph
-      // without exposing code contents to heading detection.
-      visibleLines.push("");
-      continue;
-    }
-
-    const opening = line.match(new RegExp("^ {0,3}(" + grave + "{3,}|~{3,})(.*)$"));
-    if (opening) {
-      const character = opening[1][0];
-      const length = opening[1].length;
-      const info = opening[2];
-      // CommonMark does not allow backticks in a backtick fence info string.
-      if (!(character === grave && info.includes(grave))) {
-        activeFence = { character, length };
-        visibleLines.push("");
-        continue;
-      }
-    }
-
-    visibleLines.push(line);
-  }
-
-  // Block-level HTML parsing must run before inline code-span parsing:
-  // backticks inside raw HTML blocks are literal and must not pair with
-  // delimiters elsewhere in the PR body.
-  return withoutInlineCodeAndHtmlComments(
-    withoutRawHtmlBlocks(visibleLines.join("\n")),
-  );
+  // Handle block-level constructs first so fences inside raw HTML cannot end
+  // that block, while fences outside HTML prevent their contents from being
+  // interpreted as HTML.
+  return withoutInlineCodeAndHtmlComments(withoutRawHtmlBlocks(String(markdown || "")));
 }
 
 function isCompleteHtmlTag(content) {
@@ -176,7 +137,9 @@ function isCompleteHtmlTag(content) {
 function withoutRawHtmlBlocks(markdown) {
   const lines = String(markdown || "").split(/\r?\n/);
   const visibleLines = [];
+  const grave = String.fromCharCode(96);
   let activeBlock = null;
+  let activeFence = null;
   let paragraphOpen = false;
   const blockTags =
     "address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|" +
@@ -198,7 +161,36 @@ function withoutRawHtmlBlocks(markdown) {
       if (line.trim() === "") {
         paragraphOpen = false;
       }
+      // Fences inside a raw HTML block are literal HTML content, not Markdown.
       continue;
+    }
+
+    // Outside raw HTML, fenced code blocks take precedence over HTML parsing.
+    if (activeFence) {
+      const closing = line.match(new RegExp("^ {0,3}(" + grave + "+|~+)[ \\t]*$"));
+      if (
+        closing &&
+        closing[1][0] === activeFence.character &&
+        closing[1].length >= activeFence.length
+      ) {
+        activeFence = null;
+      }
+      visibleLines.push("");
+      paragraphOpen = false;
+      continue;
+    }
+
+    const opening = line.match(new RegExp("^ {0,3}(" + grave + "{3,}|~{3,})(.*)$"));
+    if (opening) {
+      const character = opening[1][0];
+      const info = opening[2];
+      // CommonMark disallows backticks in a backtick fence info string.
+      if (!(character === grave && info.includes(grave))) {
+        activeFence = { character, length: opening[1].length };
+        visibleLines.push("");
+        paragraphOpen = false;
+        continue;
+      }
     }
 
     // An indented code block starts outside an open paragraph with four

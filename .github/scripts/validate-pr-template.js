@@ -168,6 +168,7 @@ function withoutRawHtmlBlocks(markdown) {
   const lines = String(markdown || "").split(/\r?\n/);
   const visibleLines = [];
   let activeBlock = null;
+  let paragraphOpen = false;
   const blockTags =
     "address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|" +
     "dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|" +
@@ -185,22 +186,36 @@ function withoutRawHtmlBlocks(markdown) {
         activeBlock = null;
         visibleLines.push(line);
       }
+      if (line.trim() === "") {
+        paragraphOpen = false;
+      }
       continue;
     }
 
     const contentMatch = line.match(/^ {0,3}(.*)$/);
     if (!contentMatch || !contentMatch[1]) {
       visibleLines.push(line);
+      paragraphOpen = false;
       continue;
     }
 
     const content = contentMatch[1];
+
+    // ATX headings interrupt paragraphs, so the next line is no longer in
+    // the paragraph context that prevents a type 7 HTML block from starting.
+    if (/^#{1,6}(?:[ \t]+|$)/.test(content)) {
+      visibleLines.push(line);
+      paragraphOpen = false;
+      continue;
+    }
+
     const rawTag = content.match(/^<(script|pre|style)(?=[ \t/>])/i);
     if (rawTag) {
       const tagEnd = new RegExp("</" + rawTag[1] + "\\s*>", "i");
       if (!tagEnd.test(content)) {
         activeBlock = { endPattern: tagEnd };
       }
+      paragraphOpen = false;
       continue;
     }
 
@@ -214,23 +229,28 @@ function withoutRawHtmlBlocks(markdown) {
       if (!special.end.test(content)) {
         activeBlock = { endPattern: special.end };
       }
+      paragraphOpen = false;
       continue;
     }
 
     const blockTag = new RegExp("^(?:</?(?:" + blockTags + ")(?=[ \t/>]|$))", "i");
     if (blockTag.test(content)) {
       activeBlock = { untilBlank: true };
+      paragraphOpen = false;
       continue;
     }
 
-    // CommonMark raw HTML block type 7: recognize a complete tag while
-    // ignoring greater-than characters inside quoted attribute values.
-    if (isCompleteHtmlTag(content)) {
+    // CommonMark raw HTML block type 7 cannot interrupt an open paragraph.
+    // Recognize a complete tag only when no paragraph is currently open,
+    // while still ignoring '>' characters inside quoted attribute values.
+    if (isCompleteHtmlTag(content) && !paragraphOpen) {
       activeBlock = { untilBlank: true };
+      paragraphOpen = false;
       continue;
     }
 
     visibleLines.push(line);
+    paragraphOpen = true;
   }
 
   return visibleLines.join("\n");

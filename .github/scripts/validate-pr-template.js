@@ -230,11 +230,11 @@ function withoutRawHtmlBlocks(markdown) {
       continue;
     }
 
-    const rawTag = content.match(/^<(script|pre|style|textarea)(?=[ \\t/>])/i);
+    const rawTag = content.match(/^<(script|pre|style|textarea)(?=[ \t/>])/i);
     if (rawTag) {
       // CommonMark type 1 ends at any of these close tags, not only the tag
       // corresponding to the opening element.
-      const tagEnd = /<\\/(?:pre|script|style|textarea)\\s*>/i;
+      const tagEnd = /<\/(?:pre|script|style|textarea)\s*>/i;
       if (!tagEnd.test(content)) {
         activeBlock = { endPattern: tagEnd };
       }

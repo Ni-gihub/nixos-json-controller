@@ -32,6 +32,23 @@ test("extracts H2 headings and ignores HTML comments and both fence styles", () 
   assert.deepEqual(headings, ["Why", "検証結果"]);
 });
 
+test("unclosed HTML comments cannot satisfy required PR sections", () => {
+  const result = validatePullRequestBody(
+    template,
+    [
+      "## Why",
+      "Reason.",
+      "<!-- unclosed comment",
+      "## 変更内容",
+      "## 受け入れ条件との対応",
+      "Done.",
+    ].join("\n"),
+  );
+
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.missingHeadings, ["変更内容", "受け入れ条件との対応"]);
+});
+
 test("tilde-fenced headings cannot satisfy required PR sections", () => {
   const result = validatePullRequestBody(
     template,

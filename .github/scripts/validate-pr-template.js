@@ -37,7 +37,7 @@ function withoutCommentsAndCode(markdown) {
     visibleLines.push(line);
   }
 
-  return visibleLines.join("\n").replace(/<!--[\s\S]*?-->/g, "");
+  return visibleLines.join("\n").replace(/<!--[\s\S]*?(?:-->|$)/g, "");
 }
 
 function extractH2Headings(markdown) {

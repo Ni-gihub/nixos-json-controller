@@ -201,6 +201,68 @@ test("raw HTML blocks cannot satisfy required PR sections", () => {
 });
 
 
+test("backticks inside raw HTML blocks cannot mask valid headings outside the block", () => {
+  const result = validatePullRequestBody(
+    template,
+    [
+      "## Why",
+      "Reason.",
+      "",
+      "<custom-tag>",
+      "`",
+      "</custom-tag>",
+      "",
+      "## 変更内容",
+      "Changed.",
+      "A literal unmatched backtick follows: `",
+      "## 受け入れ条件との対応",
+      "Done.",
+    ].join("\n"),
+  );
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.missingHeadings, []);
+  assert.deepEqual(
+    extractH2Headings([
+      "## Why",
+      "Reason.",
+      "",
+      "<custom-tag>",
+      "`",
+      "</custom-tag>",
+      "",
+      "## 変更内容",
+      "Changed.",
+      "A literal unmatched backtick follows: `",
+      "## 受け入れ条件との対応",
+      "Done.",
+    ].join("\n")),
+    ["Why", "変更内容", "受け入れ条件との対応"],
+  );
+});
+
+test("raw HTML tags inside an HTML comment do not swallow later headings", () => {
+  const result = validatePullRequestBody(
+    template,
+    [
+      "## Why",
+      "Reason.",
+      "",
+      "<!--",
+      "<pre>",
+      "## 変更内容",
+      "</pre>",
+      "-->",
+      "## 変更内容",
+      "Changed.",
+      "## 受け入れ条件との対応",
+      "Done.",
+    ].join("\n"),
+  );
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.missingHeadings, []);
+});
 test("raw HTML blocks with quoted greater-than attribute values cannot satisfy required sections", () => {
   for (const tag of ['<custom-tag title="a > b">', "<custom-tag title='a > b'>"]) {
     const result = validatePullRequestBody(

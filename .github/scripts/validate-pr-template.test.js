@@ -378,6 +378,7 @@ test("tab whitespace in ATX headings, thematic breaks, and setext underlines clo
     {
       name: "tab after ATX heading markers",
       separator: ["##\tSubheading"],
+      expectedHeadings: ["Why", "Subheading", "受け入れ条件との対応"],
     },
     {
       name: "tabs between thematic break markers",
@@ -405,7 +406,11 @@ test("tab whitespace in ATX headings, thematic breaks, and setext underlines clo
 
     assert.equal(result.ok, false, item.name);
     assert.deepEqual(result.missingHeadings, ["変更内容"], item.name);
-    assert.deepEqual(extractH2Headings(body), ["Why", "受け入れ条件との対応"], item.name);
+    assert.deepEqual(
+      extractH2Headings(body),
+      item.expectedHeadings || ["Why", "受け入れ条件との対応"],
+      item.name,
+    );
   }
 });
 

@@ -51,6 +51,24 @@ test("headings in multiline HTML comments cannot satisfy required PR sections", 
 });
 
 
+test("escaped backticks do not open or close inline code spans", () => {
+  const result = validatePullRequestBody(
+    template,
+    [
+      "## Why",
+      "A literal escaped backtick is written as \\` here.",
+      "## 変更内容",
+      "Changed.",
+      "Use `code` in the example.",
+      "## 受け入れ条件との対応",
+      "Done.",
+    ].join("\\n"),
+  );
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.missingHeadings, []);
+});
+
 test("inline code containing HTML comment start markers does not hide subsequent headings", () => {
   const result = validatePullRequestBody(
     template,

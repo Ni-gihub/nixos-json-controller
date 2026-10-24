@@ -38,7 +38,7 @@ function withoutCommentsAndCode(markdown) {
   }
 
   return withoutRawHtmlBlocks(
-    visibleLines.join("\n").replace(/<!--[\\s\\S]*?(?:-->|$)/g, ""),
+    visibleLines.join("\n").replace(/<!--[\s\S]*?(?:-->|$)/g, ""),
   );
 }
 

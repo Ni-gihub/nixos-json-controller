@@ -32,6 +32,24 @@ test("extracts H2 headings and ignores HTML comments and both fence styles", () 
   assert.deepEqual(headings, ["Why", "検証結果"]);
 });
 
+test("headings in multiline HTML comments cannot satisfy required PR sections", () => {
+  const result = validatePullRequestBody(
+    template,
+    [
+      "## Why",
+      "Reason.",
+      "<!--",
+      "## 変更内容",
+      "-->",
+      "## 受け入れ条件との対応",
+      "Done.",
+    ].join("\n"),
+  );
+
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.missingHeadings, ["変更内容"]);
+});
+
 test("raw HTML blocks cannot satisfy required PR sections", () => {
   const preResult = validatePullRequestBody(
     template,

@@ -31,7 +31,7 @@ function withoutInlineCodeAndHtmlComments(markdown) {
       /^(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})$/.test(content) ||
       /^(?:=+[ \t]*|-{1,2}[ \t]*)$/.test(content) ||
       /^>/.test(content) ||
-      /^(?:[-+*][ \t]+|1[.)][ \t]+)/.test(content)
+      /^(?:[-+*][ \t]+|0{0,8}1[.)][ \t]+)/.test(content)
     );
   }
 
@@ -271,7 +271,7 @@ function withoutRawHtmlBlocks(markdown) {
 
     // Block quote and list item markers start block containers and close
     // a paragraph at the current nesting level.
-    if (/^>/.test(content) || /^(?:[-+*][ \t]+|1[.)][ \t]+)/.test(content)) {
+    if (/^>/.test(content) || /^(?:[-+*][ \t]+|0{0,8}1[.)][ \t]+)/.test(content)) {
       visibleLines.push(line);
       paragraphOpen = false;
       continue;

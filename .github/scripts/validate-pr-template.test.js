@@ -373,6 +373,42 @@ test("thematic breaks close paragraphs before type 7 HTML blocks", () => {
   assert.deepEqual(result.missingHeadings, ["変更内容"]);
 });
 
+test("tab whitespace in ATX headings, thematic breaks, and setext underlines closes paragraphs", () => {
+  const cases = [
+    {
+      name: "tab after ATX heading markers",
+      separator: ["##\\tSubheading"],
+    },
+    {
+      name: "tabs between thematic break markers",
+      separator: ["*\\t*\\t*"],
+    },
+    {
+      name: "tab after setext underline",
+      separator: ["Setext heading", "===\\t"],
+    },
+  ];
+
+  for (const item of cases) {
+    const body = [
+      "## Why",
+      "Reason.",
+      ...item.separator,
+      "<custom-tag>",
+      "## 変更内容",
+      "Still inside the raw HTML block.",
+      "",
+      "## 受け入れ条件との対応",
+      "Done.",
+    ].join("\\n");
+    const result = validatePullRequestBody(template, body);
+
+    assert.equal(result.ok, false, item.name);
+    assert.deepEqual(result.missingHeadings, ["変更内容"], item.name);
+    assert.deepEqual(extractH2Headings(body), ["Why", "受け入れ条件との対応"], item.name);
+  }
+});
+
 test("fenced code blocks separate paragraphs before type 7 HTML blocks", () => {
   const result = validatePullRequestBody(
     template,

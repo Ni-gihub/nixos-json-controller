@@ -191,6 +191,7 @@ test("raw HTML blocks with quoted greater-than attribute values cannot satisfy r
       [
         "## Why",
         "Reason.",
+        "",
         tag,
         "## 変更内容",
         "Still inside the raw HTML block.",

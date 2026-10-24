@@ -23,6 +23,46 @@ function withoutInlineCodeAndHtmlComments(markdown) {
     return backslashCount % 2 === 1;
   }
 
+  function isBlockBoundaryLine(line) {
+    const content = line.replace(/^ {0,3}/, "");
+    return (
+      /^[ \t]*$/.test(line) ||
+      /^#{1,6}(?:[ \t]+|$)/.test(content) ||
+      /^(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})$/.test(content) ||
+      /^(?:=+[ \t]*|-{1,2}[ \t]*)$/.test(content) ||
+      /^>/.test(content) ||
+      /^(?:[-+*][ \t]+|[1-9][0-9]{0,8}[.)][ \t]+)/.test(content)
+    );
+  }
+
+  function inlineBlockEnd(startIndex) {
+    const firstLineStart = source.lastIndexOf("\n", startIndex - 1) + 1;
+    const firstLineBreak = source.indexOf("\n", startIndex);
+    const firstLineEnd = firstLineBreak < 0 ? source.length : firstLineBreak;
+    const firstLine = source.slice(firstLineStart, firstLineEnd).replace(/\r$/, "");
+
+    // Inline parsing inside a block-start line cannot continue into the next block.
+    if (isBlockBoundaryLine(firstLine)) {
+      return firstLineEnd;
+    }
+
+    let lineStart = firstLineBreak < 0 ? source.length : firstLineBreak + 1;
+    while (lineStart < source.length) {
+      const lineBreak = source.indexOf("\n", lineStart);
+      const lineEnd = lineBreak < 0 ? source.length : lineBreak;
+      const line = source.slice(lineStart, lineEnd).replace(/\r$/, "");
+      if (isBlockBoundaryLine(line)) {
+        return lineStart;
+      }
+      if (lineBreak < 0) {
+        break;
+      }
+      lineStart = lineBreak + 1;
+    }
+
+    return source.length;
+  }
+
   for (let index = 0; index < source.length;) {
     if (source[index] === backtick) {
       let openingEnd = index;
@@ -37,10 +77,11 @@ function withoutInlineCodeAndHtmlComments(markdown) {
       }
 
       const delimiterLength = openingEnd - index;
+      const blockEnd = inlineBlockEnd(index);
       let search = openingEnd;
       let closingEnd = -1;
 
-      while (search < source.length) {
+      while (search < blockEnd) {
         if (source[search] !== backtick) {
           search += 1;
           continue;
